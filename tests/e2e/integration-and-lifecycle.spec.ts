@@ -38,8 +38,8 @@ test.describe('J13: 插件生命周期合规', () => {
     const resizeHandle = page.locator(MISC.resizeHandle);
 
     // `.cg-resize-handle` 一直被渲染，但只在面板自行持有几何尺寸时才可交互：
-    // 宿主自适应的集成模式（conversation-view / sidebar-right / better-sidebar /
-    // remote-web-ui）下 `useGraphDerivedValues.ts:68-73` 不会加 `cg-resizable`，
+    // 宿主自适应的集成模式（conversation-view / sidebar-right / better-sidebar）
+    // 下 `useGraphDerivedValues.ts:68-73` 不会加 `cg-resizable`，
     // `layout.css:1078-1080` 于是把它设为 `display:none`。dev-server 用的是
     // `slot`（不属于 HOST_SIZED_INTEGRATION_MODES），所以这里应当可拖拽。
     await expect(resizeHandle).toBeAttached();

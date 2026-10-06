@@ -30,14 +30,26 @@ function hostCtx(overrides: Record<string, unknown> = {}) {
   return { tools: { get: vi.fn(() => undefined) }, ...overrides } as any;
 }
 
-/** Context shape that makes the client half detect gen2 through the `slots` service. */
+/**
+ * gen2 客户端最小形状：命中一个 0.2 独有服务。
+ *
+ * cycle-83 之前这里只给 `slots`，但 `slots`/`sidebarRightTabs`/`documentPreviews`
+ * 都是**两代都有**的服务，用它定代会把 gen1 误判成 gen2。真正的 0.2 独有标记只有
+ * `pluginNavigation` 与 `userQuestionPanels`（见 `ClientVersionDetector.GEN2_ONLY_SERVICES`）。
+ */
 function clientCtxGen2() {
-  return { slots: { inject: () => {}, register: () => {} }, get: () => null } as any;
+  return { slots: { inject: () => {}, register: () => {} }, get: (key: string) => (key === 'pluginNavigation' ? {} : null) } as any;
 }
 
-/** Context shape where only `spotlight` exists — the only 0.1-era marker. */
+/**
+ * gen1 宿主的最小形状：只有 slot 系统在场，且**没有任何** 0.2 独有服务。
+ *
+ * cycle-83 之前这里探测 `spotlight`，但该服务在任何 DSH 代都不存在（幻影），因此旧夹具
+ * 断言的是一条永不执行的分支。现在用两代都存在的 `sidebarRightTabs` 作「身处 0.1 线」的
+ * 下界证据（见 `ClientVersionDetector.GEN2_ONLY_SERVICES` 的注释）。
+ */
 function clientCtxGen1() {
-  return { get: (key: string) => (key === 'spotlight' ? {} : null) } as any;
+  return { get: (key: string) => (key === 'sidebarRightTabs' ? {} : null) } as any;
 }
 
 describe('dshGeneration window', () => {
@@ -148,13 +160,13 @@ describe('capability probing (forward compatibility)', () => {
   const unknownHost = detectHostVersion(hostCtx());
 
   it('switches an ungranted capability ON when the probe observes it', () => {
-    // `remoteWebUi` is one of the two capabilities the unknown baseline withholds.
+    // `incrementalBootstrap` 是 unknown 基线刻意扣留的能力之一（gen1 也没有）。
     const resolution = resolveFeatureFlags(unknownHost, (capability) => (
-      capability === 'remoteWebUi' ? true : undefined
+      capability === 'incrementalBootstrap' ? true : undefined
     ));
-    expect(resolution.flags.remoteWebUi).toBe(true);
+    expect(resolution.flags.incrementalBootstrap).toBe(true);
     expect(resolution.source).toBe('generation+probe');
-    expect(resolution.probedUpgrades).toEqual(['remoteWebUi']);
+    expect(resolution.probedUpgrades).toEqual(['incrementalBootstrap']);
   });
 
   it('never switches a granted capability OFF, whatever the probe says', () => {
@@ -166,9 +178,9 @@ describe('capability probing (forward compatibility)', () => {
   });
 
   it('does not mutate the shared generation table', () => {
-    expect(FEATURE_FLAGS_BY_GENERATION.unknown.remoteWebUi).toBe(false);
-    resolveFeatureFlags(unknownHost, (capability) => (capability === 'remoteWebUi' ? true : undefined));
-    expect(FEATURE_FLAGS_BY_GENERATION.unknown.remoteWebUi).toBe(false);
+    expect(FEATURE_FLAGS_BY_GENERATION.unknown.incrementalBootstrap).toBe(false);
+    resolveFeatureFlags(unknownHost, (capability) => (capability === 'incrementalBootstrap' ? true : undefined));
+    expect(FEATURE_FLAGS_BY_GENERATION.unknown.incrementalBootstrap).toBe(false);
   });
 
   it('treats a throwing or inconclusive probe as no evidence', () => {
@@ -206,18 +218,18 @@ describe('capability probing (forward compatibility)', () => {
   });
 
   it('gives a probe-visible capability to an otherwise unclassified host end to end', () => {
-    // No version string, no upstream codegraph tool → generation unknown. The remote-web-ui
-    // service is still visible, so the capability is granted instead of falling to the
-    // conservative baseline.
+    // No version string, no upstream codegraph tool → generation unknown. The
+    // workspaceRegistry service is still visible, so the capability is granted instead of
+    // falling to the conservative baseline.
     const ctx = {
       hostVersion: 'garbage',
-      get: (k: string) => (k === 'remoteWebUI' ? {} : undefined),
+      get: (k: string) => (k === 'workspaceRegistry' ? {} : undefined),
       tools: { get: () => undefined },
     } as any;
     const info = detectHostVersion(ctx);
     expect(info.generation).toBe('unknown');
     const flags = createFeatureFlags(info, createHostCapabilityProbe(ctx));
-    expect(flags.remoteWebUi).toBe(true);
+    expect(flags.workspaceRegistry).toBe(true);
     expect(flags.incrementalBootstrap).toBe(false);
   });
 });

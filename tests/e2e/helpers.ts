@@ -419,7 +419,7 @@ export async function getAnalysisState<T = unknown>(page: Page, key: string): Pr
  * 读取当前集成模式（`GraphPanel.tsx:341` 写在 `data-cg-integration` 上）。
  *
  * 用于判断 `.cg-resize-handle` 是否真的可拖拽：宿主自适应的集成模式
- * （conversation-view / sidebar-right / better-sidebar / remote-web-ui）
+ * （conversation-view / sidebar-right / better-sidebar）
  * 下，面板不持有自己的几何尺寸，`useGraphDerivedValues.ts:68-73` 不会加
  * `cg-resizable`，`layout.css:1078-1080` 于是把 handle 设为 `display:none`。
  */

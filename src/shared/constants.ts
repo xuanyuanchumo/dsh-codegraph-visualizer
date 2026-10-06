@@ -355,7 +355,6 @@ export const UI = {
     'sidebar-right': { width: 200, height: 180 },
     slot: { width: 220, height: 200 },
     floating: { width: 320, height: 240 },
-    'remote-web-ui': { width: 320, height: 240 },
     'conversation-view': { width: 280, height: 200 },
     unknown: { width: 320, height: 240 },
   } as const,
@@ -375,7 +374,16 @@ export const UI = {
   WORKSPACE_LIST_MAX: 10,
   MAX_FUNCTIONS_PER_CLUSTER: 50,
 } as const;
-export type IntegrationMode = 'better-sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui' | 'conversation-view';
+
+/**
+ * 本插件在客户端可用的集成通道。
+ *
+ * `remote-web-ui` 成员已在 cycle-83 删除：`ctx.get('remoteWebUI')` 在任何 DSH 代都不存在
+ * （幻影），真实的 `@linxin666/dsh-remote-web-ui` 只写 DOM 适配标记、不提供任何面板 API，
+ * 因此「远程窄屏」是版面适配维度而非集成通道，由
+ * `src/client/compat/PlatformProbe.ts` 的 `isRemoteNarrow` 表达。
+ */
+export type IntegrationMode = 'better-sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'conversation-view';
 
 export function getMinPanelSize(mode: IntegrationMode): { minWidth: number; minHeight: number } {
   const cfg = UI.PANEL_MIN_SIZE[mode] ?? UI.PANEL_MIN_SIZE.unknown;
@@ -395,7 +403,6 @@ const HOST_SIZED_INTEGRATION_MODES: ReadonlySet<IntegrationMode> = new Set<Integ
   'conversation-view',
   'sidebar-right',
   'better-sidebar',
-  'remote-web-ui',
 ]);
 
 export function isHostSizedIntegrationMode(mode: IntegrationMode): boolean {

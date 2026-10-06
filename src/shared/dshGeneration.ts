@@ -1,22 +1,21 @@
-// Single source of truth for "which generation of DSH are we running inside".
+// 「我们正运行在 DSH 哪一代」的唯一真源。
 //
-// Why this module exists: the generation window used to be written out four times —
-// `src/host/compat/HostVersionDetector.ts`, `src/client/compat/ClientVersionDetector.ts`,
-// `tests/unit/manifest.test.ts` (DSH_GENERATIONS) and `package.json` (engines.dsh) — each
-// with its own copy of the thresholds. Nothing linked them, so widening the window in one
-// place silently desynced the other three (the host half and the client half could classify
-// the same host differently, which the two `isGen2()`-style branches act on).
+// 本模块存在的理由：代际窗口曾被写死四处 —— `src/host/compat/HostVersionDetector.ts`、
+// `src/client/compat/ClientVersionDetector.ts`、`tests/unit/manifest.test.ts`（DSH_GENERATIONS）
+// 与 `package.json`（engines.dsh）—— 各自持有一份阈值副本。它们之间没有任何联动，于是
+// 在任一处放宽窗口都会静默地让另外三处失配（宿主半与客户端半可能对同一个宿主得出不同
+// 分类，而两处的 `isGen2()` 式分支会照此行事）。
 //
-// The window is derived from the DSH releases the manifest claims (`engines.dsh`), and
-// `tests/unit/dshGeneration.test.ts` fails if the manifest and this module drift apart.
+// 窗口由清单所声明的 DSH 发布线（`engines.dsh`）推导；`tests/unit/dshGeneration.test.ts`
+// 会在清单与本模块漂移时失败。
 //
-// Compatibility is declarative only (dsh-package-manifest/README.md:93: installers do not
-// enforce `engines.dsh`), so this module classifies; it never gates loading.
+// 兼容性只是声明式的（见 `dsh-package-manifest/README.md:93`：安装器不强制 `engines.dsh`），
+// 因此本模块只做分类，从不拦截加载。
 
-/** DSH host generations this plugin models. `unknown` is a first-class outcome, not an error. */
+/** 本插件建模的 DSH 宿主代际。`unknown` 是一等结果，不是错误。 */
 export type DshGeneration = 'gen1' | 'gen2' | 'gen3' | 'unknown';
 
-/** The generations that actually correspond to a released DSH line. */
+/** 真正对应已发布 DSH 线的代际。 */
 export const DSH_GENERATIONS = ['gen1', 'gen2', 'gen3'] as const;
 
 export type DshKnownGeneration = (typeof DSH_GENERATIONS)[number];
@@ -31,8 +30,8 @@ export interface DshVersionInfo {
 }
 
 /**
- * One representative release per generation. This is the list `engines.dsh` must cover,
- * and the list the host/client detectors must classify identically.
+ * 每代一个代表版本。这既是 `engines.dsh` 必须覆盖的清单，也是宿主/客户端两侧检测器
+ * 必须得出相同分类的清单。
  */
 export const DSH_GENERATION_PROBES: Record<DshKnownGeneration, string> = {
   gen1: '0.1.7-rc.2',
@@ -40,10 +39,17 @@ export const DSH_GENERATION_PROBES: Record<DshKnownGeneration, string> = {
   gen3: '0.3.0-rc.2',
 };
 
-/** The supported host window, declared in `package.json` as `engines.dsh`. */
+/** 受支持的宿主窗口，在 `package.json` 中以 `engines.dsh` 声明。 */
 export const DSH_SUPPORTED_RANGE = '>=0.1.7-rc.2 <0.4.0';
 
-/** The exclusive upper bound of {@link DSH_SUPPORTED_RANGE}, for drift assertions. */
+/**
+ * {@link DSH_SUPPORTED_RANGE} 的排他上界，供漂移断言使用。
+ *
+ * 注意这里与真实的强制门存在语义差：`dsh-app-boot` 只比对 `peerDependencies` 上的
+ * `@deepseek-ai/dsh*`（`dsh-app-boot/README.md:52` 逐字说明「这些检查用 peer 声明，
+ * 不用 `engines.dsh`」），而本插件的 peer 范围实测拒绝 0.4.0 与 1.0.0，同时拒绝
+ * gen1 的 `0.1.7-rc.1`。因此本常量描述的是**本插件的适配器模型边界**，不是安装门。
+ */
 export const DSH_UNSUPPORTED_PROBE = '0.4.0';
 
 const VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:-([\w.]+))?/;
@@ -53,12 +59,11 @@ export function isDshGeneration(value: unknown): value is DshGeneration {
 }
 
 /**
- * Map a semver major/minor pair onto a generation.
+ * 把 semver 的 major/minor 对映射到代际。
  *
- * gen1 = 0.1.x, gen2 = 0.2.x, gen3 = 0.3.x and every later line (0.4.x, 1.x, …). Later
- * lines land in gen3 on purpose: gen3 is modelled as a forward-compatible superset of
- * gen2, so an unreleased 0.4.x host gets the newest adapter instead of degrading to
- * "unknown", and only a host below the supported floor stays unclassified.
+ * gen1 = 0.1.x，gen2 = 0.2.x，gen3 = 0.3.x 及其之后的所有线（0.4.x、1.x……）。后续线
+ * 刻意落进 gen3：gen3 被建模为 gen2 的前向兼容超集，于是尚未发布的 0.4.x 宿主会拿到
+ * 最新适配器，而不是退化成 `unknown`；只有低于受支持下界的宿主才保持未分类。
  */
 export function generationOfVersion(major: number, minor: number): DshGeneration {
   if (major >= 1) return 'gen3';
@@ -66,10 +71,10 @@ export function generationOfVersion(major: number, minor: number): DshGeneration
   if (minor >= 3) return 'gen3';
   if (minor === 2) return 'gen2';
   if (minor === 1) return 'gen1';
-  return 'unknown'; // 0.0.x predates the modelled window
+  return 'unknown'; // 0.0.x 早于本插件建模的窗口
 }
 
-/** Parse a raw version string (with or without a leading `v`, prerelease optional). */
+/** 解析原始版本串（可带前导 `v`，预发布段可选）。 */
 export function parseDshVersion(raw: string): DshVersionInfo {
   const match = raw.match(VERSION_PATTERN);
   if (!match) {
@@ -89,14 +94,14 @@ export function parseDshVersion(raw: string): DshVersionInfo {
 }
 
 /**
- * A version that failed every detector. Shared so the host and client halves report the
- * identical shape for "I could not tell".
+ * 所有检测器都失败时的版本。共享此函数是为了让宿主半与客户端半对「我判断不出来」
+ * 报告完全相同的形状。
  */
 export function unknownDshVersion(raw = 'unknown'): DshVersionInfo {
   return { raw, major: 0, minor: 0, patch: 0, prerelease: null, generation: 'unknown' };
 }
 
-/** A representative release of the generation, for detection from API shape (no version string). */
+/** 该代的一个代表版本，供「无版本串、只能按 API 形状判定」的检测使用。 */
 export function probeReleaseFor(generation: DshGeneration): string | null {
   return generation === 'unknown' ? null : DSH_GENERATION_PROBES[generation];
 }

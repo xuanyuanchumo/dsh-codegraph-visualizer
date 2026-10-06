@@ -800,7 +800,8 @@
   display: none;
 }
 
-/* Generic host container for better-sidebar / remote-web-ui embedded panels */
+/* Generic host container for host-managed embedded panels
+ * (conversation.view / sidebar-right / better-sidebar). */
 .cg-integration-host {
   display: block;
   width: 100%;
@@ -881,34 +882,35 @@
   border-radius: 0;
 }
 
-/* ---- Remote Web UI Integration Mode --------------------------------------- */
+/* ---- Remote narrow-screen carrier adaptation ------------------------------- */
 
-/* When integrated via remoteWebUI API, the panel is in a remote panel. */
-[data-cg-integration="remote-web-ui"] {
-  width: 100%;
-  height: 100%;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
+/* `@linxin666/dsh-remote-web-ui` is a real, widely-installed plugin, but it
+ * exposes no panel/tab API at all — its client half only occupies the
+ * `sidebar.footer.action` seat and writes DOM adaptation marks
+ * (`lib/client.js:4155 ACTIVE_CLASS = "dsh-remote-portrait"`, added to
+ * `document.body` at `:4368`). So the honest relationship is "detect it and let
+ * the layout adapt", not "call its API". The former `remote-web-ui`
+ * integration mode was a phantom (`ctx.get('remoteWebUI')` exists in no DSH
+ * generation) and has been removed; these rules replace it.
+ *
+ * The toolbar must stay reachable on a phone-width carrier, so it is allowed to
+ * wrap instead of overflowing. */
+body.dsh-remote-portrait .cg-graph-toolbar {
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
-[data-cg-integration="remote-web-ui"] .cg-graph-toolbar {
-  display: flex;
-  flex-shrink: 0;
-}
-
-[data-cg-integration="remote-web-ui"] .cg-graph-container {
-  flex: 1;
-  min-height: 0;
-}
-
-[data-cg-integration="remote-web-ui"] .cg-collapse-fab {
-  display: none;
-}
-
-[data-cg-integration="remote-web-ui"].cg-graph-panel:not(.cg-collapsed) {
+body.dsh-remote-portrait .cg-graph-panel:not(.cg-collapsed) {
   border: none;
   border-radius: 0;
+}
+
+/* Below 480px the toolbar's own compact breakpoint (see Toolbar.tsx) already
+ * collapses secondary controls; the graph area just needs the remaining
+ * height. */
+body.dsh-remote-portrait .cg-graph-container {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ---- Toolbar always visible in non-floating modes -------------------------- */

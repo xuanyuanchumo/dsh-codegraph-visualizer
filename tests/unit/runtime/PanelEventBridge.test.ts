@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Context } from '@deepseek-ai/cordis';
 import { DOM_EVENTS } from '../../../src/shared/domEvents.ts';
 
-import { setupSpotlightBridge } from '../../../src/client/runtime/SpotlightBridge.ts';
+import { setupPanelEventBridge } from '../../../src/client/runtime/PanelEventBridge.ts';
 
 let activeDisposers: Array<() => void> = [];
 function createCtx(): { ctx: Context; disposers: Array<() => void> } {
@@ -19,7 +19,7 @@ function createCtx(): { ctx: Context; disposers: Array<() => void> } {
   return { ctx, disposers };
 }
 
-describe('setupSpotlightBridge', () => {
+describe('setupPanelEventBridge', () => {
   let addSpy: ReturnType<typeof vi.spyOn>;
   let removeSpy: ReturnType<typeof vi.spyOn>;
 
@@ -39,17 +39,23 @@ describe('setupSpotlightBridge', () => {
     vi.stubGlobal('window', undefined);
     const effectSpy = vi.fn();
     const ctx = { effect: effectSpy, emit: vi.fn() } as unknown as Context;
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     expect(effectSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
   it('registers toggle filter and toggle export listeners', () => {
     const { ctx } = createCtx();
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     const types = addSpy.mock.calls.map((c) => c[0]);
     expect(types).toContain(DOM_EVENTS.TOGGLE_FILTER_PANEL);
     expect(types).toContain(DOM_EVENTS.TOGGLE_EXPORT_MENU);
+  });
+
+  it('labels the effect for diagnostics', () => {
+    const { ctx } = createCtx();
+    setupPanelEventBridge(ctx);
+    expect(ctx.effect).toHaveBeenCalledWith(expect.any(Function), 'codegraph: panel event bridge');
   });
 
   it('toggle filter event clicks filter button when present', () => {
@@ -58,7 +64,7 @@ describe('setupSpotlightBridge', () => {
     document.body.appendChild(btn);
     const clickSpy = vi.spyOn(btn, 'click');
     const { ctx } = createCtx();
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_FILTER_PANEL));
     expect(clickSpy).toHaveBeenCalledTimes(1);
     clickSpy.mockRestore();
@@ -67,7 +73,7 @@ describe('setupSpotlightBridge', () => {
 
   it('toggle filter event does not throw when button absent', () => {
     const { ctx } = createCtx();
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     expect(() => window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_FILTER_PANEL))).not.toThrow();
   });
 
@@ -77,7 +83,7 @@ describe('setupSpotlightBridge', () => {
     document.body.appendChild(btn);
     const clickSpy = vi.spyOn(btn, 'click');
     const { ctx } = createCtx();
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_EXPORT_MENU));
     expect(clickSpy).toHaveBeenCalledTimes(1);
     clickSpy.mockRestore();
@@ -86,13 +92,13 @@ describe('setupSpotlightBridge', () => {
 
   it('toggle export event does not throw when button absent', () => {
     const { ctx } = createCtx();
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     expect(() => window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_EXPORT_MENU))).not.toThrow();
   });
 
   it('cleanup removes both listeners', () => {
     const { ctx, disposers } = createCtx();
-    setupSpotlightBridge(ctx);
+    setupPanelEventBridge(ctx);
     disposers[0]!();
     expect(removeSpy).toHaveBeenCalledWith(DOM_EVENTS.TOGGLE_FILTER_PANEL, expect.any(Function));
     expect(removeSpy).toHaveBeenCalledWith(DOM_EVENTS.TOGGLE_EXPORT_MENU, expect.any(Function));

@@ -383,7 +383,25 @@ declare module '@deepseek-ai/cordis' {
     on<K extends keyof Events>(name: K, listener: Events[K]): () => boolean;
     get(name: string, strict?: boolean): unknown;
     provide(name: string, service: unknown): () => void;
-    inject(deps: string[], callback: (injected: Map<string, unknown>) => void): (() => void) | void;
+    /**
+     * 响应式服务注入：**等到依赖到齐才跑回调**，且依赖被替换时会重跑
+     * （旧 scope 先卸载、再跑新回调）。
+     *
+     * 契约与真实 cordis 对齐（cycle-83 修正，此前这里错写成
+     * `callback: (injected: Map<string, unknown>) => void`，与实现不符）：
+     *
+     *   - `inject(deps: Inject, callback: Plugin.Function<void>): Fiber & PromiseLike<Fiber>`
+     *     （`<A>\cordis\lib\types\registry.d.ts:111` 与 `:185`）
+     *   - `interface Function<T> extends Base<T> { (ctx: Context, config: T): any }`
+     *     （`registry.d.ts:71-73`）⇒ **回调首参是 `Context`**，不是 Map
+     *   - JSDoc 逐字：「Run a callback once the requested services are available.
+     *     Shorthand for `ctx.plugin({ inject, apply: callback })`: the callback is
+     *     unloaded and re-run whenever a required service changes.」
+     *
+     * 返回值是**子 fiber**，随父 fiber 卸载自动释放，因此不需要手工 dispose。
+     * 依赖永不到齐时回调永不执行，且不阻塞父插件 apply（cordis 探针实验 1 实测）。
+     */
+    inject(deps: string[], callback: (scope: Context, config?: unknown) => void): import('@deepseek-ai/cordis').Fiber & PromiseLike<import('@deepseek-ai/cordis').Fiber>;
     slots: {
       inject(slotName: string, callback: () => void): (() => void) | void;
       register(options: { name: string; id?: string; key?: string; order?: number; label?: () => string; inject?: (...args: unknown[]) => unknown }, component?: unknown): (() => void) | void;
@@ -431,63 +449,57 @@ declare module '@deepseek-ai/cordis' {
         prefs: unknown;
       };
     };
-    spotlight?: {
-      registerCommand(cmd: { id: string; title: string; handler: () => void }): (() => void) | void;
+    /**
+     * DSH 斜杠命令贡献面（`@deepseek-ai/dsh-client-ui-commands`）。
+     *
+     * 契约逐字来源：`lib/types/client/contract.d.ts:129`
+     * `register(contribution: CommandContribution): () => void`，JSDoc
+     * 「Register one client command contribution; effect disposer. Duplicate names throw
+     * at registration.」；`CommandContribution`（同文件 `:92-105`）必填
+     * `name` 与 `available(session)`；`ActionSpec`（`:75-82`）为
+     * `{ kind: 'action'; run(session): void }`。
+     *
+     * 本服务由 `Service` 基类 `super(ctx, 'commandUi')` 注册（gen2
+     * `dsh-client-ui-commands/lib/client.js:771`、gen1 同文件 `:737`），因此两代都在。
+     * 它替代了本项目 cycle-83 清除的 `spotlight` 幻影服务。
+     */
+    commandUi?: {
+      register(contribution: {
+        name: string;
+        label?: () => string;
+        description?: () => string;
+        icon?: unknown;
+        available: (session: unknown) => boolean;
+        ui: { kind: 'action'; run: (session: unknown) => void };
+      }): (() => void) | void;
     };
 
+    /**
+     * DSH 原生右侧栏的 tab 类型注册表（`@deepseek-ai/dsh-client-ui-sidebar-right`）。
+     *
+     * 形状逐字对齐 `lib/types/client/tab-registry.d.ts:75-120` 的
+     * `SidebarRightTabDefinition`：
+     *   - `title: (address: string) => string` —— **必填**，且收 `address` 形参；
+     *     旧声明写成可选且无形参，是契约不精确。
+     *   - `keepMounted?: boolean` —— 「Lazily keep a visited body mounted through hiding,
+     *     Session changes and docking; default false」，图表面板需要它。
+     *   - `multiple?: boolean` —— 缺省即「每个 pane 每 kind 一页」。
+     *   - **没有 `order` 字段** —— 排序由 `priority` band 与 `RANKS`
+     *     （`extension: 3 / builtin: 2 / fallback: 1`，见
+     *     `dsh-client-ui-sidebar-right/lib/client.js:8619-8623`）决定，旧声明多写了 `order`。
+     */
     sidebarRightTabs?: {
       register(definition: {
         id: string;
         kind: string;
+        title: (address: string) => string;
+        multiple?: boolean;
+        keepMounted?: boolean;
         patterns?: string[];
         priority?: 'extension' | 'builtin' | 'fallback';
-        order?: number;
         canOpen?: (address: string) => boolean;
-        title?: (address: string) => string;
+        guide?: readonly { id: string; [key: string]: unknown }[];
       }): (() => void) | void;
-    };
-
-    remoteWebUI?: {
-      version: string;
-      features: string[];
-      registerPanel(descriptor: {
-        id: string;
-        title: string | (() => string);
-        description?: string | (() => string);
-        icon?: unknown;
-        order?: number;
-        single?: boolean;
-        hidden?: boolean;
-        badge?: () => string | number | null | undefined;
-        onOpen?: (panel: unknown, scope: unknown) => void;
-        onActivate?: (panel: unknown, scope: unknown) => void;
-        onClose?: (panel: unknown, scope: unknown) => void;
-        component: (props: {
-          ctx: Context;
-          store: unknown;
-          scope: unknown;
-          panel: { id: string; title: string; path?: string };
-          visible: boolean;
-          expanded?: string[];
-          revealed?: string[];
-        }) => unknown;
-      }): (() => void) | void;
-      openPanel(seed: { type: string; title?: string; path?: string }): void;
-      closePanel(panelId: string, scope?: unknown): void;
-      activatePanel(panelId: string, scope?: unknown): void;
-      updatePanel(panelId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
-      subscribe(listener: () => void): () => void;
-      subscribeState(listener: () => void): () => void;
-      getSnapshot(): {
-        sessionId: string | undefined;
-        state: {
-          activePane: string | null;
-          panelOpen: boolean;
-          expanded: string[];
-          revealed: string[];
-        } | undefined;
-        prefs: unknown;
-      };
     };
 
     workspaceRegistry?: {

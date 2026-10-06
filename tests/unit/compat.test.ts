@@ -122,8 +122,6 @@ describe('FeatureFlags', () => {
     expect(flags.incrementalBootstrap).toBe(false);
     expect(flags.workspaceRegistry).toBe(false);
     expect(flags.betterSidebar).toBe(false);
-    expect(flags.spotlight).toBe(false);
-    expect(flags.remoteWebUi).toBe(false);
     expect(flags.multiWorkspace).toBe(false);
   });
 
@@ -134,7 +132,6 @@ describe('FeatureFlags', () => {
     expect(flags.incrementalBootstrap).toBe(true);
     expect(flags.workspaceRegistry).toBe(true);
     expect(flags.betterSidebar).toBe(true);
-    expect(flags.remoteWebUi).toBe(true);
     expect(flags.multiWorkspace).toBe(true);
   });
 
@@ -144,7 +141,6 @@ describe('FeatureFlags', () => {
     const info = detectHostVersion(ctx);
     const flags = createFeatureFlags(info);
     expect(flags.incrementalBootstrap).toBe(false);
-    expect(flags.remoteWebUi).toBe(false);
     expect(flags.betterSidebar).toBe(true);
   });
 
@@ -168,8 +164,6 @@ describe('FeatureFlags', () => {
     expect(flags.incrementalBootstrap).toBe(true);
     expect(flags.workspaceRegistry).toBe(true);
     expect(flags.betterSidebar).toBe(true);
-    expect(flags.spotlight).toBe(true);
-    expect(flags.remoteWebUi).toBe(true);
     expect(flags.multiWorkspace).toBe(true);
     expect(flags.sessionsApi).toBe(true);
     expect(flags.mcpServer).toBe(true);

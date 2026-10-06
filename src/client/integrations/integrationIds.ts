@@ -1,13 +1,15 @@
 /**
- * Integration identifiers.
+ * 集成标识符。
  *
- * `PLUGIN_SLOT_ID` is the globally-unique id used when registering into DSH
- * host-managed slots (e.g. `conversation.view`), where ids must not collide with
- * other plugins.
+ * `PLUGIN_SLOT_ID` 是注册进 DSH 托管 slot（例如 `conversation.view`）时使用的**全局唯一**
+ * id —— DSH 的 slot 注册表对重复 id 是抛错语义，故该值不能与其他插件撞车。
  *
- * `PLUGIN_TAB_KIND` is the internal id/kind shared across this plugin's own
- * integration surface (better-sidebar tab, sidebar footer action, spotlight
- * `openTab`). It intentionally matches the existing `openTab({ type })` contract.
+ * `PLUGIN_TAB_KIND` 是本插件自有集成面内部共用的 id/kind（better-sidebar 的 tab 类型、
+ * sidebar-right 的 tab kind、侧边栏页脚动作）。它刻意与既有的
+ * `openTab({ type })` 契约保持一致。
+ *
+ * 历史：注释里曾提到 `spotlight openTab` —— 该服务在任何 DSH 代都不存在（幻影），
+ * 已随其集成文件在 cycle-83 删除。
  */
 export const PLUGIN_SLOT_ID = 'dsh-codegraph-visualizer';
 export const PLUGIN_TAB_KIND = 'codegraph-visualizer';

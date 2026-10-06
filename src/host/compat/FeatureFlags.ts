@@ -5,22 +5,26 @@ import type { DshGeneration } from '../../shared/dshGeneration.ts';
 const log = scoped('host:compat');
 
 /**
- * Host capability matrix. Every entry must describe something **the host provides**: the flag
- * gates behaviour that degrades when the host lacks the capability.
+ * 宿主能力矩阵。每个条目都必须描述**宿主提供的东西**：标志门控的是「宿主缺少该能力时
+ * 会降级」的行为。
  *
- * Deliberately absent: `treeSitterWasm`. Parsing runs in this plugin's own host process off its
- * own dependency (`tree-sitter-wasm`, resolved by `getWasmPath`), so the host cannot grant or
- * withhold it; the capability was declared `true` on every generation and read by nobody.
- * Round 7 removed it rather than leaving a flag that claims a host capability the plugin never
- * consumes (see `docs/需求分析.md` §31.6 / FR-33).
+ * 刻意缺席 `treeSitterWasm`：解析在本插件自己的宿主进程里、用它自己的依赖
+ * （`tree-sitter-wasm`，经 `getWasmPath` 解析）运行，宿主无法授予或扣留它；该能力曾
+ * 在每一代都声明为 `true` 且无人读取。Round 7 将其删除，而不是留下一个宣称了宿主能力、
+ * 插件却从不消费的标志（见 `docs/需求分析.md` §31.6 / FR-33）。
+ *
+ * cycle-83 删除的幻影位：`spotlight` 与 `remoteWebUi`。两者对应的服务键
+ * （`ctx.get('spotlight')` / `ctx.get('remoteWebUI')`）在 gen1/gen2 两套 DSH 树与本机
+ * 全部已装第三方插件中**零 `provide` 命中**，其客户端集成恒早退。`desktopPlatform`
+ * 予以保留但**语义已改**：它不再探测 `ctx.get('desktopProfiles')`（该键不是 cordis
+ * 服务），而由客户端按 DSH 官方的 `<html>` DOM 标记判定（见
+ * `src/client/compat/PlatformProbe.ts`）。
  */
 export interface FeatureFlags {
   incrementalBootstrap: boolean;
   workspaceRegistry: boolean;
   sessionsApi: boolean;
   betterSidebar: boolean;
-  spotlight: boolean;
-  remoteWebUi: boolean;
   mcpServer: boolean;
   rateLimiting: boolean;
   healthScore: boolean;
@@ -28,6 +32,7 @@ export interface FeatureFlags {
   multiWorkspace: boolean;
   aiAssist: boolean;
   crossRepo: boolean;
+  /** 宿主为桌面（Electron）外壳。由客户端 DOM 判定，宿主侧仅作诊断转述。 */
   desktopPlatform: boolean;
 }
 
@@ -36,8 +41,6 @@ const GEN1_FLAGS: FeatureFlags = {
   workspaceRegistry: false,
   sessionsApi: true,
   betterSidebar: false,
-  spotlight: false,
-  remoteWebUi: false,
   mcpServer: true,
   rateLimiting: true,
   healthScore: true,
@@ -53,8 +56,6 @@ const GEN2_FLAGS: FeatureFlags = {
   workspaceRegistry: true,
   sessionsApi: true,
   betterSidebar: true,
-  spotlight: true,
-  remoteWebUi: true,
   mcpServer: true,
   rateLimiting: true,
   healthScore: true,
@@ -67,24 +68,23 @@ const GEN2_FLAGS: FeatureFlags = {
 
 const GEN3_FLAGS: FeatureFlags = {
   ...GEN2_FLAGS,
-  // gen3 (v0.3.0+) reserved flags — enable when v0.3.0 confirms these features.
-  // Identical to gen2 on purpose: an unreleased line must not be handed capabilities
-  // nobody has verified. Runtime probes (below) are how a real gen3 host gets them.
+  // gen3（v0.3.0+）保留位 —— 待 v0.3.0 确认这些特性后再打开。
+  // 刻意与 gen2 相同：未发布的线不得被授予无人验证的能力。
+  // 真实的 gen3 宿主通过下方运行时探针取得它们。
   aiAssist: false,
   crossRepo: false,
   desktopPlatform: true,
 };
 
-/** Conservative baseline for "the version could not be determined". */
+/** 「版本无法判定」时的保守基线。 */
 const UNKNOWN_FLAGS: FeatureFlags = {
   ...GEN2_FLAGS,
   incrementalBootstrap: false,
-  remoteWebUi: false,
 };
 
 /**
- * The generation → capability matrix, keyed by every generation the model can report.
- * Exported so exhaustiveness is asserted instead of assumed (tests/unit/dshGeneration.test.ts).
+ * 代际 → 能力矩阵，键覆盖模型能报告的每一代。
+ * 导出是为了让穷尽性被断言而非假设（`tests/unit/dshGeneration.test.ts`）。
  */
 export const FEATURE_FLAGS_BY_GENERATION: Record<DshGeneration, FeatureFlags> = {
   gen1: GEN1_FLAGS,
@@ -94,12 +94,12 @@ export const FEATURE_FLAGS_BY_GENERATION: Record<DshGeneration, FeatureFlags> = 
 };
 
 /**
- * Runtime capability probe. `true` = the capability was observed on this host,
- * `false`/`null`/`undefined` = no usable evidence (absence is not proof of absence).
+ * 运行时能力探针。`true` = 在该宿主上观测到该能力，
+ * `false`/`null`/`undefined` = 没有可用证据（缺席不等于不存在）。
  */
 export type CapabilityProbe = (capability: keyof FeatureFlags) => boolean | null | undefined;
 
-/** Capabilities a probe upgraded over the generation default, for logging/telemetry. */
+/** 探针在代际默认值之上提升的能力，供日志/遥测使用。 */
 export interface FeatureFlagResolution {
   flags: FeatureFlags;
   source: 'generation' | 'generation+probe';
@@ -107,15 +107,12 @@ export interface FeatureFlagResolution {
 }
 
 /**
- * Resolve the capability set for a host.
+ * 解析某宿主的能力集。
  *
- * Generation defaults alone would misprice two situations the plugin must survive:
- * a host newer than the model (`unknown`/future line that does have a capability) and a
- * host older than its own line (a 0.2 build without the upstream codegraph plugin).
- * A probe fixes both, but **only additively**: a probe may switch a capability on, never
- * off. Probing is heuristic, so a false negative would silently remove working behaviour,
- * whereas a false positive only restores something the version model already granted on
- * a neighbouring generation.
+ * 只用代际默认值会错估两种本插件必须活下来的情形：比模型更新的宿主（`unknown`/未来线，
+ * 但它确实有某能力）与比自身所属线更旧的宿主（0.2 的构建但没装上游 codegraph 插件）。
+ * 探针能同时修正两者，但**只做加法**：探针可以把能力打开，永不关闭。探测是启发式的，
+ * 假阴性会静默移除可用行为，而假阳性只是恢复版本模型在邻近代已经授予过的东西。
  */
 export function resolveFeatureFlags(info: HostVersionInfo, probe?: CapabilityProbe): FeatureFlagResolution {
   const base = FEATURE_FLAGS_BY_GENERATION[info.generation];
@@ -126,7 +123,7 @@ export function resolveFeatureFlags(info: HostVersionInfo, probe?: CapabilityPro
   const flags: FeatureFlags = { ...base };
   const probedUpgrades: (keyof FeatureFlags)[] = [];
   for (const capability of Object.keys(base) as (keyof FeatureFlags)[]) {
-    if (flags[capability]) continue; // never probe away a granted capability
+    if (flags[capability]) continue; // 已授予的能力永不被探针关掉
     let observed: boolean | null | undefined;
     try {
       observed = probe(capability);

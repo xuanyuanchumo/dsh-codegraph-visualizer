@@ -26,11 +26,11 @@ function makeFlags(overrides: Partial<ClientFeatureFlags> = {}): ClientFeatureFl
   return {
     sidebarRightTabs: false,
     betterSidebar: false,
-    spotlight: false,
     slots: false,
-    remoteWebUi: false,
+    commandUi: false,
     conversationView: false,
     desktopPlatform: false,
+    remoteNarrow: false,
     ...overrides,
   };
 }

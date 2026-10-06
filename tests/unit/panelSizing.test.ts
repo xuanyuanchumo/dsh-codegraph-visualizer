@@ -11,7 +11,6 @@ const HOST_SIZED: IntegrationMode[] = [
   'conversation-view',
   'sidebar-right',
   'better-sidebar',
-  'remote-web-ui',
 ];
 const FREE_SIZED: IntegrationMode[] = ['floating', 'slot', 'unknown'];
 
