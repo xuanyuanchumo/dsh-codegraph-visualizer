@@ -245,22 +245,38 @@ export interface SymbolASTData {
   astNodes: GraphNode[];
   astEdges: GraphEdge[];
   sourceLines: string[];
+  /** Total AST node count the server holds for this symbol, before the page cut. */
+  total: number;
+  /** Offset to send as `cursor` to fetch the next page. */
+  cursor: number;
+  /**
+   * `true` when the server cut the AST at the single-symbol budget
+   * (`SYMBOL_AST.MAX_NODES`) and more nodes remain. The caller must disclose
+   * this and offer segmented loading, otherwise the folded part is lost
+   * silently — see `docs/图谱按需加载.md` 「超限时显示…分段加载」.
+   */
+  hasMore: boolean;
 }
 
-export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal, workspace?: string): Promise<SymbolASTData | null> {
+export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal, workspace?: string, cursor?: number): Promise<SymbolASTData | null> {
   return withAbortGuard('fetchSymbolAST', async () => {
     const params = new URLSearchParams();
     if (workspace && workspace !== '.') params.set('workspace', workspace);
+    if (cursor !== undefined && cursor > 0) params.set('cursor', String(cursor));
     const options: RequestInit = {};
     if (signal) options.signal = signal;
     const qs = params.toString();
     const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast${qs ? `?${qs}` : ''}`, options);
     if (!res.ok) return null;
     const data = await res.json() as SymbolASTData;
+    const astNodes = data.astNodes ?? [];
     return {
-      astNodes: data.astNodes ?? [],
+      astNodes,
       astEdges: data.astEdges ?? [],
       sourceLines: data.sourceLines ?? [],
+      total: typeof data.total === 'number' ? data.total : astNodes.length,
+      cursor: typeof data.cursor === 'number' ? data.cursor : astNodes.length,
+      hasMore: data.hasMore === true,
     };
   }, null, { nodeId });
 }

@@ -18,16 +18,18 @@ function edgeCacheKey(nodeId: string, scope: 'file' | 'symbol'): string {
 }
 
 /**
- * The empty edge-list state. Spread into any `_set` that replaces the graph so
- * stale per-node edge pages from the previous workspace cannot survive.
+ * The empty per-node pagination state. Spread into any `_set` that replaces the
+ * graph so stale per-node edge pages — and stale segmented-AST progress — from
+ * the previous workspace cannot survive.
  */
 export function emptyEdgeState(): Pick<GraphState,
-  'nodeEdgesByNodeId' | 'nodeEdgeTotals' | 'nodeEdgeCursors' | 'loadingEdgeNodeIds'> {
+  'nodeEdgesByNodeId' | 'nodeEdgeTotals' | 'nodeEdgeCursors' | 'loadingEdgeNodeIds' | 'astPageByNodeId'> {
   return {
     nodeEdgesByNodeId: new Map(),
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
+    astPageByNodeId: new Map(),
   };
 }
 

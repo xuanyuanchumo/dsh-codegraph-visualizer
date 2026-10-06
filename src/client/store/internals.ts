@@ -35,6 +35,12 @@ export const internals = {
    * without depending on `expandGeneration` (which advances on ordinary expands).
    */
   edgeRequestSeq: new Map<string, number>(),
+  /**
+   * Monotonic request token per node for segmented AST loading. Same reasoning as
+   * `edgeRequestSeq`: `expandGeneration` also advances on ordinary expands, so it
+   * cannot tell whether a returned page is still the newest one for this node.
+   */
+  astRequestSeq: new Map<string, number>(),
   expandGeneration: 0,
   restoreGeneration: 0,
   restoreTimeoutHandle: null as ReturnType<typeof setTimeout> | null,

@@ -329,10 +329,14 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
       // 先解析工作区、再校验 ETag（理由同 /children）。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
+      // 单符号预算：`budget` 是每页节点上限，`cursor` 是分段加载的起点。
+      // 两者共同实现 docs/图谱按需加载.md 的「超限时折叠为摘要 / 分段加载」：
+      // 只截断而不给 cursor，客户端就无法取回被折叠的部分，只能永久丢失。
       const budget = Math.min(
         parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10) || SYMBOL_AST.MAX_NODES,
         SYMBOL_AST.MAX_NODES,
       );
+      const cursor = Math.max(parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0, 0);
 
       if (returnIfEtagMatch(req, res, corsConfig, deps, 'ast', workspacePath)) return;
 
@@ -341,31 +345,33 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
           const allAstNodes = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
-          const hasMore = allAstNodes.length > budget;
-          const astNodes = hasMore ? allAstNodes.slice(0, budget) : allAstNodes;
+          const astNodes = allAstNodes.slice(cursor, cursor + budget);
+          const nextCursor = cursor + astNodes.length;
+          const hasMore = nextCursor < allAstNodes.length;
           const astNodeIds = new Set(astNodes.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...astNodeIds]);
           const astEdges = mapDbEdgesToGraphEdges(dbEdges);
-          sendJson(res, 200, { astNodes, astEdges, sourceLines: [], hasMore }, req, corsConfig);
+          sendJson(res, 200, { astNodes, astEdges, sourceLines: [], total: allAstNodes.length, cursor: nextCursor, hasMore }, req, corsConfig);
           return;
         }
       }
 
       const lastGraphData = deps.getLastGraphData();
       if (!lastGraphData) {
-        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [], hasMore: false }, req, corsConfig);
+        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig);
         return;
       }
 
       const allAstNodes = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
-      const hasMore = allAstNodes.length > budget;
-      const astNodes = hasMore ? allAstNodes.slice(0, budget) : allAstNodes;
+      const astNodes = allAstNodes.slice(cursor, cursor + budget);
+      const nextCursor = cursor + astNodes.length;
+      const hasMore = nextCursor < allAstNodes.length;
       const astNodeIds = new Set(astNodes.map((n) => n.id));
       const astEdges = lastGraphData.edges.filter(
         (e) => astNodeIds.has(e.source) && astNodeIds.has(e.target),
       );
 
-      sendJson(res, 200, { astNodes, astEdges, sourceLines: [], hasMore }, req, corsConfig);
+      sendJson(res, 200, { astNodes, astEdges, sourceLines: [], total: allAstNodes.length, cursor: nextCursor, hasMore }, req, corsConfig);
     }),
   }), 'codegraph: symbol AST route');
 }

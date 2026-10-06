@@ -56,6 +56,9 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
   const unpinNode = useGraphStore((s) => s.unpinNode);
   const batchExpandNodes = useGraphStore((s) => s.batchExpandNodes);
   const collapseNode = useGraphStore((s) => s.collapseNode);
+  const loadMoreAst = useGraphStore((s) => s.loadMoreAst);
+  // 单符号 AST 分段进度（服务端按 SYMBOL_AST.MAX_NODES 切页）。
+  const astPage = useGraphStore((s) => s.astPageByNodeId.get(node.id as string));
 
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
@@ -136,6 +139,14 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
       collapseNode(id);
     }
   }, [expandedFunctionIds, unpinNode, collapseNode]);
+
+  // 单符号 AST 超预算时服务端只回第一页；这里把「被折叠」如实披露出来，
+  // 并给「分段加载」入口（docs/图谱按需加载.md:155 要求超限时可见折叠状态）。
+  const [loadingMoreAst, setLoadingMoreAst] = useState(false);
+  const handleLoadMoreAst = useCallback(() => {
+    setLoadingMoreAst(true);
+    void loadMoreAst(node.id as string).finally(() => setLoadingMoreAst(false));
+  }, [loadMoreAst, node.id]);
 
   return (
     <div className="cg-node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')} aria-live="polite">
@@ -252,6 +263,23 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
               </button>
             )}
           </div>
+          {astPage && (astPage.hasMore || astPage.loaded < astPage.total) && (
+            <div className="cg-detail-ast-fold" role="status" aria-live="polite">
+              <span className="cg-detail-ast-fold-text">
+                {t('detail.astFolded', { loaded: astPage.loaded, total: astPage.total })}
+              </span>
+              {astPage.hasMore && (
+                <button
+                  className="cg-detail-micro-btn cg-detail-budget-btn"
+                  onClick={handleLoadMoreAst}
+                  disabled={loadingMoreAst}
+                  title={t('detail.astLoadMoreHint')}
+                >
+                  {t('detail.astLoadMore')}
+                </button>
+              )}
+            </div>
+          )}
           <div className="cg-detail-section-title">{t('detail.microViews')}</div>
           <div className="cg-detail-micro-btns">
             <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')} aria-label={t('toolbar.viewModeCfg')}>

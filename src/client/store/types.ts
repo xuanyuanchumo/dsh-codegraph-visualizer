@@ -16,6 +16,18 @@ export interface WorkspaceInfo {
   lastUsed: number;
 }
 
+/** Segmented-loading progress for one symbol's AST. */
+export interface AstPageInfo {
+  /** AST nodes already merged into the graph for this symbol. */
+  loaded: number;
+  /** Server-reported total AST node count for this symbol. */
+  total: number;
+  /** `true` while the server still holds unmerged pages. */
+  hasMore: boolean;
+  /** Offset to request next. */
+  cursor: number;
+}
+
 export interface GraphState {
   nodes: (GraphNode | ClusterNode)[];
   edges: (GraphEdge | ClusterEdge)[];
@@ -86,6 +98,15 @@ export interface GraphState {
   nodeEdgeCursors: Map<string, number>;
   /** Node ids with an in-flight edge request. */
   loadingEdgeNodeIds: Set<string>;
+
+  /**
+   * Single-symbol AST page progress per function node id.
+   *
+   * `/symbols/{id}/ast` cuts at `SYMBOL_AST.MAX_NODES` and reports `total` /
+   * `cursor` / `hasMore`; this map is what lets the detail panel disclose the
+   * cut and pull the remaining pages instead of silently losing them.
+   */
+  astPageByNodeId: Map<string, AstPageInfo>;
 
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
@@ -190,6 +211,15 @@ export interface GraphState {
   unpinNode: (nodeId: string) => void;
   cancelPendingRequest: (nodeId: string) => void;
   loadNodeEdges: (nodeId: string, options?: { append?: boolean; scope?: 'file' | 'symbol' }) => Promise<void>;
+  /**
+   * Fetch and merge the next AST page for a symbol whose body exceeded the
+   * single-symbol budget (`SYMBOL_AST.MAX_NODES`).
+   *
+   * The host cuts `/symbols/{id}/ast` at the budget; without this action the
+   * folded part would be unreachable. Returns `false` when there is nothing
+   * more to load.
+   */
+  loadMoreAst: (nodeId: string) => Promise<boolean>;
   /**
    * Apply a targeted update from the host (P2-21).
    *

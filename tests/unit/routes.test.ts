@@ -89,7 +89,7 @@ import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { VisualizerConfig } from '../../src/host/config.ts';
 import { isSafeRelativePath, triggerBackgroundBuild } from '../../src/host/routes/shared.ts';
 import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
-import { FINGERPRINT, VALIDATION } from '../../src/shared/constants.ts';
+import { FINGERPRINT, VALIDATION, SYMBOL_AST } from '../../src/shared/constants.ts';
 import { computeGraphEtag } from '../../src/shared/graphFingerprint.ts';
 
 type MockCtx = {
@@ -2033,6 +2033,59 @@ describe('symbol AST route (index 14)', () => {
     expect(body.astEdges).toHaveLength(1);
   });
 
+  it('GET /symbols/{nodeId}/ast pages through the AST budget with cursor', async () => {
+    const symNode = makeNode('sym1', 'foo', 'function', '/src/main.ts', 1);
+    const astNodes = Array.from({ length: 5 }, (_, i) =>
+      makeNode(`ast${i}`, `var${i}`, 'variable', '/src/main.ts', 10 + i, {}, 'sym1'),
+    );
+    deps.setLastGraphData(makeGraphData([symNode, ...astNodes], []));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+
+    const first = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast?budget=2'), first.res);
+    expect(first.state.code).toBe(200);
+    const firstBody = JSON.parse(first.state.body);
+    expect(firstBody.astNodes.map((n: { id: string }) => n.id)).toEqual(['ast0', 'ast1']);
+    expect(firstBody.total).toBe(5);
+    expect(firstBody.cursor).toBe(2);
+    expect(firstBody.hasMore).toBe(true);
+
+    const second = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast?budget=2&cursor=2'), second.res);
+    const secondBody = JSON.parse(second.state.body);
+    expect(secondBody.astNodes.map((n: { id: string }) => n.id)).toEqual(['ast2', 'ast3']);
+    expect(secondBody.cursor).toBe(4);
+    expect(secondBody.hasMore).toBe(true);
+
+    const third = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast?budget=2&cursor=4'), third.res);
+    const thirdBody = JSON.parse(third.state.body);
+    expect(thirdBody.astNodes.map((n: { id: string }) => n.id)).toEqual(['ast4']);
+    expect(thirdBody.cursor).toBe(5);
+    expect(thirdBody.hasMore).toBe(false);
+  });
+
+  it('GET /symbols/{nodeId}/ast caps budget at SYMBOL_AST.MAX_NODES and clamps negative cursor', async () => {
+    const symNode = makeNode('sym1', 'foo', 'function', '/src/main.ts', 1);
+    const astNodes = Array.from({ length: 3 }, (_, i) =>
+      makeNode(`ast${i}`, `var${i}`, 'variable', '/src/main.ts', 10 + i, {}, 'sym1'),
+    );
+    deps.setLastGraphData(makeGraphData([symNode, ...astNodes], []));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, `/api/v1/codegraph/symbols/sym1/ast?budget=99999&cursor=-3`), res);
+    const body = JSON.parse(state.body);
+    // budget 被夹到 MAX_NODES（远大于 3，故全返回）；cursor 被夹到 0。
+    expect(body.astNodes).toHaveLength(3);
+    expect(body.cursor).toBe(3);
+    expect(body.hasMore).toBe(false);
+    expect(SYMBOL_AST.MAX_NODES).toBe(800);
+  });
+
   it('GET /symbols/{nodeId}/ast returns empty when no cached data', async () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2492,6 +2545,35 @@ describe('symbol AST route - DB fallback (index 14)', () => {
     expect(body.astNodes[0].label).toBe('var1');
     expect(body.astNodes[0].parentId).toBe('sym1');
     expect(body.astEdges.length).toBe(1);
+  });
+
+  it('GET /symbols/{nodeId}/ast pages the DB path with cursor and reports total', async () => {
+    mockReadSymbolASTFromDb.mockReturnValue({
+      nodes: Array.from({ length: 3 }, (_, i) => ({
+        id: `ast${i}`, kind: 'variable', name: `var${i}`, file_path: 'src/main.ts',
+        start_line: 10 + i, signature: null, docstring: null, is_exported: 0,
+      })),
+      total: 3,
+    });
+    mockReadEdgesForNodesFromDb.mockReturnValue([]);
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+
+    const first = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast?budget=2'), first.res);
+    const firstBody = JSON.parse(first.state.body);
+    expect(firstBody.astNodes.map((n: { id: string }) => n.id)).toEqual(['ast0', 'ast1']);
+    expect(firstBody.total).toBe(3);
+    expect(firstBody.cursor).toBe(2);
+    expect(firstBody.hasMore).toBe(true);
+
+    const second = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast?budget=2&cursor=2'), second.res);
+    const secondBody = JSON.parse(second.state.body);
+    expect(secondBody.astNodes.map((n: { id: string }) => n.id)).toEqual(['ast2']);
+    expect(secondBody.cursor).toBe(3);
+    expect(secondBody.hasMore).toBe(false);
   });
 });
 

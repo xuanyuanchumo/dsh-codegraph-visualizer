@@ -65,7 +65,7 @@ import {
 } from '../../../src/client/store/internals.ts';
 import { CLUSTER, PREFETCH, FUNCTION_BODY, SYMBOL_AST } from '../../../src/shared/constants.ts';
 import { makeNode } from '../../helpers.ts';
-import type { GraphState } from '../../../src/client/store/types.ts';
+import type { GraphState, AstPageInfo } from '../../../src/client/store/types.ts';
 import type { GraphNode, GraphEdge } from '../../../src/types/index.ts';
 import type { IndexedDBCache } from '../../../src/client/cache/IndexedDBCache.ts';
 
@@ -74,7 +74,7 @@ type SliceMethods = Pick<
   GraphState,
   | 'expandNode' | 'loadNodeChildren' | 'loadBootstrap' | 'batchExpandNodes'
   | 'prefetchExpand' | 'collapseNode' | 'collapseAll' | 'pinNode' | 'unpinNode'
-  | 'cancelPendingRequest' | 'restoreFromUrl'
+  | 'cancelPendingRequest' | 'restoreFromUrl' | 'loadMoreAst'
 >;
 
 interface SliceHarness {
@@ -97,6 +97,7 @@ function makeState(overrides: Partial<GraphState> = {}): GraphState {
     loadErrorsByNodeId: new Map<string, string>(),
     pendingRequests: new Map<string, AbortController>(),
     pinnedIds: new Set<string>(),
+    astPageByNodeId: new Map<string, AstPageInfo>(),
     viewMode: 'code',
     clusterDepth: 0,
     panelWidth: null,
@@ -322,13 +323,16 @@ describe('expandSlice', () => {
         astNodes,
         astEdges,
         sourceLines: [],
+        total: astNodes.length,
+        cursor: SYMBOL_AST.MAX_NODES,
+        hasMore: true,
       });
       const h = makeSlice({ rawNodes: [fn] });
 
       h.slice.expandNode('fn1');
       await nextTick();
 
-      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.');
+      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.', 0);
       expect(warnSpy).toHaveBeenCalledWith(
         'symbol AST truncated',
         expect.objectContaining({ nodeId: 'fn1', original: astNodes.length }),
@@ -970,6 +974,136 @@ describe('expandSlice', () => {
 
       const merged = mocks.mergeAndRecluster.mock.calls[0]!;
       expect((merged[4] as { sourceLines?: number }).sourceLines).toBe(SYMBOL_AST.MAX_SOURCE_LINES);
+    });
+  });
+
+  // ── 单符号 AST 预算的分段加载（P1-1） ─────────────────────────────────────
+  describe('single-symbol AST budget paging', () => {
+    it('records total/cursor/hasMore reported by the server', async () => {
+      const fn = fnNode('fn1', 'function');
+      mocks.fetchSymbolAST.mockResolvedValue({
+        astNodes: [fnNode('a1', 'function')],
+        astEdges: [],
+        sourceLines: [],
+        total: 5,
+        cursor: 1,
+        hasMore: true,
+      });
+      const h = makeSlice({ rawNodes: [fn] });
+
+      h.slice.expandNode('fn1');
+      await nextTick();
+
+      const page = h.state.astPageByNodeId.get('fn1') as AstPageInfo;
+      expect(page).toEqual({ loaded: 1, total: 5, hasMore: true, cursor: 1 });
+    });
+
+    it('does not poison the persistent cache with a partial page', async () => {
+      const fn = fnNode('fn1', 'function');
+      const cacheMock = {
+        getOutline: vi.fn(),
+        setOutline: vi.fn(),
+        getAST: vi.fn().mockResolvedValue(null),
+        setAST: vi.fn().mockResolvedValue(undefined),
+      } as unknown as IndexedDBCache;
+      internals.persistentCache = cacheMock;
+      mocks.fetchSymbolAST.mockResolvedValue({
+        astNodes: [fnNode('a1', 'function')],
+        astEdges: [],
+        sourceLines: [],
+        total: 5,
+        cursor: 1,
+        hasMore: true,
+      });
+      const h = makeSlice({ rawNodes: [fn] });
+
+      h.slice.expandNode('fn1');
+      await nextTick();
+
+      // 缓存只存完整的一页；否则下次首页命中缓存后 hasMore 状态被毒化。
+      expect(cacheMock.setAST).not.toHaveBeenCalled();
+    });
+
+    it('loadMoreAst returns false when no page is recorded', async () => {
+      const fn = fnNode('fn1', 'function');
+      const h = makeSlice({ rawNodes: [fn] });
+
+      await expect(h.slice.loadMoreAst('fn1')).resolves.toBe(false);
+      expect(mocks.fetchSymbolAST).not.toHaveBeenCalled();
+    });
+
+    it('loadMoreAst returns false when the recorded page is complete', async () => {
+      const fn = fnNode('fn1', 'function');
+      const h = makeSlice({
+        rawNodes: [fn],
+        astPageByNodeId: new Map([['fn1', { loaded: 3, total: 3, hasMore: false, cursor: 3 }]]),
+      });
+
+      await expect(h.slice.loadMoreAst('fn1')).resolves.toBe(false);
+      expect(mocks.fetchSymbolAST).not.toHaveBeenCalled();
+    });
+
+    it('loadMoreAst fetches the next page from the recorded cursor and accumulates progress', async () => {
+      const fn = fnNode('fn1', 'function');
+      mocks.fetchSymbolAST.mockResolvedValue({
+        astNodes: [fnNode('a2', 'function'), fnNode('a3', 'function')],
+        astEdges: [],
+        sourceLines: [],
+        total: 5,
+        cursor: 3,
+        hasMore: true,
+      });
+      const h = makeSlice({
+        rawNodes: [fn],
+        astPageByNodeId: new Map([['fn1', { loaded: 1, total: 5, hasMore: true, cursor: 1 }]]),
+      });
+
+      await expect(h.slice.loadMoreAst('fn1')).resolves.toBe(true);
+      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.', 1);
+      expect(h.state.astPageByNodeId.get('fn1')).toEqual({ loaded: 3, total: 5, hasMore: true, cursor: 3 });
+    });
+
+    it('loadMoreAst returns false when the last page adds nothing', async () => {
+      const fn = fnNode('fn1', 'function');
+      mocks.fetchSymbolAST.mockResolvedValue({
+        astNodes: [],
+        astEdges: [],
+        sourceLines: [],
+        total: 5,
+        cursor: 5,
+        hasMore: false,
+      });
+      const h = makeSlice({
+        rawNodes: [fn],
+        astPageByNodeId: new Map([['fn1', { loaded: 5, total: 5, hasMore: true, cursor: 5 }]]),
+      });
+
+      await expect(h.slice.loadMoreAst('fn1')).resolves.toBe(false);
+      // 即便本页为空，也要把服务端权威的 total/hasMore 落盘。
+      expect(h.state.astPageByNodeId.get('fn1')).toEqual({ loaded: 5, total: 5, hasMore: false, cursor: 5 });
+    });
+
+    it('loadMoreAst ignores non-function nodes', async () => {
+      const mod = fnNode('mod1', 'module');
+      const h = makeSlice({
+        rawNodes: [mod],
+        astPageByNodeId: new Map([['mod1', { loaded: 1, total: 5, hasMore: true, cursor: 1 }]]),
+      });
+
+      await expect(h.slice.loadMoreAst('mod1')).resolves.toBe(false);
+      expect(mocks.fetchSymbolAST).not.toHaveBeenCalled();
+    });
+
+    it('degrades to a complete single page when the server omits paging fields', async () => {
+      const fn = fnNode('fn1', 'function');
+      mocks.fetchSymbolAST.mockResolvedValue({ astNodes: [fnNode('a1', 'function')], astEdges: [], sourceLines: [] });
+      const h = makeSlice({ rawNodes: [fn] });
+
+      h.slice.expandNode('fn1');
+      await nextTick();
+
+      // 旧服务端不返回 total/cursor/hasMore ⇒ 不得虚报 hasMore（否则面板会永远显示「分段加载」）。
+      expect(h.state.astPageByNodeId.get('fn1')).toEqual({ loaded: 1, total: 1, hasMore: false, cursor: 1 });
     });
   });
 

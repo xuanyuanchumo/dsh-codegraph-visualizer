@@ -488,6 +488,28 @@
   color: var(--cg-warning);
 }
 
+/* 单符号 AST 折叠披露（超 SYMBOL_AST.MAX_NODES 时服务端只回一页）。
+   依据 docs/图谱按需加载.md:155「超限时显示"该函数过大，已折叠为摘要 / 分段加载"」。 */
+.cg-node-detail-panel .cg-detail-ast-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--cg-accent) 30%, transparent);
+  border-radius: var(--cg-radius-xs);
+  background: color-mix(in srgb, var(--cg-accent) 8%, transparent);
+}
+
+.cg-node-detail-panel .cg-detail-ast-fold-text {
+  flex: 1 1 140px;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--cg-text-secondary);
+}
+
 .cg-node-detail-panel .cg-detail-micro-hint {
   margin-top: 8px;
   padding: 6px 10px;

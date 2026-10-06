@@ -1,5 +1,5 @@
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
-import type { GraphState } from '../types.ts';
+import type { GraphState, AstPageInfo } from '../types.ts';
 import { CLUSTER, PREFETCH, RESTORE, FUNCTION_BODY, SYMBOL_AST } from '../../../shared/constants.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
 import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST } from '../../api/index.ts';
@@ -34,6 +34,24 @@ function truncateAstData(data: { astNodes: GraphNode[]; astEdges: GraphEdge[]; s
 }
 
 /**
+ * 记录单个符号 AST 的分段加载进度。
+ *
+ * 服务端按 `SYMBOL_AST.MAX_NODES` 切页并回传 `total` / `cursor` / `hasMore`；
+ * 这里把进度落到 store，面板才能披露「已折叠」并提供「分段加载」。
+ * 缺字段（旧缓存或旧服务端）时退化为「本页即全部」，不误报 hasMore。
+ */
+function recordAstPage(
+  _set: SetFn,
+  _get: GetFn,
+  nodeId: string,
+  page: AstPageInfo,
+): void {
+  const astPageByNodeId = new Map(_get().astPageByNodeId);
+  astPageByNodeId.set(nodeId, page);
+  _set({ astPageByNodeId });
+}
+
+/**
  * 加载单个函数体的 AST 并合并进图谱（缓存优先）。
  *
  * 从 `expandNode` 中抽出，供「展开全部」这类批量入口复用：
@@ -41,42 +59,67 @@ function truncateAstData(data: { astNodes: GraphNode[]; astEdges: GraphEdge[]; s
  * `++expandGeneration` 而把前一次仍在飞行中的 AST 结果判为过期丢弃。
  *
  * @param gen 调用方持有的展开代际；回调执行时若已过期则整体放弃写入。
+ * @param cursor 分段加载起点；首页传 0。
  */
-function loadFunctionBodyAst(
+async function loadFunctionBodyAst(
   nodeId: string,
   signal: AbortSignal,
   gen: number,
   _set: SetFn,
   _get: GetFn,
-): void {
-  void (async () => {
-    if (internals.persistentCache) {
-      const cached = await internals.persistentCache.getAST(nodeId);
-      if (cached && gen === internals.expandGeneration) {
-        const data = cached as { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] };
-        if (data.astNodes.length > 0) {
-          const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
-          mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded (cache)', { nodeId, sourceLines: truncatedSourceLines.length });
-          return;
-        }
+  cursor = 0,
+): Promise<void> {
+  // 本节点自己的请求令牌：`expandGeneration` 在普通 expand/collapse 时也会前进，
+  // 不能用来判断「这个节点最新一页」的归属；否则快速连点「分段加载」时，
+  // 先返回的旧页会把新页的进度覆盖掉。
+  const seq = (internals.astRequestSeq.get(nodeId) ?? 0) + 1;
+  internals.astRequestSeq.set(nodeId, seq);
+  const isCurrent = () => internals.astRequestSeq.get(nodeId) === seq;
+
+  // 只有首页才读缓存：缓存里存的是一页，后续页必须回源，
+  // 否则「分段加载」会反复命中同一页而永远前进不了。
+  if (cursor === 0 && internals.persistentCache) {
+    const cached = await internals.persistentCache.getAST(nodeId);
+    if (cached && gen === internals.expandGeneration && isCurrent()) {
+      const data = cached as { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] };
+      if (data.astNodes.length > 0) {
+        const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
+        mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded (cache)', { nodeId, sourceLines: truncatedSourceLines.length });
+        return;
       }
     }
-    measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, signal, _get().currentWorkspace)).then(async (data) => {
-      if (gen !== internals.expandGeneration) return;
-      if (data && data.astNodes.length > 0) {
-        const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
-        if (truncatedAstNodes.length < data.astNodes.length) {
-          log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
-        }
-        mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
-        if (internals.persistentCache) {
-          await internals.persistentCache.setAST(nodeId, data);
-        }
-      }
-    }).catch((err) => {
-      log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
+  }
+
+  try {
+    const data = await measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, signal, _get().currentWorkspace, cursor));
+    if (gen !== internals.expandGeneration || !isCurrent()) return;
+    if (!data) return;
+    const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
+    if (truncatedAstNodes.length < data.astNodes.length) {
+      log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
+    }
+    if (truncatedAstNodes.length > 0) {
+      mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
+    }
+    // 即使本页为空也要落进度：服务端可能只是 `cursor` 越界，
+    // 记下 total/hasMore 才能让面板如实显示「已加载 x / y」而不是永远停在旧值。
+    // 缺字段（旧服务端或测试替身）退化为「本页即全部」，绝不虚报 hasMore。
+    const previouslyLoaded = cursor === 0 ? 0 : (_get().astPageByNodeId.get(nodeId)?.loaded ?? 0);
+    const loaded = previouslyLoaded + truncatedAstNodes.length;
+    recordAstPage(_set, _get, nodeId, {
+      loaded,
+      total: typeof data.total === 'number' ? data.total : loaded,
+      hasMore: data.hasMore === true,
+      cursor: typeof data.cursor === 'number' ? data.cursor : cursor + truncatedAstNodes.length,
     });
-  })();
+    // 分页结果不得写缓存：缓存只存完整的一页，否则下次首页命中缓存后
+    // 会把 hasMore 状态毒化，用户再也点不出「分段加载」。
+    if (internals.persistentCache && !data.hasMore && cursor === 0) {
+      await internals.persistentCache.setAST(nodeId, data);
+    }
+  } catch (err) {
+    log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
+  }
 }
 
 export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
@@ -88,6 +131,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
     loadErrorsByNodeId: new Map(),
     pendingRequests: new Map(),
     pinnedIds: new Set(),
+    astPageByNodeId: new Map(),
     expandNode: (nodeId: string) => {
       const { rawNodes, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, nodes, panelWidth } = _get();
       const gen = ++internals.expandGeneration;
@@ -286,6 +330,28 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, pinnedIds);
       const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
       reclusterWith(_get, _set, effectiveExpanded, newExpandedByViewMode);
+    },
+    /**
+     * 分段加载：继续取回被单符号预算折叠掉的 AST 部分。
+     *
+     * 服务端按 `SYMBOL_AST.MAX_NODES` 切页并回报 `cursor`/`hasMore`，
+     * 这里用上一页的 `cursor` 续取下一页并合并进图谱。
+     * 返回是否取得了新内容（`false` = 已到末尾或当前没有可续取的页）。
+     */
+    loadMoreAst: async (nodeId: string): Promise<boolean> => {
+      const page = _get().astPageByNodeId.get(nodeId);
+      if (!page || !page.hasMore) return false;
+      const node = _get().rawNodes.find((n) => n.id === nodeId);
+      if (!node || node.type !== 'function') return false;
+      const gen = internals.expandGeneration;
+      const controller = replaceController(internals.expandAbortControllers, `ast:${nodeId}`);
+      try {
+        await loadFunctionBodyAst(nodeId, controller.signal, gen, _set, _get, page.cursor);
+      } finally {
+        internals.expandAbortControllers.delete(`ast:${nodeId}`);
+      }
+      const next = _get().astPageByNodeId.get(nodeId);
+      return next !== undefined && next.loaded > page.loaded;
     },
     prefetchExpand: (nodeId: string) => {
       if (internals.prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;

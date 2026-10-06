@@ -52,6 +52,7 @@ beforeEach(() => {
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
+    astPageByNodeId: new Map(),
   });
 });
 
@@ -639,6 +640,67 @@ describe('NodeDetail component', () => {
     render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
 
     expect(screen.queryByText('只看调用链')).toBeNull();
+  });
+
+  // --- Scenario 8c: Single-symbol AST fold disclosure (P1-1) ---
+  // docs/图谱按需加载.md:155 要求「超限时显示"该函数过大，已折叠为摘要 / 分段加载"」。
+  // 服务端按 SYMBOL_AST.MAX_NODES 切页并回报 total/cursor/hasMore，面板必须如实披露。
+  it('discloses the folded AST and offers 分段加载 when the server reported hasMore', () => {
+    useGraphStore.setState({
+      rawNodes: [fnA],
+      rawEdges: [],
+      expandedNodeIds: new Set(),
+      pinnedIds: new Set(),
+      astPageByNodeId: new Map([['fn-a', { loaded: 800, total: 1200, hasMore: true, cursor: 800 }]]),
+    });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    expect(document.querySelector('.cg-detail-ast-fold')).toBeTruthy();
+    expect(screen.getByText('该函数过大，已折叠为摘要（已加载 800 / 1200 个 AST 节点）')).toBeTruthy();
+    expect(screen.getByText('分段加载')).toBeTruthy();
+  });
+
+  it('calls loadMoreAst with the node id when 分段加载 is clicked', async () => {
+    const user = userEvent.setup();
+    const loadMoreAst = vi.spyOn(useGraphStore.getState(), 'loadMoreAst').mockResolvedValue(true);
+    useGraphStore.setState({
+      rawNodes: [fnA],
+      rawEdges: [],
+      expandedNodeIds: new Set(),
+      pinnedIds: new Set(),
+      astPageByNodeId: new Map([['fn-a', { loaded: 800, total: 1200, hasMore: true, cursor: 800 }]]),
+    });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    await user.click(screen.getByText('分段加载'));
+    expect(loadMoreAst).toHaveBeenCalledWith('fn-a');
+  });
+
+  it('hides 分段加载 once the page is complete', () => {
+    useGraphStore.setState({
+      rawNodes: [fnA],
+      rawEdges: [],
+      expandedNodeIds: new Set(),
+      pinnedIds: new Set(),
+      astPageByNodeId: new Map([['fn-a', { loaded: 1200, total: 1200, hasMore: false, cursor: 1200 }]]),
+    });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    expect(document.querySelector('.cg-detail-ast-fold')).toBeNull();
+    expect(screen.queryByText('分段加载')).toBeNull();
+  });
+
+  it('renders no fold notice when no AST page has been recorded', () => {
+    useGraphStore.setState({
+      rawNodes: [fnA],
+      rawEdges: [],
+      expandedNodeIds: new Set(),
+      pinnedIds: new Set(),
+      astPageByNodeId: new Map(),
+    });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    expect(document.querySelector('.cg-detail-ast-fold')).toBeNull();
   });
 
   // --- Scenario 9: Connection count display ---

@@ -574,6 +574,46 @@ describe('client api', () => {
       const result = await fetchSymbolAST('sym-1');
       expect(result).toBeNull();
     });
+
+    it('passes cursor and surfaces total/cursor/hasMore', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          astNodes: [{ id: 'n1', label: 'node', type: 'function', filePath: '/src/a.ts', lineNumber: 1, properties: {} }],
+          astEdges: [],
+          sourceLines: [],
+          total: 900,
+          cursor: 801,
+          hasMore: true,
+        }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await fetchSymbolAST('sym-1', undefined, '.', 800);
+      expect(mockFetch.mock.calls[0]![0]).toBe('/api/v1/codegraph/symbols/sym-1/ast?cursor=800');
+      expect(result!.total).toBe(900);
+      expect(result!.cursor).toBe(801);
+      expect(result!.hasMore).toBe(true);
+    });
+
+    it('omits the cursor param for the first page and degrades missing fields to a complete single page', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          astNodes: [{ id: 'n1', label: 'node', type: 'function', filePath: '/src/a.ts', lineNumber: 1, properties: {} }],
+          astEdges: [],
+          sourceLines: [],
+        }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await fetchSymbolAST('sym-1', undefined, '.', 0);
+      expect(mockFetch.mock.calls[0]![0]).toBe('/api/v1/codegraph/symbols/sym-1/ast');
+      // 旧服务端不返回分页字段时，必须退化为「本页即全部」，绝不虚报 hasMore。
+      expect(result!.total).toBe(1);
+      expect(result!.cursor).toBe(1);
+      expect(result!.hasMore).toBe(false);
+    });
   });
 
   describe('fetchEdges', () => {
