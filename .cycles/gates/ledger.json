@@ -215,7 +215,43 @@
       "timestamp": "2026-10-06T08:53:21.126Z",
       "previousHash": "3839e4ea4138b0d8a5d59f94cbbb576a85da292bcc0ea55348e51e76ce05e107",
       "hash": "c76f087e5bd46289b896618d5306c5cc9ef483e73c389224e700535ed5060149"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-84: 项目评估报告.md（8 层分层摘要 + E1-E8 维度表 + P0-P3 清单 + 事实基座抽验 12 条全部真实存在：useViewModePanelGuard 层回滚 / useGraphRenderer highlightCallChain(null) / HighlightController BFS / 真机 chainClasses 0->5 / callgraph 3 / 层判断变异探针 1 failed / pinnedIds 变异探针 3 failed / enforceFunctionBodyBudget shift 驱逐 / batchExpandNodes 零网络 / functionBudgetCandidates 8 用例 / layoutOrderContract CONSUMERS 四元组 / pinNode 无 UI 入口）",
+      "timestamp": "2026-10-06T10:32:32.145Z",
+      "previousHash": "c76f087e5bd46289b896618d5306c5cc9ef483e73c389224e700535ed5060149",
+      "hash": "f88aefe8a98beb083010dd5719cb14449cfc14e1f8dbdb166f908cf84421e025"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-84: 任务清单.md T20-1..T20-15 全部完成（P0：层守卫修复/四按钮/候选纯函数/二次确认；P1：pin 一致性/loadFunctionBodyAst/布局 SSOT/守卫；P2：必填 prop/可选 prop/i18n 11 键/CSS 6 块；P3：onHighlightImpact 裁决/中文注释/全套报告）；14 条流转项均写明去向（P3-R20-01 onHighlightImpact 裁决不改 / P2-R20-04 docs 层可用性 / P1-R19-03 命令面板绕行 / P3-R19-01 spotlight 措辞 / P3-R17-01 裸字面量 / P0-6 headless fcose / P3-R14-01 截图基线 / P3-R18-02 路由 etag / host /data 单槽 / 对齐报告 4-10 缺口 / objective #2 #4 #5 #6 余项）",
+      "timestamp": "2026-10-06T10:32:37.438Z",
+      "previousHash": "f88aefe8a98beb083010dd5719cb14449cfc14e1f8dbdb166f908cf84421e025",
+      "hash": "eb322774ad52009b59521b4c6d10255b810e0314e7e763fe47640ebfd87252ab"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-84: 188 files / 5116 tests passed（cycle-83 为 186/5087，净 +2 文件 / +29 用例；0 failed）；typecheck host+client+test exit 0；lint 0 warnings and 0 errors（245 files / 103 rules）；E2E smoke 57 passed / 0 failed（2.9m，exit 0）；两组变异探针均红（pinnedIds 豁免还原 -> Tests 3 failed | 67 passed (70)；层判断改 if (true) -> Tests 1 failed | 2 passed | 169 skipped，失败点 GraphPanel.test.tsx:2090 的 setShowCallChain 未被调断言，Number of calls: 1）；真机 J0 14 项观测全部符合预期",
+      "timestamp": "2026-10-06T10:32:42.258Z",
+      "previousHash": "eb322774ad52009b59521b4c6d10255b810e0314e7e763fe47640ebfd87252ab",
+      "hash": "a4f20bc8ec2698a8c7551204a6c66d09c73bc8af24d17da7ad6bc587c86935c0"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-84: build exit 0（dist/client.js 2516351 B vs cycle-83 2523785 B = -7428 B/-0.294%；index.js 205094 B 持平；index.esm.js 2350475 B；index.css 159941 B (+1385)；layout worker 1527487 B 不变）；hygiene exit 0（单独运行，未与 build 并行；19 artefacts / 7 roots、payload 11.50 MB、no stale hashed chunks 4/12、无中间产物发布）；perf-gate 全 PASS（client 2.42MB/3MB、host 200KB/512KB、tests 5116/4463）；真机插件 CSS 153355 B 且含 cg-detail-budget-actions/cg-detail-budget-confirm/cg-detail-budget-btn--danger 三条新选择器",
+      "timestamp": "2026-10-06T10:32:47.026Z",
+      "previousHash": "a4f20bc8ec2698a8c7551204a6c66d09c73bc8af24d17da7ad6bc587c86935c0",
+      "hash": "6ec8ed1e0b154e0b63fee331eb9e190ff371e365d1f4854b65df6d59ab8d1aa3"
     }
   ],
-  "chainHead": "c76f087e5bd46289b896618d5306c5cc9ef483e73c389224e700535ed5060149"
+  "chainHead": "6ec8ed1e0b154e0b63fee331eb9e190ff371e365d1f4854b65df6d59ab8d1aa3"
 }
