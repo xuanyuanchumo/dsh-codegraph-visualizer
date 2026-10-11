@@ -155,9 +155,9 @@ describe('FileSystemAdapter', () => {
     expect(rsNode?.properties.language).toBe('rust');
   });
 
-  it('setTreeSitterAdapter stores the adapter reference', () => {
+  it('setTreeSitterAdapter stores the adapter reference', async () => {
     const adapter = new FileSystemAdapter();
-    const { TreeSitterAdapter } = require('../../src/adapters/TreeSitterAdapter.ts');
+    const { TreeSitterAdapter } = await import('../../src/adapters/TreeSitterAdapter.ts');
     const tsAdapter = new TreeSitterAdapter();
     adapter.setTreeSitterAdapter(tsAdapter);
   });
@@ -187,7 +187,7 @@ describe('FileSystemAdapter', () => {
     });
     const adapter = new FileSystemAdapter();
     adapter.setFileSystem(fs);
-    const { TreeSitterAdapter } = require('../../src/adapters/TreeSitterAdapter.ts');
+    const { TreeSitterAdapter } = await import('../../src/adapters/TreeSitterAdapter.ts');
     const tsAdapter = new TreeSitterAdapter();
     await tsAdapter.init();
     adapter.setTreeSitterAdapter(tsAdapter);
@@ -204,7 +204,7 @@ describe('FileSystemAdapter', () => {
     });
     const adapter = new FileSystemAdapter();
     adapter.setFileSystem(fs);
-    const { TreeSitterAdapter } = require('../../src/adapters/TreeSitterAdapter.ts');
+    const { TreeSitterAdapter } = await import('../../src/adapters/TreeSitterAdapter.ts');
     const tsAdapter = new TreeSitterAdapter();
     await tsAdapter.init();
     adapter.setTreeSitterAdapter(tsAdapter);

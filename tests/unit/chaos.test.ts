@@ -207,8 +207,8 @@ describe('Chaos: McpServer tool registration edge cases (FR-46)', () => {
 });
 
 describe('Chaos: graphStore error recovery', () => {
-  it('should recover from error state when new data arrives', () => {
-    const { useGraphStore } = require('../../src/client/store/graphStore.ts');
+  it('should recover from error state when new data arrives', async () => {
+    const { useGraphStore } = await import('../../src/client/store/graphStore.ts');
     useGraphStore.getState().clearGraph();
     useGraphStore.getState().setError('catastrophic failure');
     expect(useGraphStore.getState().error).toBe('catastrophic failure');

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeNode, makeEdge } from '../helpers.ts';
 
 function makeMockNode(id: string, x = 0, y = 0, data: Record<string, unknown> = {}) {
   const dataMap = new Map<string, unknown>(Object.entries(data));
@@ -109,18 +110,18 @@ describe('LayoutController', () => {
   });
 
   describe('constructor and worker initialization', () => {
-    it('constructs without throwing', () => {
+    it('constructs without throwing', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller).toBeDefined();
       expect(typeof controller.isWorkerAvailable).toBe('function');
       controller.destroy();
     });
 
-    it('isWorkerAvailable returns boolean', () => {
+    it('isWorkerAvailable returns boolean', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(typeof controller.isWorkerAvailable()).toBe('boolean');
       controller.destroy();
@@ -128,11 +129,11 @@ describe('LayoutController', () => {
   });
 
   describe('applyLayout', () => {
-    it('calls cy.layout with cose options for small graphs', () => {
+    it('calls cy.layout with cose options for small graphs', async () => {
       const nodeA = makeMockNode('a');
       const nodeB = makeMockNode('b');
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       expect(cy.layout).toHaveBeenCalled();
@@ -141,10 +142,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('falls back to grid for very large graphs (>5000 nodes)', () => {
+    it('falls back to grid for very large graphs (>5000 nodes)', async () => {
       const bigNodeList = Array.from({ length: 5001 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -152,10 +153,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('falls back to dagre for large cose graphs (>500 nodes)', () => {
+    it('falls back to dagre for large cose graphs (>500 nodes)', async () => {
       const midNodeList = Array.from({ length: 501 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(midNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -163,10 +164,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses dagre layout directly for dagre', () => {
+    it('uses dagre layout directly for dagre', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('dagre');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -174,10 +175,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses fcose layout directly for fcose', () => {
+    it('uses fcose layout directly for fcose', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('fcose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -185,10 +186,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('falls back to dagre for large fcose graphs (>500 nodes)', () => {
+    it('falls back to dagre for large fcose graphs (>500 nodes)', async () => {
       const midNodeList = Array.from({ length: 501 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(midNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('fcose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -196,10 +197,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses circle layout directly', () => {
+    it('uses circle layout directly', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('circle');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -207,10 +208,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses grid layout directly', () => {
+    it('uses grid layout directly', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('grid');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -218,10 +219,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses concentric layout for radial', () => {
+    it('uses concentric layout for radial', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('radial');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -229,10 +230,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses breadthfirst layout for tree', () => {
+    it('uses breadthfirst layout for tree', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('tree');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -242,16 +243,16 @@ describe('LayoutController', () => {
   });
 
   describe('applyIncrementalLayout', () => {
-    it('does nothing with empty newNodeIds', () => {
+    it('does nothing with empty newNodeIds', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set());
       expect(cy.layout).not.toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('places new nodes near anchor neighbors using spiral distribution', () => {
+    it('places new nodes near anchor neighbors using spiral distribution', async () => {
       const nodeA = makeMockNode('a', 100, 100);
       const nodeB = makeMockNode('b', 200, 200);
       const nodeC = makeMockNode('c', 0, 0);
@@ -260,58 +261,58 @@ describe('LayoutController', () => {
         forEach: (cb: (e: any) => void) => cb(edge),
       }));
       const cy = makeMockCy([nodeA, nodeB, nodeC], [edge]);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['c']));
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('places new nodes at center when no anchor neighbors exist', () => {
+    it('places new nodes at center when no anchor neighbors exist', async () => {
       const nodeA = makeMockNode('a', 50, 50);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({
         forEach: vi.fn(),
       }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['b']));
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('returns early when newNodeIds non-empty but no matching nodes in cy', () => {
+    it('returns early when newNodeIds non-empty but no matching nodes in cy', async () => {
       const nodeA = makeMockNode('a', 50, 50);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['nonexistent']));
       expect(cy.layout).not.toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('uses overlapRemover.remove for non-cose/fcose/dagre layouts', () => {
+    it('uses overlapRemover.remove for non-cose/fcose/dagre layouts', async () => {
       const nodeA = makeMockNode('a', 50, 50);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({
         forEach: vi.fn(),
       }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('grid', new Set(['b']));
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('handles all new nodes with no existing nodes (anchorCount=0, existingNodes=0)', () => {
+    it('handles all new nodes with no existing nodes (anchorCount=0, existingNodes=0)', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       nodeA.connectedEdges = vi.fn(() => ({
         forEach: vi.fn(),
       }));
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['a']));
       expect(cy.layout).toHaveBeenCalled();
@@ -320,10 +321,10 @@ describe('LayoutController', () => {
   });
 
   describe('applyWorkerLayout', () => {
-    it('applies positions from worker result', () => {
+    it('applies positions from worker result', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({ a: { x: 100, y: 200 } });
       expect(nodeA.position).toHaveBeenCalledWith({ x: 100, y: 200 });
@@ -331,10 +332,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('skips non-existent nodes in worker positions', () => {
+    it('skips non-existent nodes in worker positions', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({
         a: { x: 50, y: 50 },
@@ -348,7 +349,7 @@ describe('LayoutController', () => {
   describe('applyLayoutWithWorker', () => {
     it('returns empty object when no worker available', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       const result = await controller.applyLayoutWithWorker([], [], 'cose');
       expect(result).toEqual({});
@@ -357,20 +358,20 @@ describe('LayoutController', () => {
   });
 
   describe('position caching', () => {
-    it('cachePositions stores node positions', () => {
+    it('cachePositions stores node positions', async () => {
       const nodeA = makeMockNode('a', 10, 20);
       const nodeB = makeMockNode('b', 30, 40);
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({});
       controller.destroy();
     });
 
-    it('restoreCachedPositions restores positions from cache', () => {
+    it('restoreCachedPositions restores positions from cache', async () => {
       const nodeA = makeMockNode('a', 10, 20);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({ a: { x: 100, y: 200 } });
       controller.applyIncrementalLayout('cose', new Set(['a']));
@@ -379,10 +380,10 @@ describe('LayoutController', () => {
   });
 
   describe('removeOverlaps', () => {
-    it('skips overlap removal for very large graphs (uses grid fallback)', () => {
+    it('skips overlap removal for very large graphs (uses grid fallback)', async () => {
       const bigNodeList = Array.from({ length: 5001 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -390,11 +391,11 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('processes overlaps for small graphs', () => {
+    it('processes overlaps for small graphs', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       const nodeB = makeMockNode('b', 5, 5);
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       controller.destroy();
@@ -402,17 +403,17 @@ describe('LayoutController', () => {
   });
 
   describe('destroy', () => {
-    it('cleans up resources without throwing', () => {
+    it('cleans up resources without throwing', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.destroy();
       expect(controller.isWorkerAvailable()).toBe(false);
     });
 
-    it('isWorkerAvailable returns false after destroy', () => {
+    it('isWorkerAvailable returns false after destroy', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.destroy();
       expect(controller.isWorkerAvailable()).toBe(false);
@@ -420,10 +421,10 @@ describe('LayoutController', () => {
   });
 
   describe('buildLayoutOptions coverage', () => {
-    it('grid layout computes rows and cols from nodeCount', () => {
+    it('grid layout computes rows and cols from nodeCount', async () => {
       const nodeList = Array.from({ length: 9 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(nodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('grid');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -432,11 +433,11 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('radial layout uses concentric with degree-based concentric function', () => {
+    it('radial layout uses concentric with degree-based concentric function', async () => {
       const nodeA = makeMockNode('a');
       nodeA.degree = vi.fn(() => 5);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('radial');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -445,10 +446,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('tree layout uses breadthfirst with directed option', () => {
+    it('tree layout uses breadthfirst with directed option', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('tree');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -457,11 +458,11 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('tree layout uses isRoot data property when available', () => {
+    it('tree layout uses isRoot data property when available', async () => {
       const nodeA = makeMockNode('a', 0, 0, { isRoot: true });
       const nodeB = makeMockNode('b');
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('tree');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -471,18 +472,18 @@ describe('LayoutController', () => {
   });
 
   describe('rankDir', () => {
-    it('defaults to TB', () => {
+    it('defaults to TB', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.rankDir).toBe('TB');
       controller.destroy();
     });
 
-    it('affects dagre layout options', () => {
+    it('affects dagre layout options', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.rankDir = 'LR';
       controller.applyLayout('dagre');
@@ -493,10 +494,10 @@ describe('LayoutController', () => {
   });
 
   describe('buildLayoutOptions detailed parameters', () => {
-    it('cose layout includes nodeRepulse, idealEdgeLength, gravity', () => {
+    it('cose layout includes nodeRepulse, idealEdgeLength, gravity', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -508,10 +509,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('fcose layout includes samplingType and nodeSeparation', () => {
+    it('fcose layout includes samplingType and nodeSeparation', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('fcose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -521,10 +522,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('dagre layout includes rankSep, edgeSep, nodeSep', () => {
+    it('dagre layout includes rankSep, edgeSep, nodeSep', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('dagre');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -536,10 +537,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('circle layout includes radius function', () => {
+    it('circle layout includes radius function', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('circle');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -548,10 +549,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('radial layout uses sampling for very large graphs', () => {
+    it('radial layout uses sampling for very large graphs', async () => {
       const bigNodeList = Array.from({ length: 2001 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('radial');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -560,10 +561,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('fcose uses reduced iterations for large graphs', () => {
+    it('fcose uses reduced iterations for large graphs', async () => {
       const bigNodeList = Array.from({ length: 501 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('fcose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -573,10 +574,10 @@ describe('LayoutController', () => {
   });
 
   describe('applyLayout animation behavior', () => {
-    it('uses animate=true for small dagre graphs', () => {
+    it('uses animate=true for small dagre graphs', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('dagre');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -584,10 +585,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses animate=false for large graphs falling back to dagre', () => {
+    it('uses animate=false for large graphs falling back to dagre', async () => {
       const midNodeList = Array.from({ length: 501 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(midNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -596,10 +597,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses animate=false for grid fallback', () => {
+    it('uses animate=false for grid fallback', async () => {
       const bigNodeList = Array.from({ length: 5001 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -609,36 +610,36 @@ describe('LayoutController', () => {
   });
 
   describe('applyIncrementalLayout with different layout types', () => {
-    it('applies incremental layout with dagre', () => {
+    it('applies incremental layout with dagre', async () => {
       const nodeA = makeMockNode('a', 100, 100);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('dagre', new Set(['b']));
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('applies incremental layout with fcose', () => {
+    it('applies incremental layout with fcose', async () => {
       const nodeA = makeMockNode('a', 100, 100);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('fcose', new Set(['b']));
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('applies incremental layout with circle (non-cose/fcose/dagre)', () => {
+    it('applies incremental layout with circle (non-cose/fcose/dagre)', async () => {
       const nodeA = makeMockNode('a', 100, 100);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('circle', new Set(['b']));
       expect(cy.layout).toHaveBeenCalled();
@@ -647,22 +648,22 @@ describe('LayoutController', () => {
   });
 
   describe('applyWorkerLayout edge cases', () => {
-    it('handles empty positions object', () => {
+    it('handles empty positions object', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({});
       expect(cy.fit).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('handles multiple node positions in batch', () => {
+    it('handles multiple node positions in batch', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       const nodeB = makeMockNode('b', 0, 0);
       const nodeC = makeMockNode('c', 0, 0);
       const cy = makeMockCy([nodeA, nodeB, nodeC], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({
         a: { x: 10, y: 20 },
@@ -677,10 +678,10 @@ describe('LayoutController', () => {
   });
 
   describe('destroy cleanup', () => {
-    it('clears positionCache on destroy', () => {
+    it('clears positionCache on destroy', async () => {
       const nodeA = makeMockNode('a', 10, 20);
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({ a: { x: 100, y: 200 } });
       controller.destroy();
@@ -688,9 +689,9 @@ describe('LayoutController', () => {
       expect(controller.isWorkerAvailable()).toBe(false);
     });
 
-    it('can be called multiple times safely', () => {
+    it('can be called multiple times safely', async () => {
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.destroy();
       controller.destroy();
@@ -699,10 +700,10 @@ describe('LayoutController', () => {
   });
 
   describe('unhandled layout type', () => {
-    it('throws error for unhandled layout in buildLayoutOptions', () => {
+    it('throws error for unhandled layout in buildLayoutOptions', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(() => controller.applyLayout('invalid' as any)).toThrow();
       controller.destroy();
@@ -710,7 +711,7 @@ describe('LayoutController', () => {
   });
 
   describe('worker initialization paths', () => {
-    it('creates worker when document.baseURI is available', () => {
+    it('creates worker when document.baseURI is available', async () => {
       const originalDocument = globalThis.document;
       const workerInstances: any[] = [];
       class MockWorker {
@@ -724,7 +725,7 @@ describe('LayoutController', () => {
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(workerInstances.length).toBe(1);
       expect(controller.isWorkerAvailable()).toBe(true);
@@ -734,12 +735,12 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('sets workerInitFailed when document is undefined', () => {
+    it('sets workerInitFailed when document is undefined', async () => {
       const originalDocument = globalThis.document;
       globalThis.document = undefined as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(false);
       controller.destroy();
@@ -747,13 +748,13 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('sets workerInitFailed when Worker constructor throws', () => {
+    it('sets workerInitFailed when Worker constructor throws', async () => {
       const originalDocument = globalThis.document;
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
       globalThis.Worker = class { constructor() { throw new Error('Worker not supported'); } } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(false);
       controller.destroy();
@@ -762,7 +763,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('handles worker onerror by terminating and auto-retrying', () => {
+    it('handles worker onerror by terminating and auto-retrying', async () => {
       const originalDocument = globalThis.document;
       let mockWorkerInstance: any;
       class MockWorker {
@@ -776,7 +777,7 @@ describe('LayoutController', () => {
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(true);
 
@@ -791,12 +792,12 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('sets workerInitFailed when workerUrl is null (no document.baseURI)', () => {
+    it('sets workerInitFailed when workerUrl is null (no document.baseURI)', async () => {
       const originalDocument = globalThis.document;
       globalThis.document = { baseURI: '' } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(false);
       controller.destroy();
@@ -821,12 +822,12 @@ describe('LayoutController', () => {
 
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       const promise = controller.applyLayoutWithWorker(
-        [{ id: 'a', label: 'A', type: 'function' }],
-        [{ id: 'e1', source: 'a', target: 'a', type: 'call' }],
+        [makeNode('a', 'A', 'function', 'a.ts', 1)],
+        [makeEdge('e1', 'a', 'a', 'call')],
         'cose',
       );
 
@@ -863,11 +864,11 @@ describe('LayoutController', () => {
 
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       const promise = controller.applyLayoutWithWorker(
-        [{ id: 'a', label: 'A', type: 'function' }],
+        [makeNode('a', 'A', 'function', 'a.ts', 1)],
         [],
         'cose',
       );
@@ -888,11 +889,11 @@ describe('LayoutController', () => {
   });
 
   describe('cachePositions and restoreCachedPositions', () => {
-    it('cachePositions stores all node positions in cache', () => {
+    it('cachePositions stores all node positions in cache', async () => {
       const nodeA = makeMockNode('a', 10, 20);
       const nodeB = makeMockNode('b', 30, 40);
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       controller.applyWorkerLayout({ a: { x: 100, y: 200 } });
@@ -901,11 +902,11 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('restoreCachedPositions restores positions via cy.batch', () => {
+    it('restoreCachedPositions restores positions via cy.batch', async () => {
       const nodeA = makeMockNode('a', 10, 20);
       const nodeB = makeMockNode('b', 30, 40);
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       controller.applyWorkerLayout({
@@ -920,11 +921,11 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('skips restore for nodes not in cache', () => {
+    it('skips restore for nodes not in cache', async () => {
       const nodeA = makeMockNode('a', 0, 0);
       nodeA.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       controller.applyIncrementalLayout('cose', new Set(['a']));
@@ -933,10 +934,10 @@ describe('LayoutController', () => {
   });
 
   describe('computeSmartSpacing integration', () => {
-    it('cose layout uses smart spacing values based on node count', () => {
+    it('cose layout uses smart spacing values based on node count', async () => {
       const smallList = Array.from({ length: 10 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(smallList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -946,10 +947,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('dagre layout uses rankSep within bounds [30, 80]', () => {
+    it('dagre layout uses rankSep within bounds [30, 80]', async () => {
       const nodeList = Array.from({ length: 100 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(nodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('dagre');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -958,10 +959,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('circle layout radius function returns value based on container dimensions', () => {
+    it('circle layout radius function returns value based on container dimensions', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('circle');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -973,7 +974,7 @@ describe('LayoutController', () => {
   });
 
   describe('tree layout root selection', () => {
-    it('uses degree-sorted node as root when no isRoot property and no roots()', () => {
+    it('uses degree-sorted node as root when no isRoot property and no roots()', async () => {
       const nodeA = makeMockNode('a');
       nodeA.degree = vi.fn(() => 3);
       const nodeB = makeMockNode('b');
@@ -992,7 +993,7 @@ describe('LayoutController', () => {
         boundingBox: vi.fn(() => ({ x1: 0, y1: 0, x2: 0, y2: 0, w: 0, h: 0 })),
         layout: vi.fn(() => ({ one: vi.fn(), run: vi.fn() })),
       })) as any;
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('tree');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -1001,11 +1002,11 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses roots() when available and nonempty', () => {
+    it('uses roots() when available and nonempty', async () => {
       const nodeA = makeMockNode('a', 0, 0, { isRoot: true });
       const nodeB = makeMockNode('b');
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('tree');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -1015,13 +1016,13 @@ describe('LayoutController', () => {
   });
 
   describe('radial layout levelW computation', () => {
-    it('computes levelW based on max degree for small graphs', () => {
+    it('computes levelW based on max degree for small graphs', async () => {
       const nodeA = makeMockNode('a');
       nodeA.degree = vi.fn(() => 8);
       const nodeB = makeMockNode('b');
       nodeB.degree = vi.fn(() => 4);
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('radial');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -1032,14 +1033,14 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses sampling for very large graphs (>2000 nodes)', () => {
+    it('uses sampling for very large graphs (>2000 nodes)', async () => {
       const bigNodeList = Array.from({ length: 2001 }, (_, i) => {
         const n = makeMockNode(`n${i}`);
         n.degree = vi.fn(() => Math.floor(Math.random() * 10) + 1);
         return n;
       });
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('radial');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -1050,10 +1051,10 @@ describe('LayoutController', () => {
   });
 
   describe('applyLayout RAF management', () => {
-    it('cancels pending RAF when applyLayout called twice', () => {
+    it('cancels pending RAF when applyLayout called twice', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       controller.applyLayout('cose');
@@ -1061,12 +1062,12 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('cancels pending RAF when applyIncrementalLayout called', () => {
+    it('cancels pending RAF when applyIncrementalLayout called', async () => {
       const nodeA = makeMockNode('a', 50, 50);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('cose');
       controller.applyIncrementalLayout('cose', new Set(['b']));
@@ -1075,10 +1076,10 @@ describe('LayoutController', () => {
   });
 
   describe('fcose large graph quality and iterations', () => {
-    it('uses draft quality for fcose with >5000 nodes (grid fallback)', () => {
+    it('uses draft quality for fcose with >5000 nodes (grid fallback)', async () => {
       const bigNodeList = Array.from({ length: 5001 }, (_, i) => makeMockNode(`n${i}`));
       const cy = makeMockCy(bigNodeList, []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('fcose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -1086,10 +1087,10 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('uses default quality for fcose with small graphs', () => {
+    it('uses default quality for fcose with small graphs', async () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyLayout('fcose');
       const layoutArg = cy.layout.mock.calls[0]?.[0];
@@ -1100,7 +1101,7 @@ describe('LayoutController', () => {
   });
 
   describe('destroy with active worker', () => {
-    it('terminates worker and clears workerTimeout on destroy', () => {
+    it('terminates worker and clears workerTimeout on destroy', async () => {
       const originalDocument = globalThis.document;
       let mockWorkerInstance: any;
       class MockWorker {
@@ -1114,7 +1115,7 @@ describe('LayoutController', () => {
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(true);
 
@@ -1126,7 +1127,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('resolves pending workerLayoutResolve with empty positions on destroy', () => {
+    it('resolves pending workerLayoutResolve with empty positions on destroy', async () => {
       const originalDocument = globalThis.document;
       class MockWorker {
         onmessage: ((e: MessageEvent) => void) | null = null;
@@ -1138,7 +1139,7 @@ describe('LayoutController', () => {
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.destroy();
 
@@ -1148,7 +1149,7 @@ describe('LayoutController', () => {
   });
 
   describe('applyIncrementalLayout spiral distribution', () => {
-    it('places multiple new nodes using golden angle spiral', () => {
+    it('places multiple new nodes using golden angle spiral', async () => {
       const nodeA = makeMockNode('a', 100, 100);
       const nodeB = makeMockNode('b', 200, 200);
       const nodeC = makeMockNode('c', 0, 0);
@@ -1158,19 +1159,19 @@ describe('LayoutController', () => {
       nodeC.connectedEdges = vi.fn(() => ({ forEach: (cb: (e: any) => void) => cb(edgeCA) }));
       nodeD.connectedEdges = vi.fn(() => ({ forEach: (cb: (e: any) => void) => cb(edgeDA) }));
       const cy = makeMockCy([nodeA, nodeB, nodeC, nodeD], [edgeCA, edgeDA]);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['c', 'd']));
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
 
-    it('uses boundingBox center when anchorCount is 0 but existing nodes exist', () => {
+    it('uses boundingBox center when anchorCount is 0 but existing nodes exist', async () => {
       const nodeA = makeMockNode('a', 100, 100);
       const nodeB = makeMockNode('b', 0, 0);
       nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
       const cy = makeMockCy([nodeA, nodeB], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['b']));
       expect(cy.layout).toHaveBeenCalled();
@@ -2045,7 +2046,7 @@ describe('LayoutController', () => {
       controller.destroy();
     });
 
-    it('retries worker initialization after failure', () => {
+    it('retries worker initialization after failure', async () => {
       const originalDocument = globalThis.document;
       let workerInstances: any[] = [];
       let initShouldFail = true;
@@ -2065,7 +2066,7 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(false);
 
@@ -2080,7 +2081,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('does not retry when worker is already available', () => {
+    it('does not retry when worker is already available', async () => {
       const originalDocument = globalThis.document;
       let workerInstances: any[] = [];
 
@@ -2094,7 +2095,7 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       expect(workerInstances.length).toBe(1);
 
@@ -2106,7 +2107,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('stops retrying after 3 failed attempts', () => {
+    it('stops retrying after 3 failed attempts', async () => {
       const originalDocument = globalThis.document;
       let workerConstructCount = 0;
 
@@ -2123,7 +2124,7 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       const initialConstructCount = workerConstructCount;
 
@@ -2144,7 +2145,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('stops rebuilding the worker when the failure arrives as an async error event', () => {
+    it('stops rebuilding the worker when the failure arrives as an async error event', async () => {
       // The regression this pins: `new Worker(url)` does NOT throw for an unreachable URL — the
       // failure arrives later as an error event. The old code reset its retry counter on every
       // successful construction, so an error handler that rebuilds kept resetting its own budget
@@ -2161,8 +2162,8 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
-      const { RENDERER } = require('../../src/shared/constants.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const { RENDERER } = await import('../../src/shared/constants.ts');
       const controller = new LayoutController(cy);
       expect(instances.length).toBe(1);
 
@@ -2201,11 +2202,11 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy([makeMockNode('a')], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       const promise = controller.applyLayoutWithWorker(
-        [{ id: 'a', label: 'A', type: 'function' }],
+        [makeNode('a', 'A', 'function', 'a.ts', 1)],
         [],
         'cose',
       );
@@ -2231,7 +2232,7 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy([makeMockNode('a')], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
       // Burn two of the three retries, then let the third worker answer.
@@ -2240,7 +2241,7 @@ describe('LayoutController', () => {
       expect(instances.length).toBe(3);
 
       const promise = controller.applyLayoutWithWorker(
-        [{ id: 'a', label: 'A', type: 'function' }],
+        [makeNode('a', 'A', 'function', 'a.ts', 1)],
         [],
         'cose',
       );
@@ -2257,7 +2258,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('does not rebuild the worker after destroy', () => {
+    it('does not rebuild the worker after destroy', async () => {
       const originalDocument = globalThis.document;
       const instances: any[] = [];
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
@@ -2270,7 +2271,7 @@ describe('LayoutController', () => {
       } as any;
 
       const cy = makeMockCy();
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.destroy();
 
@@ -2302,18 +2303,18 @@ describe('LayoutController', () => {
       }) as any;
 
       const cy = makeMockCy([makeMockNode('a')], []);
-      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
-      const { RENDERER } = require('../../src/shared/constants.ts');
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const { RENDERER } = await import('../../src/shared/constants.ts');
       const controller = new LayoutController(cy);
 
-      void controller.applyLayoutWithWorker([{ id: 'a', label: 'A', type: 'function' }], [], 'cose');
+      void controller.applyLayoutWithWorker([makeNode('a', 'A', 'function', 'a.ts', 1)], [], 'cose');
       expect(delays[0]).toBe(RENDERER.WORKER_HANDSHAKE_TIMEOUT_MS);
 
       // Answer the first request, then ask again: a worker that has replied is no longer on
       // probation and may take the full layout budget.
       instances[0].postMessage.mockClear();
       instances[0].onmessage({ data: { positions: {} } } as never);
-      void controller.applyLayoutWithWorker([{ id: 'a', label: 'A', type: 'function' }], [], 'cose');
+      void controller.applyLayoutWithWorker([makeNode('a', 'A', 'function', 'a.ts', 1)], [], 'cose');
       expect(delays[delays.length - 1]).toBe(RENDERER.LAYOUT_TIMEOUT_MS);
 
       controller.destroy();
