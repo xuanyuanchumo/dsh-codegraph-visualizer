@@ -1,7 +1,13 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-87",
+  "currentCycle": "cycle-88",
   "phaseHistory": [
+    {
+      "cycle": "cycle-88",
+      "phase": "complete",
+      "result": "P2-1 运行时层独立面板：从「类型存在但不可达」到完整第三层（objective #2 主线，对齐报告 :337 称其为唯一仍成立的 P0-P3 结构性缺口）： (a) 缺陷形态：ViewLayer 类型含 runtime（src/shared/viewModeUtils.ts:7）且 getAvailablePanels 有 runtime 分支（:109-110 返 {showMiniMap,showLegend}），但 ViewMode 的 9 个成员无一映射到 runtime —— getViewLayer（:64-80）的 runtime 分支根本不存在，全仓 grep \"'runtime'\" 只命中 :7 与 :109 两处 ⇒ 类型存在、面板集合存在、但没有任何可达路径。 (b) 三层接线 7 步：types/index.ts 的 ViewMode 增 runtime；viewModeUtils.ts 新增 RUNTIME_VIEW_MODES + ALL_VIEW_MODES 与 getViewLayer 的 runtime 分支；constants.ts 新增 RUNTIME = { WINDOW_MS: 5*60*1000, MAX_ENTRIES: 200, MAX_METRICS: 20, REFRESH_MS: 5000 }；新建 src/shared/runtimeSnapshot.ts（纯函数 windowLogs/takeRecent/countByLevel/aggregateMetrics/buildRuntimeSnapshot）；新建 src/client/components/RuntimePanel.tsx；viewModeTransition.ts 增 runtime 分支返空子图；GraphPanel 用 isRuntimeView 隐藏图谱容器；toolbarConfig/ToolbarViewMode 增运行时视图分组与 cg-viewmode-option-runtime。 (c) 四条决定性判断：c1 「替换子图」在无图数据层 = 空子图（diagramData: null + 容器隐藏），不是伪造节点；c2 runtime 分支刻意不写 savedRawNodes/savedRawEdges（它们是结构层原始图，写空值会让切回 code 得到空图）——必须用 in 存在性断言守；c3 先窗口后条数（反过来 truncated 会错报 true，用户看到「已折叠 N 条」却找不到那 N 条）；c4 totalLogs/levelCounts 基于窗口内、截断前集合，这样「共 N 条，已折叠 M 条」两个数字能对上。 (d) TraceID 诚实处置：全仓 requestId|traceId 只命中 requestIdleCallback；上游 dsh-codegraph v0.1.3 无 trace 数据面；dsh-session-telemetry/-otel 属 session 遥测非 codegraph 运行时 ⇒ 不伪造字段，面板 footnote 明确写「运行时层数据来自插件内，未接入 Trace ID」，验收条目保留为显式缺口（P1-R24-01 流转）。 (e) 预算可见性：窗口条显示「最近 5 分钟」，截断时渲染 .cg-runtime-truncated。 (f) 测试：新增 tests/unit/runtimeSnapshot.test.ts 31 用例 + tests/component/RuntimePanel.test.tsx 17 用例（+58）；viewModeUtils.test.ts 增集合划分用例（四组恰好划分 ALL_VIEW_MODES 且两两无交集）；viewModeTransition.test.ts 增 expect('savedRawNodes' in runtime).toBe(false) 存在性契约。 (g) 变异探针 3 条全红→绿：A runtimeSnapshot.ts:217/:219 改用截断后集合 ⇒ 2 failed|29 passed (31)；B runtime 分支写 savedRawNodes: [] ⇒ 1 failed|37 passed (38)（失败点即 in 断言）；C RUNTIME_VIEW_MODES 清空 ⇒ 1 failed|44 passed (45)（集合划分用例）。 (h) 修复 4 个既有缺陷：工具下拉空分组标题（visibleSections 过滤）、裸色值 #fff（改 --cg-on-accent）、测试 CJS require 逃逸（违反 cycle-87 守卫）、savedRawNodes 误读。 (i) 门禁：typecheck host+client+test exit 0；lint oxlint src/ Found 0 warnings and 0 errors（247 files/103 rules）；test 192 files/5287 passed（cycle-87 基线 190/5229 ⇒ +2 文件/+58 用例）；test:coverage exit 0（All files 94.87/91.13/96.61/94.87，四阈值 86 全过）；build exit 0（layout worker bytes 1528568）；perf-gate 全 PASS（client 2.46MB/3MB、host 202KB/512KB、test count 5287/4463）；hygiene 单独跑 exit 0（payload 11.66 MB）；E2E smoke 57 passed。 (j) 同口径体积：dist/client.js 2574991（cycle-87 2543440 ⇒ +31551 B/+1.24%）、dist/index.js 207020、dist/client/index.css 167449（+6114）、dist/client/index.esm.js 2380614、dist/client/worker/layoutWorker.js 1528568（+1081）。 (k) 真机（objective #7）：视图下拉含第五段「运行时视图」与 cg-viewmode-option-runtime；切到 runtime 后 viewMode=runtime、nodesLen=0、edgesLen=0、diagramData=null、.cg-runtime-panel 存在、窗口条「时间窗口最近 5 分钟」、footnote「运行时层数据来自插件内，未接入 Trace ID」、图谱容器 display:none、视图按钮文案「运行时」；logRows 21、级别计数 [调试 0, 信息 21, 警告 0, 错误 0]、metricRows 1；切回 code 后 rawNodes=3/nodes=3、runtime 面板消失、容器 display 恢复 ⇒ 证明 savedRawNodes 刻意不覆盖有效。工具下拉在 runtime 层才出现 .cg-runtime-btn（文案「运行时面板」），且空分组标题被过滤。console 仅 DSH 上游 1 warn + 2 error（/api/present.open 500、/api/changes.summary 404），codegraph 自身请求全 200。 E2E 端口冲突教训：真机 DSH 占用 3080 且 playwright webServer.reuseExistingServer=true 会直接复用 ⇒ 首轮 smoke 全挂 ERR_CONNECTION_REFUSED；必须先 start-dsh-test.mjs stop 释放端口再跑 E2E。 诚实披露：真机工作区 D:\\Projects\\TraeProjects\\JetHUB\\Jet-Hub 返回 0 节点（codegraph:false Windows 降级），端到端靠 CDP 播种 + DOM 断言；take_screenshot 写盘被拒 ⇒ 本轮无截图证据；TraceID 验收条目未实现（无数据面），保留为显式缺口而非造死字段。",
+      "timestamp": "2026-10-11T09:48:31.932Z"
+    },
     {
       "cycle": "cycle-87",
       "phase": "complete",
@@ -210,5 +216,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-11T08:10:20.981Z"
+  "updatedAt": "2026-10-11T09:48:31.934Z"
 }

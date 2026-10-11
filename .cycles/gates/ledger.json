@@ -359,7 +359,43 @@
       "timestamp": "2026-10-11T08:10:20.981Z",
       "previousHash": "035b4c57aaae5f3e4b30dc701c8e09b8b5141acd0507e4de7444a1da03621692",
       "hash": "88542a623a5c6a0207a41f970c7377d980d1cae76196ed33800a6769bcda7e6b"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-88 P2-1 运行时层独立面板：项目评估报告就绪（6 节 + 13 条事实基座抽验 + E1-E8 八维）；问题清单 P0-R23-01（runtime 类型存在但无任何 ViewMode 可达，全仓仅 2 处落点）+ P1-R23-01（Trace 数据面不存在：全仓 requestId|traceId 只命中 requestIdleCallback；上游 dsh-codegraph v0.1.3 无 trace 面；dsh-session-telemetry 属 session 遥测）+ P1-R23-02（预算须可见）+ P2-R23-01（三处数字来自不同集合）+ P3-R23-01（工具下拉空分组标题）。范围声明 4 条（不实现 TraceID、不做服务端窗口查询、不新增 host 路由、REFRESH_MS 为本地常量）。",
+      "timestamp": "2026-10-11T09:43:02.098Z",
+      "previousHash": "88542a623a5c6a0207a41f970c7377d980d1cae76196ed33800a6769bcda7e6b",
+      "hash": "cfdae873efd6c2daa6430586677518d9f3c8ee7d11055ba2747da89c8153ffc5"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-88 任务清单 T24-1..T24-32 全部 ✅（侦察 4 项 / 类型层 4 项 / 预算层 2 项 / 纯函数层 2 项 / 面板层 2 项 / 接线层 5 项 / 隔离层 3 项 / 测试层 5 项 / 门禁与真机 2 项）；修复 4 个既有缺陷（工具下拉空分组、裸色值 #fff、测试 CJS require 逃逸、savedRawNodes 误读）；流转 19 条（P1-R24-01 TraceID、P2-R24-01..04、P3-R24-01..08、P0-R24-01 headless fcose 上游、对齐报告 §4 三项）。",
+      "timestamp": "2026-10-11T09:43:08.914Z",
+      "previousHash": "cfdae873efd6c2daa6430586677518d9f3c8ee7d11055ba2747da89c8153ffc5",
+      "hash": "2e45ab68fd2ae18888de1dccd44f1c27d6cda3bfde413a383b4ff801af91e2fd"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-88 运行时层独立面板：全量 test 192 files / 5287 passed exit 0；chaos 2 files / 33 passed；test:coverage exit 0 (94.87/91.13/96.61/94.87 四阈值 86 全过)；E2E smoke 57 passed exit 0；3 条变异探针全部红→绿",
+      "timestamp": "2026-10-11T09:47:02.483Z",
+      "previousHash": "2e45ab68fd2ae18888de1dccd44f1c27d6cda3bfde413a383b4ff801af91e2fd",
+      "hash": "bc557f8431718f90ace53293e041871e3a1d0767f62dafc7a7644b6cb41f4798"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-88 构建零失败：typecheck exit 0 (host+client+test)；lint oxlint src/ Found 0 warnings and 0 errors (247 files/103 rules)；build exit 0 (layout worker bytes 1528568)；perf-gate 全 PASS (client 2.46MB/3MB, host 202KB/512KB, test count 5287/4463)；hygiene 单独跑 exit 0 (published payload 11.66 MB)；E2E smoke 57 passed",
+      "timestamp": "2026-10-11T09:47:08.740Z",
+      "previousHash": "bc557f8431718f90ace53293e041871e3a1d0767f62dafc7a7644b6cb41f4798",
+      "hash": "40b6e843d4784d191c6a65cbada4dcb6502421c234ed0da68ca525cb28a39554"
     }
   ],
-  "chainHead": "88542a623a5c6a0207a41f970c7377d980d1cae76196ed33800a6769bcda7e6b"
+  "chainHead": "40b6e843d4784d191c6a65cbada4dcb6502421c234ed0da68ca525cb28a39554"
 }
