@@ -287,7 +287,43 @@
       "timestamp": "2026-10-06T11:09:18.942Z",
       "previousHash": "35fb408bdc6e7b8c41b4acbc03ebcc2b95b8b22cb4a14cff21c0cfbb8e591e78",
       "hash": "b3239c05bde1df95901b99af42436bb8506d7ed73a7d8d63137ede44538e6fed"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-86: 评估基线就绪。选题=对齐报告 P1-3 跨文件边阈值聚合（docs/图谱按需加载-整合融汇迭代对齐报告.md:329），属 objective #2 验收原文（docs/图谱按需加载.md:64-65 / :106-110 / :185 / :230-231 / :238-241 风险 8）。E1-E8 八维评估完成：E1/E2/E4/E5/E8 五项不足均已修复；P0-R22-01（聚合对用户是死路：入口存在但不可达）为最高优先级死路类缺陷；P1-R22-01/02、P2-R22-01、P3-R22-01 已登记。12 条事实基座全部实读或实跑（fetchEdges 仅 3 调用点、EDGES_AGGREGATION.THRESHOLD=20、SQLITE.MAX_IN_PARAMS=900、mockReset 清委托实现、pairKey 字典序 lib<src、真机参数名 from 非 node、改宿主路由须重启进程、CSS 须 reload 一次、覆盖率红灯为既有缺陷等）。附带发现：test:coverage 长期失败 functions 84.17%<86%，已证明为既有缺陷（干净 HEAD 84.14%）并定位根因。",
+      "timestamp": "2026-10-11T06:41:32.049Z",
+      "previousHash": "b3239c05bde1df95901b99af42436bb8506d7ed73a7d8d63137ede44538e6fed",
+      "hash": "09b1bb5feb662773b4ae6931434de31d5abd064e7c7114112a5e1723ece2602b"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-86: 任务清单清零。T22-1..T22-26 全部完成（只读侦察 / 共享聚合构造器 buildFilePairAggregate / readIncidentEdgesWithFilePathsFromDb 含远端回查 / readEdgesFromDb file 分支复用 / detail=1 解析与 mayAggregate 判据 / DB-first 先试聚合 / 内存回退共用构造器 / fetchEdges 第 7 参 / detailEdgeNodeIds sticky / replacingAggregate 放行 / 缓存双向排除 / useNodeEdgeList isDetail+expandAggregated / NodeEdgeList 动作三选一聚合优先 / i18n 2 键 x 2 语言 / CSS 2 块用 --cg-on-accent / disposeStore+useNodeEdges 同步 / 四层测试 +18 用例 / 3 条变异探针 / 门禁 / E2E smoke / 真机 CDP / 覆盖率根因定位）。19 条流转项均写明去向，无悬空。",
+      "timestamp": "2026-10-11T06:41:32.182Z",
+      "previousHash": "09b1bb5feb662773b4ae6931434de31d5abd064e7c7114112a5e1723ece2602b",
+      "hash": "30a3b21bdd350bec1e6dc7efbd27d1566911f3ee6454f2f170032c8ad2486e5e"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-86: typecheck host+client+test exit 0；lint Found 0 warnings and 0 errors（245 files / 103 rules）；pnpm run test 189 files / 5225 tests passed（cycle-85 基线 188/5133，净 +92：P1-3 的 18 条 + 覆盖率补测 74 条）；pnpm run test:coverage exit 0 —— All files 90.99 / 90.70 / 86.20 / 90.99，四阈值全部达标（statements 22992/25270=90.99%、functions 1612/1870=86.20%（need 1609，+3 余量）、branches 8035/8859=90.70%、lcov lines 22992/25270=90.99%），覆盖率红灯（既有缺陷）本轮转绿；三条变异探针全部红→绿（服务端阈值 >THRESHOLD→false 得 1 failed/182 passed；store 去掉 replacingAggregate 放行得 1/30；store detail 去掉 sticky 得 1/30）；真机 CDP 验证首屏 edges 请求无 detail → 点击展开明细边后 &detail=1 且提示切换。诚实披露：记账层缺陷未修（分母 1870 vs ~1659 真函数）；仍剩 47 个真实 functions 缺口；3 条不修改 src/ 无法覆盖的不可达点。",
+      "timestamp": "2026-10-11T07:13:22.988Z",
+      "previousHash": "30a3b21bdd350bec1e6dc7efbd27d1566911f3ee6454f2f170032c8ad2486e5e",
+      "hash": "60850d0817268dac5bef353286d3c911aa81ce6bef769700f6c4fcaac2c367d5"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-86: build exit 0（layout worker bytes 1527487）；构建确定性探针：连续两次 pnpm run build 后 dist/client.js 均 2543440 B 且 SHA256 一致 6BC363D97F25A0CED68E27559FDDC2E39923CCE284F72B08281DF4F12D0F8FD1，bundle 内无 ISO 时间戳与 epoch-ms 字面量；同口径体积 dist/client.js 2543440（cycle-85 2520660，+22780 B/+0.90%）、dist/index.js 207020、dist/client/index.css 161335、dist/client/index.esm.js 2356316、dist/client/worker/layoutWorker.js 1527487（不变）；perf-gate 全 PASS（client bundle 2.43MB/3MB、host bundle 202KB/512KB、test count 5225/4463）；hygiene 单独运行 exit 0（dist/index.js ES module 0.20 MB、dist/client.js __ModuleLoader__ 2.41 MB、layoutWorker.js 1.46 MB、no stale hashed chunks 3/12、19 artefact(s) reachable from 7 root(s)、published payload size 11.55 MB、publint skip）；E2E smoke 57 passed（4.0m，exit 0）。",
+      "timestamp": "2026-10-11T07:13:29.148Z",
+      "previousHash": "60850d0817268dac5bef353286d3c911aa81ce6bef769700f6c4fcaac2c367d5",
+      "hash": "08cbd4ba19e91ba135443686cde3f5a15b1fb82823d9a7401dbf6bedd2bf89c4"
     }
   ],
-  "chainHead": "b3239c05bde1df95901b99af42436bb8506d7ed73a7d8d63137ede44538e6fed"
+  "chainHead": "08cbd4ba19e91ba135443686cde3f5a15b1fb82823d9a7401dbf6bedd2bf89c4"
 }
