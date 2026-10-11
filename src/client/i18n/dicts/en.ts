@@ -143,6 +143,8 @@ export const en: Record<string, string> = {
   'detail.edgesShowMore': 'Show more edges ({count} remaining)',
   'detail.edgesLoadedOf': '{loaded} of {total} edges',
   'detail.edgesAggregated': 'Aggregated by file pair',
+  'detail.edgesExpandAggregated': 'Expand into individual edges',
+  'detail.edgesDetailActive': 'Expanded — no longer aggregated',
   'detail.edgeIncoming': 'in',
   'detail.edgeOutgoing': 'out',
 

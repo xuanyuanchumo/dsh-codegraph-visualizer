@@ -100,6 +100,17 @@ export interface GraphState {
   loadingEdgeNodeIds: Set<string>;
 
   /**
+   * Node ids whose current edge list is the **unaggregated** detail view.
+   *
+   * `/edges` collapses a dense file neighbourhood into one synthetic edge per
+   * file pair, and that aggregate page cannot be paged (`hasMore: false`). Once
+   * the user asks for detail, every later page for that node must keep asking
+   * for unaggregated edges, or the server would re-collapse the next page and
+   * the user would silently lose the edges they just asked to see.
+   */
+  detailEdgeNodeIds: Set<string>;
+
+  /**
    * Single-symbol AST page progress per function node id.
    *
    * `/symbols/{id}/ast` cuts at `SYMBOL_AST.MAX_NODES` and reports `total` /
@@ -210,7 +221,7 @@ export interface GraphState {
   pinNode: (nodeId: string) => void;
   unpinNode: (nodeId: string) => void;
   cancelPendingRequest: (nodeId: string) => void;
-  loadNodeEdges: (nodeId: string, options?: { append?: boolean; scope?: 'file' | 'symbol' }) => Promise<void>;
+  loadNodeEdges: (nodeId: string, options?: { append?: boolean; scope?: 'file' | 'symbol'; detail?: boolean }) => Promise<void>;
   /**
    * Fetch and merge the next AST page for a symbol whose body exceeded the
    * single-symbol budget (`SYMBOL_AST.MAX_NODES`).

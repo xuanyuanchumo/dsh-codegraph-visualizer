@@ -38,6 +38,7 @@ function makeState(overrides: Partial<GraphState> = {}): GraphState {
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set<string>(),
+    detailEdgeNodeIds: new Set<string>(),
     currentWorkspace: '.',
     ...overrides,
   } as unknown as GraphState;
@@ -81,8 +82,10 @@ describe('edgeSlice', () => {
       expect(a.nodeEdgeTotals.size).toBe(0);
       expect(a.nodeEdgeCursors.size).toBe(0);
       expect(a.loadingEdgeNodeIds.size).toBe(0);
+      expect(a.detailEdgeNodeIds.size).toBe(0);
       expect(a.nodeEdgesByNodeId).not.toBe(b.nodeEdgesByNodeId);
       expect(a.loadingEdgeNodeIds).not.toBe(b.loadingEdgeNodeIds);
+      expect(a.detailEdgeNodeIds).not.toBe(b.detailEdgeNodeIds);
     });
   });
 
@@ -96,7 +99,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1');
 
       expect(mocks.fetchEdges).toHaveBeenCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.',
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
       );
       expect(h.state.nodeEdgesByNodeId.get('n1')).toEqual([e1, e2]);
       expect(h.state.nodeEdgeTotals.get('n1')).toBe(2);
@@ -110,13 +113,13 @@ describe('edgeSlice', () => {
 
       await h.slice.loadNodeEdges('n1');
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.',
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
       );
 
       mocks.fetchEdges.mockClear();
       await h.slice.loadNodeEdges('n2', { scope: 'symbol' });
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n2', 'symbol', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.',
+        'n2', 'symbol', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
       );
     });
 
@@ -127,7 +130,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1');
 
       expect(mocks.fetchEdges).toHaveBeenCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '/repo',
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '/repo', false,
       );
     });
 
@@ -183,7 +186,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1', { append: true });
 
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.',
+        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
       );
       expect(h.state.nodeEdgesByNodeId.get('n1')?.map((e) => e.id)).toEqual(['e1', 'e2']);
       expect(h.state.nodeEdgeCursors.get('n1')).toBe(2);
@@ -209,7 +212,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1', { append: true });
 
       expect(mocks.fetchEdges).toHaveBeenCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.',
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
       );
       expect(h.state.nodeEdgesByNodeId.get('n1')).toEqual([e1]);
     });
@@ -397,6 +400,109 @@ describe('edgeSlice', () => {
       release!({ edges: [], total: 0, cursor: 0, hasMore: false });
       await pending;
       expect(h.state.loadingEdgeNodeIds.has('n1')).toBe(false);
+    });
+  });
+
+  // --- P1-3: expanding a file-pair aggregate into raw edges ------------------
+  // The aggregate page reports `hasMore: false` and `total === edges.length`, so
+  // the "complete page" early-return would block the detail request forever. These
+  // cases pin the escape hatch and the sticky per-node detail flag.
+  describe('detail mode (expand aggregated edges)', () => {
+    const aggregate = () => {
+      const e = makeEdge('agg:pair', 'n1', 'lib/util.ts', 'dependency');
+      e.properties = { aggregated: true, count: 25, filePair: 'lib/util.ts\0src/main.ts' };
+      return e;
+    };
+
+    it('requests unaggregated edges with detail=true', async () => {
+      mocks.fetchEdges.mockResolvedValue({ edges: [], total: 0, cursor: 0, hasMore: false });
+      const h = makeSlice();
+
+      await h.slice.loadNodeEdges('n1', { detail: true });
+
+      expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', true,
+      );
+      expect(h.state.detailEdgeNodeIds.has('n1')).toBe(true);
+    });
+
+    it('overrides the complete-page early return when the page is an aggregate', async () => {
+      const agg = aggregate();
+      mocks.fetchEdges.mockResolvedValue({ edges: [], total: 0, cursor: 0, hasMore: false });
+      const h = makeSlice({
+        nodeEdgesByNodeId: new Map([['n1', [agg]]]),
+        nodeEdgeTotals: new Map([['n1', 1]]),
+        nodeEdgeCursors: new Map([['n1', 1]]),
+      });
+
+      await h.slice.loadNodeEdges('n1', { detail: true });
+
+      // Without the override this would be 0 calls — the aggregate reports
+      // loaded.length === knownTotal, exactly like a genuinely complete page.
+      expect(mocks.fetchEdges).toHaveBeenCalledTimes(1);
+    });
+
+    it('still skips a complete page that is not an aggregate', async () => {
+      const e1 = makeEdge('e1', 'n1', 'n2', 'call');
+      const h = makeSlice({
+        nodeEdgesByNodeId: new Map([['n1', [e1]]]),
+        nodeEdgeTotals: new Map([['n1', 1]]),
+        nodeEdgeCursors: new Map([['n1', 1]]),
+      });
+
+      await h.slice.loadNodeEdges('n1', { detail: true });
+
+      expect(mocks.fetchEdges).not.toHaveBeenCalled();
+    });
+
+    it('keeps requesting detail for later pages once the flag is set', async () => {
+      mocks.fetchEdges.mockResolvedValue({ edges: [makeEdge('e1', 'n1', 'n2', 'call')], total: 2, cursor: 1, hasMore: true });
+      const h = makeSlice();
+      await h.slice.loadNodeEdges('n1', { detail: true });
+
+      mocks.fetchEdges.mockClear();
+      mocks.fetchEdges.mockResolvedValue({ edges: [makeEdge('e2', 'n1', 'n3', 'call')], total: 2, cursor: 2, hasMore: false });
+      // No `detail` in the options: the sticky per-node flag must carry it.
+      await h.slice.loadNodeEdges('n1', { append: true });
+
+      expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
+        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', true,
+      );
+    });
+
+    it('never reads the cache in detail mode', async () => {
+      const cacheMock = {
+        getEdges: vi.fn().mockResolvedValue({ edges: [aggregate()], total: 1 }),
+        setEdges: vi.fn().mockResolvedValue(undefined),
+      } as unknown as IndexedDBCache;
+      internals.persistentCache = cacheMock;
+      mocks.fetchEdges.mockResolvedValue({ edges: [makeEdge('e1', 'n1', 'n2', 'call')], total: 1, cursor: 1, hasMore: false });
+      const h = makeSlice();
+
+      await h.slice.loadNodeEdges('n1', { detail: true });
+
+      // The cached payload IS the aggregate the user asked to leave.
+      expect(cacheMock.getEdges).not.toHaveBeenCalled();
+    });
+
+    it('never writes the cache in detail mode', async () => {
+      const cacheMock = {
+        getEdges: vi.fn().mockResolvedValue(null),
+        setEdges: vi.fn().mockResolvedValue(undefined),
+      } as unknown as IndexedDBCache;
+      internals.persistentCache = cacheMock;
+      mocks.fetchEdges.mockResolvedValue({ edges: [makeEdge('e1', 'n1', 'n2', 'call')], total: 1, cursor: 1, hasMore: false });
+      const h = makeSlice();
+
+      await h.slice.loadNodeEdges('n1', { detail: true });
+
+      // A detail page must not poison the aggregate cache for the next visit.
+      expect(cacheMock.setEdges).not.toHaveBeenCalled();
+    });
+
+    it('resets the detail flag when the graph is replaced', () => {
+      const cleared = emptyEdgeState();
+      expect(cleared.detailEdgeNodeIds.size).toBe(0);
     });
   });
 });

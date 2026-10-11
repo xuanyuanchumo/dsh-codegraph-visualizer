@@ -2,7 +2,7 @@ import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, SYMBOL_AST,
 import type { GraphEdge, GraphNode, GraphData } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import {
-  resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS,
+  resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readIncidentEdgesWithFilePathsFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS,
 } from '../../adapters/CodeGraphAdapter.ts';
 import { mapDbNodesToGraphNodes, mapDbEdgesToGraphEdges } from '../DbMapper.ts';
 import { computeGraphEtag } from '../../shared/graphFingerprint.ts';
@@ -376,6 +376,40 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
   }), 'codegraph: symbol AST route');
 }
 
+/**
+ * 把同一文件对之间的多条边折叠成一条合成边（`properties.aggregated === true`）。
+ *
+ * DB 路径与内存路径共用本函数：两条路径此前各有一套（DB 路径干脆没有），
+ * 而聚合语义一旦分叉就会静默漂移——`total`、`hasMore`、`filePair` 三处任一不一致，
+ * 前端「展开明细」都会拿不到正确游标。
+ *
+ * `filePathOf` 是注入的：DB 路径用一次 `IN` 查询得到的映射，内存路径用图索引，
+ * 两者都不保证覆盖全部端点，因此缺失时退化为 `'?'` 而不是丢弃该边。
+ */
+function buildFilePairAggregate(
+  fromId: string,
+  edges: ReadonlyArray<{ source: string; target: string }>,
+  filePathOf: (nodeId: string) => string | undefined,
+): GraphEdge[] {
+  const filePairCounts = new Map<string, number>();
+  for (const e of edges) {
+    const srcFile = filePathOf(e.source) ?? '?';
+    const tgtFile = filePathOf(e.target) ?? '?';
+    const pairKey = srcFile < tgtFile ? `${srcFile}\0${tgtFile}` : `${tgtFile}\0${srcFile}`;
+    filePairCounts.set(pairKey, (filePairCounts.get(pairKey) ?? 0) + 1);
+  }
+  return [...filePairCounts.entries()].map(([pairKey, count]) => {
+    const [fileA, fileB] = pairKey.split('\0');
+    return {
+      id: EdgeId(`agg:${pairKey}`),
+      source: NodeId(fromId),
+      target: NodeId(fileA === fromId ? (fileB ?? fromId) : (fileA ?? fromId)),
+      type: 'dependency' as const,
+      properties: { aggregated: true, count, filePair: pairKey },
+    };
+  });
+}
+
 export function registerEdgesRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter } = rc;
   const { ctx } = deps;
@@ -390,7 +424,13 @@ export function registerEdgesRoute(rc: RouteContext): void {
       const scope = url.searchParams.get('scope') ?? 'file';
       const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10);
       const limit = Math.min(parseInt(url.searchParams.get('limit') ?? String(EDGES_AGGREGATION.PAGE_SIZE), 10), EDGES_AGGREGATION.PAGE_SIZE);
-      const aggregated = url.searchParams.get('aggregated') === '1';
+      // `detail=1` 请求未聚合的原始边（前端「展开聚合边」用它拉明细）。
+      // `aggregated=1` 是历史写法，语义相同（1 = 不要聚合），保留以免破坏既有调用方；
+      // 两者极性都反直觉，新代码一律用 `detail`。
+      const detailRequested = url.searchParams.get('detail') === '1'
+        || url.searchParams.get('aggregated') === '1';
+      // 只有文件作用域才有「跨文件边聚合」的概念：符号作用域的邻接边本来就不按文件折叠。
+      const mayAggregate = scope !== 'symbol' && !detailRequested;
 
       if (!fromId || fromId.length > VALIDATION.MAX_PATH_LENGTH) {
         sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
@@ -404,11 +444,40 @@ export function registerEdgesRoute(rc: RouteContext): void {
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
-        const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
         // DB-first: when DB is readable, its answer is authoritative — empty edges means
         // no edges exist, NOT "fall back to memory". This intentionally differs from
         // other routes (bootstrap/children/outline/ast) which use `dbResult.nodes.length > 0`
         // to fall back to memory when DB has no nodes. See CLAUDE.md for rationale.
+        if (mayAggregate) {
+          // 聚合必须在分页之前完成：同一个文件对会被拆到多页里，逐页聚合必然算错。
+          // 因此聚合路径一次性取回全集（含端点文件映射），再决定聚合还是切片。
+          const full = readIncidentEdgesWithFilePathsFromDb(dbPath, fromId, scope as 'file' | 'symbol');
+          if (full) {
+            const allEdges = full.edges;
+            if (allEdges.length > EDGES_AGGREGATION.THRESHOLD) {
+              const aggregatedEdges = buildFilePairAggregate(
+                fromId, allEdges, (id) => full.filePathByNodeId.get(id),
+              );
+              sendJson(res, 200, {
+                edges: aggregatedEdges,
+                total: aggregatedEdges.length,
+                cursor: 0,
+                hasMore: false,
+                aggregated: true,
+              }, req, corsConfig);
+              return;
+            }
+            const pagedEdges = mapDbEdgesToGraphEdges(allEdges.slice(cursor, cursor + limit));
+            sendJson(res, 200, {
+              edges: pagedEdges,
+              total: allEdges.length,
+              cursor: cursor + pagedEdges.length,
+              hasMore: cursor + limit < allEdges.length,
+            }, req, corsConfig);
+            return;
+          }
+        }
+        const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
         if (dbResult) {
           const pagedEdges = mapDbEdgesToGraphEdges(
             dbResult.edges.filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind)),
@@ -448,25 +517,13 @@ export function registerEdgesRoute(rc: RouteContext): void {
             (e) => nodeIds.has(e.source) || nodeIds.has(e.target),
           );
 
-          if (!aggregated && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
+          if (mayAggregate && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
             const nodeIdToFilePath = index.nodeIdToFilePath;
-            const filePairCounts = new Map<string, number>();
-            for (const e of filteredEdges) {
-              const srcFile = nodeFilePaths.get(e.source) ?? nodeIdToFilePath.get(e.source) ?? '?';
-              const tgtFile = nodeFilePaths.get(e.target) ?? nodeIdToFilePath.get(e.target) ?? '?';
-              const pairKey = srcFile < tgtFile ? `${srcFile}\0${tgtFile}` : `${tgtFile}\0${srcFile}`;
-              filePairCounts.set(pairKey, (filePairCounts.get(pairKey) ?? 0) + 1);
-            }
-            const aggregatedEdges = [...filePairCounts.entries()].map(([pairKey, count]) => {
-              const [fileA, fileB] = pairKey.split('\0');
-              return {
-                id: EdgeId(`agg:${pairKey}`),
-                source: NodeId(fromId),
-                target: NodeId(fileA === fromId ? (fileB ?? fromId) : (fileA ?? fromId)),
-                type: 'dependency' as const,
-                properties: { aggregated: true, count, filePair: pairKey },
-              };
-            });
+            const aggregatedEdges = buildFilePairAggregate(
+              fromId,
+              filteredEdges,
+              (id) => nodeFilePaths.get(id) ?? nodeIdToFilePath.get(id),
+            );
             sendJson(res, 200, {
               edges: aggregatedEdges,
               total: aggregatedEdges.length,

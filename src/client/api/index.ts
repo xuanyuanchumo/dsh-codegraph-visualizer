@@ -319,13 +319,22 @@ export interface EdgesData {
   aggregated?: boolean;
 }
 
-export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal, workspace?: string): Promise<EdgesData | null> {
+/**
+ * 拉取某节点的邻接边。
+ *
+ * `detail` 为 `true` 时请求**未聚合**的原始边（服务端收到 `detail=1` 会跳过文件对聚合）。
+ * 用于详情面板的「展开明细」：默认请求会被服务端折叠成每文件对一条合成边，
+ * 用户要看真实连接就必须显式声明。
+ */
+export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal, workspace?: string, detail?: boolean): Promise<EdgesData | null> {
   return withAbortGuard('fetchEdges', async () => {
     const params = new URLSearchParams();
     params.set('from', fromId);
     params.set('scope', scope);
     if (cursor !== undefined) params.set('cursor', String(cursor));
     params.set('limit', String(limit ?? 500));
+    // 只在需要明细时才发参数：默认（聚合）请求保持原有 URL 形状不变。
+    if (detail === true) params.set('detail', '1');
     if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
     if (signal) options.signal = signal;

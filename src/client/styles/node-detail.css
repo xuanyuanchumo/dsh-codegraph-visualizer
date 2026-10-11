@@ -238,6 +238,22 @@
   cursor: default;
 }
 
+/* 聚合态下的「展开明细边」是唯一出口：聚合页不可分页（hasMore 恒为 false），
+   所以这个按钮必须比普通「显示更多」更醒目，否则用户会以为边就这么多。
+   见 docs/图谱按需加载.md:64-65 / :106-110「展开后分页拉取明细」。 */
+.cg-node-detail-panel .cg-detail-edges-expand-aggregated {
+  color: var(--cg-on-accent);
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  font-weight: 500;
+}
+
+.cg-node-detail-panel .cg-detail-edges-expand-aggregated:hover:not(:disabled) {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  opacity: 0.88;
+}
+
 /* ---- Expandable node indicators ------------------------------------------- */
 
 .cg-node-detail-panel .cg-detail-expand-hint {

@@ -46,6 +46,7 @@ export function disposeStore(): void {
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
+    detailEdgeNodeIds: new Set(),
   });
   if (internals.restoreTimeoutHandle !== null) {
     clearTimeout(internals.restoreTimeoutHandle);

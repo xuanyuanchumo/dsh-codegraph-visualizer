@@ -23,12 +23,14 @@ function edgeCacheKey(nodeId: string, scope: 'file' | 'symbol'): string {
  * the previous workspace cannot survive.
  */
 export function emptyEdgeState(): Pick<GraphState,
-  'nodeEdgesByNodeId' | 'nodeEdgeTotals' | 'nodeEdgeCursors' | 'loadingEdgeNodeIds' | 'astPageByNodeId'> {
+  'nodeEdgesByNodeId' | 'nodeEdgeTotals' | 'nodeEdgeCursors' | 'loadingEdgeNodeIds'
+  | 'detailEdgeNodeIds' | 'astPageByNodeId'> {
   return {
     nodeEdgesByNodeId: new Map(),
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
+    detailEdgeNodeIds: new Set(),
     astPageByNodeId: new Map(),
   };
 }
@@ -49,16 +51,29 @@ export function createEdgeSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
-    loadNodeEdges: async (nodeId: string, options?: { append?: boolean; scope?: 'file' | 'symbol' }) => {
+    detailEdgeNodeIds: new Set(),
+    loadNodeEdges: async (
+      nodeId: string,
+      options?: { append?: boolean; scope?: 'file' | 'symbol'; detail?: boolean },
+    ) => {
       const append = options?.append === true;
       const scope = options?.scope ?? 'file';
       const state = _get();
+      // Once the user asks for the unaggregated detail view, every later page for
+      // this node must keep asking for it: the server re-collapses a dense
+      // neighbourhood, so a plain follow-up page would silently drop the edges
+      // the user just asked to see.
+      const detail = options?.detail === true || state.detailEdgeNodeIds.has(nodeId);
 
       if (!append) {
         const loaded = state.nodeEdgesByNodeId.get(nodeId);
         const knownTotal = state.nodeEdgeTotals.get(nodeId);
         // A complete page is already in the store (the server reported hasMore=false).
-        if (loaded && knownTotal !== undefined && loaded.length >= knownTotal) return;
+        // An aggregated page reports the very same thing while hiding the raw edges,
+        // so an explicit detail request must be allowed to replace it.
+        const replacingAggregate = detail
+          && (loaded ?? []).some((e) => e.properties?.aggregated === true);
+        if (!replacingAggregate && loaded && knownTotal !== undefined && loaded.length >= knownTotal) return;
         // Coalesce repeated clicks into the in-flight request.
         if (state.loadingEdgeNodeIds.has(nodeId)) return;
       }
@@ -75,12 +90,20 @@ export function createEdgeSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
 
       const newLoading = new Set(_get().loadingEdgeNodeIds);
       newLoading.add(nodeId);
-      _set({ loadingEdgeNodeIds: newLoading });
+      if (detail && !_get().detailEdgeNodeIds.has(nodeId)) {
+        const nextDetail = new Set(_get().detailEdgeNodeIds);
+        nextDetail.add(nodeId);
+        _set({ loadingEdgeNodeIds: newLoading, detailEdgeNodeIds: nextDetail });
+      } else {
+        _set({ loadingEdgeNodeIds: newLoading });
+      }
 
       const controller = replaceController(internals.expandAbortControllers, `edges:${nodeId}`);
       try {
-        // Cache-first, first page only: later pages are appended to whatever is in the store.
-        if (!append && internals.persistentCache) {
+        // Cache-first, first page only: later pages are appended to whatever is in
+        // the store. The detail view never touches the cache — the cached payload is
+        // the aggregated page, which is exactly what the user asked to leave.
+        if (!append && !detail && internals.persistentCache) {
           const cached = await internals.persistentCache.getEdges(cacheKey);
           // A superseded request or a graph reload makes this whole lookup stale.
           if (!isCurrent() || gen !== internals.expandGeneration) return;
@@ -102,11 +125,11 @@ export function createEdgeSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
 
         const data = await fetchEdges(
           nodeId, scope, cursor, EDGE_DETAIL.PAGE_SIZE,
-          controller.signal, _get().currentWorkspace,
+          controller.signal, _get().currentWorkspace, detail,
         );
         if (!isCurrent() || gen !== internals.expandGeneration) return;
         if (!data) {
-          log.warn('loadNodeEdges: no response', { nodeId, scope, cursor });
+          log.warn('loadNodeEdges: no response', { nodeId, scope, cursor, detail });
           return;
         }
 
@@ -122,12 +145,13 @@ export function createEdgeSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
         cursors.set(nodeId, typeof data.cursor === 'number' ? data.cursor : merged.length);
         _set({ nodeEdgesByNodeId: edgesByNode, nodeEdgeTotals: totals, nodeEdgeCursors: cursors });
 
-        // Only persist a complete result: a partial page would poison the cache with hasMore state.
-        if (!data.hasMore && internals.persistentCache) {
+        // Only persist a complete result: a partial page would poison the cache with
+        // hasMore state, and a detail page would poison it with unaggregated edges.
+        if (!data.hasMore && !detail && internals.persistentCache) {
           await internals.persistentCache.setEdges(cacheKey, { edges: merged, total: data.total } satisfies CachedEdgePage);
         }
         log.info('node edges loaded', {
-          nodeId, scope, edges: incoming.length, total: data.total,
+          nodeId, scope, detail, edges: incoming.length, total: data.total,
           hasMore: data.hasMore, aggregated: data.aggregated === true,
         });
       } catch (err) {

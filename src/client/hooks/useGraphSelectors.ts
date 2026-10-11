@@ -66,6 +66,7 @@ export function useNodeEdges() {
     nodeEdgeTotals: s.nodeEdgeTotals,
     nodeEdgeCursors: s.nodeEdgeCursors,
     loadingEdgeNodeIds: s.loadingEdgeNodeIds,
+    detailEdgeNodeIds: s.detailEdgeNodeIds,
   })));
 }
 

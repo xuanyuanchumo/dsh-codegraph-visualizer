@@ -660,6 +660,26 @@ describe('client api', () => {
       expect(mockFetch.mock.calls[0]![0]).toContain('limit=200');
     });
 
+    it('omits the detail param by default so the server may aggregate', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ edges: [], total: 0, cursor: 0, hasMore: false }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchEdges('node-1');
+      expect(mockFetch.mock.calls[0]![0]).not.toContain('detail=');
+    });
+
+    it('requests unaggregated edges when detail is true', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ edges: [], total: 0, cursor: 0, hasMore: false }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchEdges('node-1', 'file', 0, 100, undefined, undefined, true);
+      expect(mockFetch.mock.calls[0]![0]).toContain('detail=1');
+    });
+
     it('returns null when response not ok', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
       const result = await fetchEdges('node-1');

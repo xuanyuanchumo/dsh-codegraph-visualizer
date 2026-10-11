@@ -37,7 +37,8 @@ function endpointLabel(edge: GraphEdge, nodeId: string, labels: Map<string, stri
 export const NodeEdgeList = memo(function NodeEdgeList({ nodeId, enabled = true }: NodeEdgeListProps) {
   const t = useT();
   const rawNodes = useGraphStore((s) => s.rawNodes);
-  const { edges, total, isLoading, isAggregated, hasMore, previewLimit, loadMore } = useNodeEdgeList(nodeId, enabled);
+  const { edges, total, isLoading, isAggregated, isDetail, hasMore, previewLimit, loadMore, expandAggregated } =
+    useNodeEdgeList(nodeId, enabled);
   const [showAll, setShowAll] = useState(false);
 
   const labels = useMemo(
@@ -51,11 +52,16 @@ export const NodeEdgeList = memo(function NodeEdgeList({ nodeId, enabled = true 
   const hiddenCount = edges.length - visibleEdges.length;
   const remaining = total !== null ? Math.max(total - visibleEdges.length, 0) : hiddenCount;
 
-  const action = hiddenCount > 0
-    ? { label: t('detail.edgesShowMore', { count: remaining }), run: () => setShowAll(true) }
-    : hasMore
-      ? { label: t('detail.edgesShowMore', { count: remaining }), run: loadMore }
-      : null;
+  // The aggregate page is not pageable (`hasMore: false`), so "show more" cannot
+  // reveal the collapsed edges — the only way through is to ask the server for the
+  // raw ones. Prefer that action whenever the list is still aggregated.
+  const action = isAggregated
+    ? { label: t('detail.edgesExpandAggregated'), run: expandAggregated }
+    : hiddenCount > 0
+      ? { label: t('detail.edgesShowMore', { count: remaining }), run: () => setShowAll(true) }
+      : hasMore
+        ? { label: t('detail.edgesShowMore', { count: remaining }), run: loadMore }
+        : null;
 
   return (
     <div className="cg-detail-edges" role="region" aria-label={t('detail.edgesTitle')}>
@@ -67,7 +73,16 @@ export const NodeEdgeList = memo(function NodeEdgeList({ nodeId, enabled = true 
           </span>
         )}
       </div>
-      {isAggregated && <div className="cg-detail-edges-aggregated">{t('detail.edgesAggregated')}</div>}
+      {isAggregated && (
+        <div className="cg-detail-edges-aggregated" role="status">
+          {t('detail.edgesAggregated')}
+        </div>
+      )}
+      {isDetail && !isAggregated && (
+        <div className="cg-detail-edges-aggregated" role="status">
+          {t('detail.edgesDetailActive')}
+        </div>
+      )}
       {isLoading && edges.length === 0 && (
         <div className="cg-detail-edges-status">{t('detail.edgesLoading')}</div>
       )}
@@ -92,7 +107,12 @@ export const NodeEdgeList = memo(function NodeEdgeList({ nodeId, enabled = true 
         })}
       </ul>
       {action && (
-        <button type="button" className="cg-detail-edges-more" onClick={action.run} disabled={isLoading}>
+        <button
+          type="button"
+          className={`cg-detail-edges-more${isAggregated ? ' cg-detail-edges-expand-aggregated' : ''}`}
+          onClick={action.run}
+          disabled={isLoading}
+        >
           {action.label}
         </button>
       )}

@@ -143,6 +143,8 @@ export const zh: Record<string, string> = {
   'detail.edgesShowMore': '显示更多边（剩余 {count} 条）',
   'detail.edgesLoadedOf': '已加载 {loaded} / {total} 条边',
   'detail.edgesAggregated': '已按文件对聚合',
+  'detail.edgesExpandAggregated': '展开明细边',
+  'detail.edgesDetailActive': '已展开明细，不再聚合',
   'detail.edgeIncoming': '入',
   'detail.edgeOutgoing': '出',
 

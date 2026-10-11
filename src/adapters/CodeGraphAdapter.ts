@@ -520,28 +520,86 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
       const pagedEdges = allEdges.slice(cursor, cursor + limit);
       return { edges: pagedEdges, total };
     }
-    const filePathResult = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(nodeId) as { file_path: string } | undefined;
-    if (!filePathResult) return { edges: [], total: 0 };
-    const filePath = filePathResult.file_path;
-    const nodeIds = db.prepare('SELECT id FROM nodes WHERE file_path = ?').all(filePath) as { id: string }[];
-    const idList = nodeIds.map(n => n.id);
-    if (idList.length === 0) return { edges: [], total: 0 };
-    const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
-    const edgeMap = new Map<number, DbEdgeRow>();
-    for (let i = 0; i < idList.length; i += batchSize) {
-      const batch = idList.slice(i, i + batchSize);
-      const placeholders = batch.map(() => '?').join(',');
-      const batchEdges = validateEdgeRows(db.prepare(
-        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
-      ).all(...batch, ...batch));
-      for (const e of batchEdges) edgeMap.set(e.id, e);
-    }
-    const allEdges = [...edgeMap.values()].filter(keep);
+    const fileResult = readIncidentEdgesWithFilePathsFromDb(dbPath, nodeId, 'file');
+    if (!fileResult) return null;
+    const allEdges = fileResult.edges;
     const total = allEdges.length;
     const pagedEdges = allEdges.slice(cursor, cursor + limit);
     return { edges: pagedEdges, total };
   } catch (e) {
     log.warn('readEdgesFromDb failed', e);
+    return null;
+  }
+}
+
+/**
+ * 一次性读回某节点（或其所在文件）的全部邻接边，**不切片**，并附上每个端点所属文件。
+ *
+ * 供「文件对聚合」使用：聚合必须在分页之前完成（否则每页各自聚合，
+ * 同一个文件对会被拆到多页里），所以聚合路径需要未切片的全集。
+ * 调用方拿到结果后自行决定聚合还是切片，因此这里刻意不接受 cursor/limit。
+ *
+ * 遵守与 `readEdgesFromDb` 相同的约束：分批 IN 查询只用于规避 SQLite 参数上限，
+ * 绝不在分批内使用 LIMIT/OFFSET（OFFSET 作用于整个结果集而非单个批次）。
+ */
+export function readIncidentEdgesWithFilePathsFromDb(
+  dbPath: string,
+  nodeId: string,
+  scope: 'file' | 'symbol',
+): { edges: DbEdgeRow[]; filePathByNodeId: Map<string, string> } | null {
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
+  const keep = (e: DbEdgeRow): boolean => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind);
+  try {
+    const filePathByNodeId = new Map<string, string>();
+    const edgeMap = new Map<number, DbEdgeRow>();
+    const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
+
+    if (scope === 'file') {
+      const filePathResult = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(nodeId) as { file_path: string } | undefined;
+      if (!filePathResult) return { edges: [], filePathByNodeId };
+      const filePath = filePathResult.file_path;
+      const nodeIds = db.prepare('SELECT id FROM nodes WHERE file_path = ?').all(filePath) as { id: string }[];
+      const idList = nodeIds.map((n) => n.id);
+      if (idList.length === 0) return { edges: [], filePathByNodeId };
+      for (const id of idList) filePathByNodeId.set(id, filePath);
+      for (let i = 0; i < idList.length; i += batchSize) {
+        const batch = idList.slice(i, i + batchSize);
+        const placeholders = batch.map(() => '?').join(',');
+        const batchEdges = validateEdgeRows(db.prepare(
+          `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+        ).all(...batch, ...batch));
+        for (const e of batchEdges) edgeMap.set(e.id, e);
+      }
+    } else {
+      const symbolEdges = validateEdgeRows(db.prepare(
+        'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ?',
+      ).all(nodeId, nodeId));
+      for (const e of symbolEdges) edgeMap.set(e.id, e);
+    }
+
+    const edges = [...edgeMap.values()].filter(keep);
+
+    // 解析尚未知文件的端点（跨文件边的远端）。文件作用域下只有本文件内的节点
+    // 预先有映射，远端必须回查，否则它们会被归到 '?' 这一个假文件对里。
+    const unresolved = new Set<string>();
+    for (const e of edges) {
+      if (!filePathByNodeId.has(e.source)) unresolved.add(e.source);
+      if (!filePathByNodeId.has(e.target)) unresolved.add(e.target);
+    }
+    const unresolvedList = [...unresolved];
+    for (let i = 0; i < unresolvedList.length; i += batchSize) {
+      const batch = unresolvedList.slice(i, i + batchSize);
+      const placeholders = batch.map(() => '?').join(',');
+      const rows = db.prepare(
+        `SELECT id, file_path FROM nodes WHERE id IN (${placeholders})`,
+      ).all(...batch) as { id: string; file_path: string }[];
+      for (const r of rows) filePathByNodeId.set(r.id, r.file_path);
+    }
+
+    return { edges, filePathByNodeId };
+  } catch (e) {
+    log.warn('readIncidentEdgesWithFilePathsFromDb failed', e);
     return null;
   }
 }

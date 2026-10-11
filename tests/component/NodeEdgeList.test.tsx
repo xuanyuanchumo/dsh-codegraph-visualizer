@@ -45,6 +45,7 @@ beforeEach(() => {
     nodeEdgeTotals: new Map(),
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
+    detailEdgeNodeIds: new Set(),
   });
 });
 
@@ -68,7 +69,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(1));
     expect(mocks.fetchEdges).toHaveBeenCalledWith(
-      'n1', 'file', 0, 100, expect.any(AbortSignal), '.',
+      'n1', 'file', 0, 100, expect.any(AbortSignal), '.', false,
     );
   });
 
@@ -130,6 +131,60 @@ describe('NodeEdgeList component', () => {
     expect(screen.getByText('Aggregated by file pair')).toBeTruthy();
   });
 
+  // --- Scenario 8d: expanding a file-pair aggregate (P1-3) -------------------
+  // An aggregate page reports hasMore:false and total===edges.length, so the
+  // generic "show more" path can never reveal the collapsed edges.
+
+  it('offers to expand an aggregated neighbourhood into raw edges', async () => {
+    mocks.fetchEdges.mockResolvedValue({
+      edges: [makeEdge('agg:1', 'n1', 'file:b.ts', 'dependency', { aggregated: true, count: 25 })],
+      total: 1, cursor: 0, hasMore: false, aggregated: true,
+    });
+    render(<NodeEdgeList nodeId="n1" />);
+
+    await waitFor(() => expect(document.querySelector('.cg-detail-edges-expand-aggregated')).toBeTruthy());
+    const button = document.querySelector('.cg-detail-edges-expand-aggregated') as HTMLButtonElement;
+    expect(button.textContent).toBe('Expand into individual edges');
+    // The aggregate is one edge, below the 5-edge preview, so no generic
+    // "show more" affordance exists — the expand action is the only way out.
+    expect(button.classList.contains('cg-detail-edges-more')).toBe(true);
+  });
+
+  it('requests unaggregated edges with detail=1 when the aggregate is expanded', async () => {
+    mocks.fetchEdges.mockResolvedValue({
+      edges: [makeEdge('agg:1', 'n1', 'file:b.ts', 'dependency', { aggregated: true, count: 25 })],
+      total: 1, cursor: 0, hasMore: false, aggregated: true,
+    });
+    render(<NodeEdgeList nodeId="n1" />);
+
+    await waitFor(() => expect(document.querySelector('.cg-detail-edges-expand-aggregated')).toBeTruthy());
+    mocks.fetchEdges.mockResolvedValue(page([makeEdge('e1', 'n1', 'n2'), makeEdge('e2', 'n1', 'n3')], 2, false));
+    await userEvent.click(document.querySelector('.cg-detail-edges-expand-aggregated') as HTMLElement);
+
+    await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(2));
+    expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
+      'n1', 'file', 0, 100, expect.any(AbortSignal), '.', true,
+    );
+  });
+
+  it('replaces the aggregate with the raw edges and discloses the switch', async () => {
+    mocks.fetchEdges.mockResolvedValue({
+      edges: [makeEdge('agg:1', 'n1', 'file:b.ts', 'dependency', { aggregated: true, count: 25 })],
+      total: 1, cursor: 0, hasMore: false, aggregated: true,
+    });
+    render(<NodeEdgeList nodeId="n1" />);
+
+    await waitFor(() => expect(document.querySelector('.cg-detail-edges-expand-aggregated')).toBeTruthy());
+    mocks.fetchEdges.mockResolvedValue(page([makeEdge('e1', 'n1', 'n2')], 1, false));
+    await userEvent.click(document.querySelector('.cg-detail-edges-expand-aggregated') as HTMLElement);
+
+    await waitFor(() => expect(screen.getByText('Expanded — no longer aggregated')).toBeTruthy());
+    // The aggregate notice and its action are both gone.
+    expect(document.querySelector('.cg-detail-edges-expand-aggregated')).toBeNull();
+    expect(screen.queryByText('Aggregated by file pair')).toBeNull();
+    expect(document.querySelectorAll('.cg-detail-edge-item')).toHaveLength(1);
+  });
+
   it('caps the preview at five edges and offers to reveal the rest', async () => {
     const edges = Array.from({ length: 8 }, (_, i) => makeEdge(`e${i}`, 'n1', `n${i + 2}`));
     mocks.fetchEdges.mockResolvedValue(page(edges, 8));
@@ -159,7 +214,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(2));
     expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-      'n1', 'file', 5, 100, expect.any(AbortSignal), '.',
+      'n1', 'file', 5, 100, expect.any(AbortSignal), '.', false,
     );
   });
 
@@ -204,7 +259,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(2));
     expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-      'n9', 'file', 0, 100, expect.any(AbortSignal), '.',
+      'n9', 'file', 0, 100, expect.any(AbortSignal), '.', false,
     );
   });
 

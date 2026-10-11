@@ -13,12 +13,21 @@ export interface NodeEdgeList {
   isLoading: boolean;
   /** True when the server collapsed a dense neighbourhood into file pairs. */
   isAggregated: boolean;
+  /** True when this node's list has already been expanded into raw edges. */
+  isDetail: boolean;
   /** True when the server holds more edges than have been loaded. */
   hasMore: boolean;
   /** Number of edges shown inline before the list is expanded. */
   previewLimit: number;
   /** Fetch the next page (or the first page when nothing is loaded yet). */
   loadMore: () => void;
+  /**
+   * Replace the file-pair aggregate with the raw edges behind it.
+   *
+   * An aggregate page is not pageable (`hasMore: false`), so this is the only
+   * way to reach the collapsed edges.
+   */
+  expandAggregated: () => void;
   /** Drop the cached pages for this node and refetch from scratch. */
   refresh: () => void;
 }
@@ -35,7 +44,7 @@ const EMPTY_EDGES: GraphEdge[] = [];
  * only when the user asks for them.
  */
 export function useNodeEdgeList(nodeId: string | null, enabled = true): NodeEdgeList {
-  const { nodeEdgesByNodeId, nodeEdgeTotals, loadingEdgeNodeIds } = useNodeEdges();
+  const { nodeEdgesByNodeId, nodeEdgeTotals, loadingEdgeNodeIds, detailEdgeNodeIds } = useNodeEdges();
   const loadNodeEdges = useGraphStore((s) => s.loadNodeEdges);
 
   const edges = (nodeId !== null ? nodeEdgesByNodeId.get(nodeId) : undefined) ?? EMPTY_EDGES;
@@ -61,6 +70,13 @@ export function useNodeEdgeList(nodeId: string | null, enabled = true): NodeEdge
     void loadNodeEdges(nodeId, { append: true });
   }, [nodeId, loadNodeEdges]);
 
+  // A detail request replaces the aggregate, so it must NOT append: appending
+  // would merge raw edges into the file-pair summary and report a nonsense total.
+  const expandAggregated = useCallback(() => {
+    if (nodeId === null) return;
+    void loadNodeEdges(nodeId, { detail: true });
+  }, [nodeId, loadNodeEdges]);
+
   const refresh = useCallback(() => {
     if (nodeId === null) return;
     useGraphStore.setState((s) => {
@@ -83,9 +99,11 @@ export function useNodeEdgeList(nodeId: string | null, enabled = true): NodeEdge
     total,
     isLoading,
     isAggregated: edges.some((e) => e.properties?.aggregated === true),
+    isDetail: nodeId !== null && detailEdgeNodeIds.has(nodeId),
     hasMore,
     previewLimit: EDGE_DETAIL.PREVIEW_LIMIT,
     loadMore,
+    expandAggregated,
     refresh,
-  }), [edges, total, isLoading, hasMore, loadMore, refresh]);
+  }), [edges, total, isLoading, hasMore, loadMore, expandAggregated, refresh, nodeId, detailEdgeNodeIds]);
 }

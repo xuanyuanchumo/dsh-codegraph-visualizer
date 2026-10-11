@@ -56,6 +56,7 @@ const mockReadEdgesFromDb = vi.fn();
 const mockReadFileOutlineFromDb = vi.fn();
 const mockReadSymbolASTFromDb = vi.fn();
 const mockReadEdgesForNodesFromDb = vi.fn();
+const mockReadIncidentEdgesWithFilePathsFromDb = vi.fn();
 
 vi.mock('../../src/adapters/CodeGraphAdapter.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/adapters/CodeGraphAdapter.ts')>();
@@ -64,12 +65,16 @@ vi.mock('../../src/adapters/CodeGraphAdapter.ts', async (importOriginal) => {
   mockReadFileOutlineFromDb.mockImplementation((...args: Parameters<typeof actual.readFileOutlineFromDb>) => actual.readFileOutlineFromDb(...args));
   mockReadSymbolASTFromDb.mockImplementation((...args: Parameters<typeof actual.readSymbolASTFromDb>) => actual.readSymbolASTFromDb(...args));
   mockReadEdgesForNodesFromDb.mockImplementation((...args: Parameters<typeof actual.readEdgesForNodesFromDb>) => actual.readEdgesForNodesFromDb(...args));
+  mockReadIncidentEdgesWithFilePathsFromDb.mockImplementation(
+    (...args: Parameters<typeof actual.readIncidentEdgesWithFilePathsFromDb>) => actual.readIncidentEdgesWithFilePathsFromDb(...args),
+  );
   return {
     ...actual,
     readEdgesFromDb: mockReadEdgesFromDb,
     readFileOutlineFromDb: mockReadFileOutlineFromDb,
     readSymbolASTFromDb: mockReadSymbolASTFromDb,
     readEdgesForNodesFromDb: mockReadEdgesForNodesFromDb,
+    readIncidentEdgesWithFilePathsFromDb: mockReadIncidentEdgesWithFilePathsFromDb,
   };
 });
 
@@ -89,7 +94,7 @@ import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { VisualizerConfig } from '../../src/host/config.ts';
 import { isSafeRelativePath, triggerBackgroundBuild } from '../../src/host/routes/shared.ts';
 import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
-import { FINGERPRINT, VALIDATION, SYMBOL_AST } from '../../src/shared/constants.ts';
+import { FINGERPRINT, VALIDATION, SYMBOL_AST, EDGES_AGGREGATION } from '../../src/shared/constants.ts';
 import { computeGraphEtag } from '../../src/shared/graphFingerprint.ts';
 
 type MockCtx = {
@@ -2394,10 +2399,13 @@ describe('edges route - DB fallback paths (index 15)', () => {
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
+    mockReadEdgesFromDb.mockClear();
     mockReadEdgesFromDb.mockReturnValue(null);
     mockReadFileOutlineFromDb.mockReturnValue(null);
     mockReadSymbolASTFromDb.mockReturnValue(null);
     mockReadEdgesForNodesFromDb.mockReturnValue([]);
+    mockReadIncidentEdgesWithFilePathsFromDb.mockClear();
+    mockReadIncidentEdgesWithFilePathsFromDb.mockReturnValue(null);
   });
 
   it('GET /edges returns edges from DB when no cached data', async () => {
@@ -2454,6 +2462,131 @@ describe('edges route - DB fallback paths (index 15)', () => {
     const body = JSON.parse(state.body);
     expect(body.edges).toEqual([]);
     expect(body.total).toBe(0);
+  });
+
+  // --- P1-3: the DB-first path must aggregate too -----------------------------
+  // Round 18 made /edges DB-first, but aggregation only lived in the in-memory
+  // fallback, so on any workspace with a readable DB the file-pair summary was
+  // unreachable. These cases pin the DB branch's aggregate behaviour.
+
+  it('GET /edges aggregates dense neighbourhoods on the DB path', async () => {
+    const edges = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1, source: `n${i}`, target: `n${i + 25}`, kind: 'calls', line: i + 1,
+    }));
+    const filePathByNodeId = new Map<string, string>();
+    for (let i = 0; i < 25; i++) filePathByNodeId.set(`n${i}`, 'src/main.ts');
+    for (let i = 25; i < 50; i++) filePathByNodeId.set(`n${i}`, 'lib/util.ts');
+    mockReadIncidentEdgesWithFilePathsFromDb.mockReturnValue({ edges, filePathByNodeId });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.aggregated).toBe(true);
+    expect(body.hasMore).toBe(false);
+    // One synthetic edge for the single file pair, not 25 raw edges.
+    expect(body.edges.length).toBe(1);
+    expect(body.total).toBe(1);
+    expect(body.edges[0].properties.aggregated).toBe(true);
+    expect(body.edges[0].properties.count).toBe(25);
+    // `pairKey` orders the two files lexicographically, so 'lib/util.ts' comes first.
+    expect(body.edges[0].properties.filePair).toBe('lib/util.ts\0src/main.ts');
+    expect(body.edges[0].target).toBe('lib/util.ts');
+    // The aggregate path never falls through to the paged reader.
+    expect(mockReadEdgesFromDb).not.toHaveBeenCalled();
+  });
+
+  it('GET /edges pages the DB path unaggregated when below the threshold', async () => {
+    const edges = Array.from({ length: 3 }, (_, i) => ({
+      id: i + 1, source: `n${i}`, target: `n${i + 3}`, kind: 'calls', line: i + 1,
+    }));
+    const filePathByNodeId = new Map<string, string>();
+    for (let i = 0; i < 3; i++) filePathByNodeId.set(`n${i}`, 'src/main.ts');
+    for (let i = 3; i < 6; i++) filePathByNodeId.set(`n${i}`, 'lib/util.ts');
+    mockReadIncidentEdgesWithFilePathsFromDb.mockReturnValue({ edges, filePathByNodeId });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&limit=2'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.aggregated).toBeUndefined();
+    expect(body.edges.length).toBe(2);
+    expect(body.total).toBe(3);
+    expect(body.hasMore).toBe(true);
+    expect(body.cursor).toBe(2);
+  });
+
+  it('GET /edges skips aggregation on the DB path when detail=1', async () => {
+    const edges = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1, source: `n${i}`, target: `n${i + 25}`, kind: 'calls', line: i + 1,
+    }));
+    mockReadEdgesFromDb.mockReturnValue({ edges, total: edges.length });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&detail=1'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    // The aggregate was explicitly refused, so the raw edges must come back.
+    expect(body.aggregated).toBeUndefined();
+    expect(body.edges.length).toBe(25);
+    expect(body.total).toBe(25);
+    expect(body.hasMore).toBe(false);
+    // detail=1 must not touch the aggregate reader at all.
+    expect(mockReadIncidentEdgesWithFilePathsFromDb).not.toHaveBeenCalled();
+  });
+
+  it('GET /edges never aggregates symbol scope even past the threshold', async () => {
+    const nodes = [makeNode('nodeA', 'A', 'function', 'src/main.ts', 1)];
+    const edges = Array.from({ length: 25 }, (_, i) => makeEdge(`e${i}`, 'nodeA', `n${i}`, 'call'));
+    deps.setLastGraphData(makeGraphData(nodes, edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.aggregated).toBeUndefined();
+    expect(body.edges.length).toBe(25);
+  });
+
+  it('GET /edges ignores the DB aggregate reader when scope is symbol', async () => {
+    // The aggregate reader must not even be consulted for symbol scope: it exists
+    // to resolve file pairs, which symbol scope does not use.
+    mockReadIncidentEdgesWithFilePathsFromDb.mockReturnValue({ edges: [], filePathByNodeId: new Map() });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    expect(mockReadIncidentEdgesWithFilePathsFromDb).not.toHaveBeenCalled();
+  });
+
+  it('GET /edges threshold is exclusive: exactly THRESHOLD edges stay unaggregated', async () => {
+    const edges = Array.from({ length: EDGES_AGGREGATION.THRESHOLD }, (_, i) => ({
+      id: i + 1, source: `n${i}`, target: `n${i + EDGES_AGGREGATION.THRESHOLD}`, kind: 'calls', line: i + 1,
+    }));
+    const filePathByNodeId = new Map<string, string>();
+    for (let i = 0; i < EDGES_AGGREGATION.THRESHOLD; i++) filePathByNodeId.set(`n${i}`, 'src/main.ts');
+    for (let i = EDGES_AGGREGATION.THRESHOLD; i < EDGES_AGGREGATION.THRESHOLD * 2; i++) filePathByNodeId.set(`n${i}`, 'lib/util.ts');
+    mockReadIncidentEdgesWithFilePathsFromDb.mockReturnValue({ edges, filePathByNodeId });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    // `> THRESHOLD`, not `>=`: the boundary itself is still a normal page.
+    expect(body.aggregated).toBeUndefined();
+    expect(body.edges.length).toBe(EDGES_AGGREGATION.THRESHOLD);
   });
 });
 
