@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-86",
+  "currentCycle": "cycle-87",
   "phaseHistory": [
+    {
+      "cycle": "cycle-87",
+      "phase": "complete",
+      "result": "结构性修复覆盖率记账层缺陷（消除 CJS require 逃逸产生的第二套 V8 脚本，objective #6 深挖 P0-P3 + #5 测试体系）： (a) 根因：tests/ 下 89 处 CJS require 加载 src/**/*.ts（LayoutController.test.ts 85 / FileSystemAdapter.test.ts 3 / chaos.test.ts 1），require 逃逸到 Node 内建 TS 加载器（type-stripping），绕过 vite-node 直接编译磁盘源码，对同一 file:// URL 产生第二个 V8 script；@bcoe/v8-coverage 的 mergeProcessCovs 按 URL 分桶（src/lib/merge.js:21-47）后按 stringifyFunctionRootRange（:119-122，只取首区间 startOffset;endOffset，不看函数名/scriptId）分组 ⇒ 两套偏移不相交，只能累加。 (b) 修复：89 处 require → await import，+78 个 it 补 async；去掉 89 处冗余括号；node:sqlite 内建 require 不改。 (c) 结果：src/client/diagram/index.ts fnMap 58→29（29 条全部 count>0）；全局 fnMap 1870→1551（45 个文件 / 319 条幽灵消除，0 个文件条目增加）；functions 86.20%（1612/1870）→ 96.65%（1499/1551，分母 −319）；statements 90.99%→94.82%（分母不变 25270 而 covered +970 ⇒ 纠正，非分母变化）；branches 90.70%→91.12%。 (d) 关键发现：缺陷同时污染两个维度且方向相反 —— functions 是分母虚高（applyCoverage 对具名函数 push 追加 ⇒ 双计），statements 是 covered 被压低（行下标写入天然唯一，但第二套坐标错位，真实命中写到错误键上）。 (e) 单行因果证明：排除另两个迁移文件、只回退 chaos.test.ts 一行 ⇒ GraphValidator.ts s 363/363 → 228/363（一行造成 135 条 statement 被误报未覆盖）。 (f) 迁移暴露既有缺陷：6×TS2322（LayoutController.test.ts:828,870,2208,2243,2309,2316 裸节点字面量缺 filePath/properties 与 NodeId 品牌 ⇒ 改用 makeNode/makeEdge） + 1×TS1308（it@2147 标题含 \"async\" 字样骗过迁移脚本 /\\basync\\b/）；git stash + 旧 HEAD typecheck:test exit 0 反证为既有缺陷。 (g) 唯一防线：新增 tests/unit/requireEscapeContract.test.ts（4 用例，含反向自检、空集保护 files.length > 100、豁免不过度扩张；样本用 'requ' + 'ire' 拼接避免守卫匹配到自己的样本字面量）。 (h) 变异探针红→绿：A 守卫 1 failed | 3 passed (4) → 4 passed；B fnMap=58 → 29（探针 B 必须 --exclude 守卫，否则守卫失败使 vitest exit 1 而不产出报告）。 (i) 门禁：typecheck exit 0；lint 0 warnings 0 errors（245 files/103 rules）；test 190 files/5229 passed；test:coverage exit 0（94.82/91.11/96.64/94.82）；build exit 0；perf-gate 全 PASS（client 2.43MB/3MB、host 202KB/512KB、test count 5229/4463）；hygiene 单独跑 exit 0；e2e smoke 57 passed (3.1m)。 (j) 范围：零 src/ 改动，vitest.config.ts 未改，未升级依赖，未 patch node_modules；dist/client.js 2543440 B 与 cycle-86 逐字节相同（SHA256 6BC363D9...）。 诚实披露：真机（objective #7）未执行（零 src/ 改动、dist 逐字节相同，不可能观测到差异）；剩余 47 个真实 functions 缺口未追；3 条不修改 src/ 无法覆盖的不可达点；fnMap 1551 未逐条核验与磁盘真实函数数的对应；LayoutController.test.ts 122 个 async it 中 76 个不含其他 await（非最小改动）。"
+    },
     {
       "cycle": "cycle-86",
       "phase": "complete",
@@ -205,5 +210,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-11T07:15:00.000Z"
+  "updatedAt": "2026-10-11T08:10:20.981Z"
 }

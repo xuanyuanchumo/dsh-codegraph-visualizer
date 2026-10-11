@@ -323,7 +323,43 @@
       "timestamp": "2026-10-11T07:13:29.148Z",
       "previousHash": "60850d0817268dac5bef353286d3c911aa81ce6bef769700f6c4fcaac2c367d5",
       "hash": "08cbd4ba19e91ba135443686cde3f5a15b1fb82823d9a7401dbf6bedd2bf89c4"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-87 评估基线就绪：只读侦察确认 tests/ 下 89 处 CJS require 逃逸到 src/*.ts（LayoutController.test.ts 85 / FileSystemAdapter.test.ts 3 / chaos.test.ts 1）；根因锁定到 chaos.test.ts:211 单行；排除实验证明 --exclude chaos.test.ts 即 fnMap 58->29；12 条事实基座抽验完成；范围声明 4 条（零 src 改动）",
+      "timestamp": "2026-10-11T08:10:13.381Z",
+      "previousHash": "08cbd4ba19e91ba135443686cde3f5a15b1fb82823d9a7401dbf6bedd2bf89c4",
+      "hash": "98bced0f383781a476ef1de31a0e2657266781dda7bb029fc5216cfc3169d226"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-87 任务清单清零：T23-1..T23-31 全部完成；89 处 require->await import（+78 个 it 补 async）；迁移暴露的 6xTS2322 + 1xTS1308 已修并 git stash 反证为既有缺陷；新增源码守卫 requireEscapeContract.test.ts（4 用例，含反向自检与空集保护）",
+      "timestamp": "2026-10-11T08:10:13.479Z",
+      "previousHash": "98bced0f383781a476ef1de31a0e2657266781dda7bb029fc5216cfc3169d226",
+      "hash": "85ccbf33d44ffe14057bc669c27ce34495fd6a9f56e081494322a23922e152c5"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-87 测试报告零错误 + 旅程零缺口 + 混沌全过：typecheck exit 0；lint 0 warnings 0 errors (245 files/103 rules)；test 190 files/5229 passed；test:coverage exit 0 (statements 94.82 / branches 91.11 / functions 96.64 / lines 94.82)；e2e smoke 57 passed (3.1m)。变异探针两条红->绿：A 守卫 1 failed|3 passed -> 4 passed；B fnMap 58 -> 29。幽灵消除：diagram/index.ts fnMap 58->29，全局 fnMap 1870->1551（45 文件/319 条），statements 分母不变而 covered +970。单行因果：只回退 chaos 一行 => GraphValidator s 363/363 -> 228/363。",
+      "timestamp": "2026-10-11T08:10:20.882Z",
+      "previousHash": "85ccbf33d44ffe14057bc669c27ce34495fd6a9f56e081494322a23922e152c5",
+      "hash": "035b4c57aaae5f3e4b30dc701c8e09b8b5141acd0507e4de7444a1da03621692"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-87 构建零失败（Debug+Release+冒烟+全量回归）：build exit 0 (layout worker bytes 1527487)；perf-gate 全 PASS (client 2.43MB/3MB、host 202KB/512KB、test count 5229/4463)；hygiene 单独跑 exit 0 (payload 11.55MB、19 artefacts from 7 roots、stale 3/12、publint skip)；e2e smoke 57 passed。同口径体积与 cycle-86 逐字节相同：dist/client.js 2543440 (SHA256 6BC363D9...)、dist/index.js 207020、index.css 161335、index.esm.js 2356316、layoutWorker.js 1527487。零 src/ 改动。",
+      "timestamp": "2026-10-11T08:10:20.981Z",
+      "previousHash": "035b4c57aaae5f3e4b30dc701c8e09b8b5141acd0507e4de7444a1da03621692",
+      "hash": "88542a623a5c6a0207a41f970c7377d980d1cae76196ed33800a6769bcda7e6b"
     }
   ],
-  "chainHead": "08cbd4ba19e91ba135443686cde3f5a15b1fb82823d9a7401dbf6bedd2bf89c4"
+  "chainHead": "88542a623a5c6a0207a41f970c7377d980d1cae76196ed33800a6769bcda7e6b"
 }
