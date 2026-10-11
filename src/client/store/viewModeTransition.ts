@@ -139,6 +139,31 @@ export function computeViewModeTransition(
     };
   }
 
+  /**
+   * 运行时层（cycle-88，P2-1 三层独立面板）。
+   *
+   * 必须显式返回空 `nodes`/`edges`，**不能**落到下面的 `computeClusteredGraph`
+   * 兜底分支：兜底会按 clusterDepth 生成聚类节点，于是切到运行时层时用户会看到
+   * 一张与结构层几乎一样的图——这违反验收原文 `docs/图谱按需加载.md:202`
+   * 「三层不要同时叠加到一张图。切换层时替换子图，而不是追加节点。」
+   *
+   * 运行时层的数据面是 `RuntimePanel` 里的进程内日志与性能指标，不是图节点，
+   * 因此「替换子图」在这一层的正确形态就是**空子图**（`diagramData: null`，
+   * 图谱容器由 `GraphPanel` 的 `isRuntimeView` 隐藏）。
+   *
+   * `savedRawNodes` / `savedRawEdges` 刻意**不**在这里覆盖：它们保存的是结构层
+   * 的原始图，切回 `code` 时 `computeViewModeTransition` 的 `'code'` 分支要靠
+   * 它们还原（`:72-73`）。若在这里清空，用户从运行时层切回代码图谱会得到空图。
+   */
+  if (newViewMode === 'runtime') {
+    return {
+      viewMode: newViewMode, diagramData: null, currentLayer: 0, layout: recommendedLayout,
+      expandedNodeIdsByViewMode: newExpandedByViewMode,
+      expandedNodeIds: savedExpanded,
+      nodes: [], edges: [],
+    };
+  }
+
   const result = computeClusteredGraph(savedRawNodes.length > 0 ? savedRawNodes : rawNodes, savedRawEdges.length > 0 ? savedRawEdges : rawEdges, 'progressive', savedExpanded, clusterDepth);
   return {
     viewMode: newViewMode, diagramData: null, currentLayer: 0, layout: recommendedLayout,

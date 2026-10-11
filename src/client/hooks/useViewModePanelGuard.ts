@@ -18,6 +18,17 @@ interface PanelGuardApi {
   showFilterPanel: boolean; setShowFilterPanel: (v: boolean) => void;
   showSearch: boolean; setShowSearch: (v: boolean) => void;
   showPathFind: boolean; setShowPathFind: (v: boolean) => void;
+  /**
+   * 运行时层面板（cycle-88，P2-1）。
+   *
+   * 它**不在**这里的自动关闭清单里：`getAvailablePanels('runtime')` 提供
+   * `showRuntime`，而离开运行时层时 `GraphPanel` 的 `viewMode` effect 会把
+   * `showRuntime` 显式置回 false（`panel.setShowRuntime(viewMode === 'runtime')`）。
+   * 若也放进来，两条规则会在同一次切换里先后写同一个状态，且顺序取决于 effect
+   * 的注册顺序——这正是 cycle-84「capability guard + setter 互相回滚」的
+   * 同一个失败模式，能避开就避开。
+   */
+  showRuntime: boolean; setShowRuntime: (v: boolean) => void;
 }
 
 interface UseViewModePanelGuardOpts {

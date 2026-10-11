@@ -31,6 +31,8 @@ export interface ToolbarVisibilityState {
   showDeadCode: boolean;
   showFilterPanel: boolean;
   showTour: boolean;
+  /** 运行时层面板（cycle-88，P2-1 三层独立面板） */
+  showRuntime: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -52,6 +54,7 @@ export interface ToolbarToggleHandlers {
   onToggleDeadCode: () => void;
   onToggleFilterPanel: () => void;
   onToggleTour: () => void;
+  onToggleRuntime: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}

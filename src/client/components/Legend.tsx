@@ -36,6 +36,9 @@ const VIEW_MODE_NODE_FILTER: Record<ViewMode, Set<string>> = {
   cfg: new Set(['function']),
   flowchart: new Set(['function']),
   sequence: new Set(['function', 'class', 'module']),
+  // 运行时层不渲染图谱子图（`assembleDiagram('runtime', …)` 无装配器返回 null），
+  // 因此图例里没有任何节点/边类型可显示。空集是正确表达，而不是"缺省全显示"。
+  runtime: new Set([]),
 };
 
 const VIEW_MODE_EDGE_FILTER: Record<ViewMode, Set<string>> = {
@@ -48,6 +51,7 @@ const VIEW_MODE_EDGE_FILTER: Record<ViewMode, Set<string>> = {
   cfg: new Set(['call']),
   flowchart: new Set(['call']),
   sequence: new Set(['call']),
+  runtime: new Set([]),
 };
 
 export const Legend = memo(function Legend({ viewMode, onClose }: LegendProps) {

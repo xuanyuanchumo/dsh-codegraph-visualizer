@@ -90,7 +90,18 @@ export interface Layer {
   color?: string;
 }
 
-export type ViewMode = 'code' | 'dependencies' | 'inheritance' | 'callgraph' | 'package' | 'class' | 'cfg' | 'flowchart' | 'sequence';
+/**
+ * 视图模式。前 9 项是图谱视图（结构层 + 行为层），`runtime` 是 cycle-88 新增的
+ * 运行时层（`docs/图谱按需加载.md:196-200` 的第三层：Trace / 日志 / 性能排查）。
+ *
+ * 运行时层刻意**不映射任何图谱装配器**：`src/client/diagram/index.ts` 的
+ * `assembleDiagram` 走 `macroAssemblerRegistry.get(viewMode)`，未注册即返回
+ * `null`，因此 `runtime` 天然得到空子图——这正是验收原文
+ * `docs/图谱按需加载.md:202`「切换层时替换子图，而不是追加节点」要的结果。
+ * 运行时层的数据面是进程内可观测数据（`Logger` 环形缓冲 +
+ * `PerformanceMonitor`），不是图节点。
+ */
+export type ViewMode = 'code' | 'dependencies' | 'inheritance' | 'callgraph' | 'package' | 'class' | 'cfg' | 'flowchart' | 'sequence' | 'runtime';
 
 
 export interface InheritanceNodeProperties {

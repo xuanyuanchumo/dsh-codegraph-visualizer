@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { isLayeredViewMode, VIEW_MODE_LAYOUT, getViewLayer, getAvailablePanels, STRUCTURAL_PANELS, BEHAVIORAL_PANELS } from '../../src/shared/viewModeUtils.ts';
+import { isLayeredViewMode, VIEW_MODE_LAYOUT, getViewLayer, getAvailablePanels, STRUCTURAL_PANELS, BEHAVIORAL_PANELS, RUNTIME_PANELS, STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, RUNTIME_VIEW_MODES } from '../../src/shared/viewModeUtils.ts';
 import type { ViewMode } from '../../src/types/index.ts';
 
 const ALL_VIEW_MODES: ViewMode[] = [
   'code', 'dependencies', 'inheritance', 'callgraph',
-  'package', 'class', 'cfg', 'flowchart', 'sequence',
+  'package', 'class', 'cfg', 'flowchart', 'sequence', 'runtime',
 ];
 
 const LAYERED_MODES: ViewMode[] = ['inheritance', 'callgraph', 'package', 'class', 'dependencies'];
-const NON_LAYERED_MODES: ViewMode[] = ['code', 'cfg', 'flowchart', 'sequence'];
+const NON_LAYERED_MODES: ViewMode[] = ['code', 'cfg', 'flowchart', 'sequence', 'runtime'];
 
 describe('isLayeredViewMode', () => {
   it.each(LAYERED_MODES)('returns true for layered view mode: %s', (mode) => {
@@ -119,6 +119,34 @@ describe('getViewLayer', () => {
   it('returns behavioral for sequence', () => {
     expect(getViewLayer('sequence')).toBe('behavioral');
   });
+
+  it('returns runtime for runtime', () => {
+    // cycle-88：这是 runtime 从「类型上存在但不可达」变成真实层的关键一步。
+    // 在此之前 `ViewLayer` 有 'runtime' 成员、`getAvailablePanels` 有 runtime 分支，
+    // 但没有任何 ViewMode 映射过去，整个第三层没有入口。
+    expect(getViewLayer('runtime')).toBe('runtime');
+  });
+});
+
+describe('view mode groups', () => {
+  it('partitions every ViewMode into exactly one group', () => {
+    // 三组 + 微视图组必须恰好覆盖 ALL_VIEW_MODES 且互不重叠：漏一个成员会让
+    // 工具栏少一个入口，重叠一个会让同一个模式出现两次。
+    const grouped = [
+      ...STRUCTURAL_VIEW_MODES,
+      ...BEHAVIORAL_VIEW_MODES,
+      ...BEHAVIORAL_MICRO_VIEW_MODES,
+      ...RUNTIME_VIEW_MODES,
+    ];
+    expect([...grouped].sort()).toEqual([...ALL_VIEW_MODES].sort());
+    expect(new Set(grouped).size).toBe(grouped.length);
+  });
+
+  it('keeps runtime out of the behavioral groups', () => {
+    expect(BEHAVIORAL_VIEW_MODES).not.toContain('runtime');
+    expect(BEHAVIORAL_MICRO_VIEW_MODES).not.toContain('runtime');
+    expect(STRUCTURAL_VIEW_MODES).not.toContain('runtime');
+  });
 });
 
 describe('getAvailablePanels', () => {
@@ -132,9 +160,26 @@ describe('getAvailablePanels', () => {
 
   it('returns minimal panels for runtime layer', () => {
     const panels = getAvailablePanels('runtime');
+    expect(panels.has('showRuntime')).toBe(true);
     expect(panels.has('showMiniMap')).toBe(true);
     expect(panels.has('showLegend')).toBe(true);
-    expect(panels.size).toBe(2);
+    expect(panels.size).toBe(3);
+  });
+
+  it('returns the same Set instance for every layer', () => {
+    // cycle-88：runtime 分支此前是内联 `new Set([...])`，于是
+    // `getAvailablePanels('runtime') === getAvailablePanels('runtime')` 为 false。
+    // 三层都必须是模块级常量，否则任何以引用相等为前提的 useMemo 都会每次失效。
+    expect(getAvailablePanels('runtime')).toBe(RUNTIME_PANELS);
+    expect(getAvailablePanels('runtime')).toBe(getAvailablePanels('runtime'));
+  });
+
+  it('does not offer graph-analysis panels on the runtime layer', () => {
+    // 运行时层没有图数据面：这些面板出现在工具下拉里就是「点击无反应」的死入口。
+    const panels = getAvailablePanels('runtime');
+    for (const key of ['showCallChain', 'showCycles', 'showImpact', 'showHotspot', 'showGodModule', 'showCoreFunction', 'showImport', 'showFilterPanel'] as const) {
+      expect(panels.has(key)).toBe(false);
+    }
   });
 });
 

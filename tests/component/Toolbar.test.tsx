@@ -75,6 +75,8 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleFilterPanel: noop,
     showTour: false,
     onToggleTour: noop,
+    showRuntime: false,
+    onToggleRuntime: noop,
     ...overrides,
   };
 }
@@ -251,15 +253,30 @@ describe('Toolbar component', () => {
 
   // 3. 渲染视图模式按钮并响应点击（已整合到 View 下拉菜单）
   describe('view mode in view dropdown', () => {
-    it('renders all 6 macro view mode items in view dropdown', async () => {
+    it('renders all view mode groups in view dropdown', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
       const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
       await user.click(viewBtn);
       const viewDropdown = document.querySelector('.cg-view-dropdown');
       expect(viewDropdown).toBeTruthy();
+      // graphType + structural + behavioral + micro + runtime（cycle-88 新增第四段视图分组）
       const sectionLabels = viewDropdown!.querySelectorAll('.cg-dropdown-section-label');
-      expect(sectionLabels.length).toBe(4);
+      expect(sectionLabels.length).toBe(5);
+    });
+
+    it('renders the runtime layer entry and switches to it', async () => {
+      // cycle-88（P2-1）：运行时层此前只存在于 ViewLayer 类型与 getAvailablePanels 的
+      // 一个分支里，没有任何 ViewMode 映射过去 ⇒ 整个第三层没有入口。
+      const user = userEvent.setup();
+      const onViewModeChange = vi.fn();
+      render(<Toolbar {...makeProps({ onViewModeChange })} />);
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const runtimeItem = document.querySelector('.cg-viewmode-option-runtime') as HTMLButtonElement;
+      expect(runtimeItem).toBeTruthy();
+      await user.click(runtimeItem);
+      expect(onViewModeChange).toHaveBeenCalledWith('runtime');
     });
 
     it('renders all 3 micro view mode items in view dropdown', async () => {

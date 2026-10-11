@@ -1,0 +1,254 @@
+/* ---- Runtime layer panel (cycle-88, P2-1 three-layer independent panels) --- */
+/*
+ * 运行时层是 `docs/图谱按需加载.md:196-200` 的第三层（Trace / 日志 / 性能排查），
+ * 与结构层/行为层平级且各自独立预算。面板外壳复用 `.cg-analysis-panel`
+ * （`src/client/styles/hotspot-godmodule-panel.css:3`），这里只定义本层特有的
+ * 内容样式：时间窗口条、日志行、指标行。
+ *
+ * 刻意**不使用 `color-mix()`**：仓库约定每一个 `color-mix()` 用法都必须在
+ * `color-mix-fallback.css` 里配一条 rgba 回退，而这里的着色需求用既有 token
+ * （`--cg-success` / `--cg-warning` / `--cg-error` / `--cg-info` /
+ * `--cg-accent-soft`）就能表达，少一处需要同步维护的成对文件。
+ */
+
+.cg-runtime-panel {
+  width: 280px;
+}
+
+.cg-runtime-count-badge {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--cg-accent-soft);
+  color: var(--cg-text-secondary);
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 时间窗口条：让「单次时间窗口 ≤ 5 分钟」这条预算在 UI 上可见 */
+.cg-runtime-window {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface-hover);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.cg-runtime-window-label {
+  color: var(--cg-text-secondary);
+}
+
+.cg-runtime-window-value {
+  font-family: var(--cg-font-mono);
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.cg-runtime-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--cg-border);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cg-runtime-section-title {
+  flex-shrink: 0;
+}
+
+.cg-runtime-section-meta,
+.cg-runtime-level-counts {
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--cg-text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.cg-runtime-level-counts {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* 级别着色：与 Logger 的四个级别一一对应 */
+.cg-runtime-level-count.cg-debug { color: var(--cg-text-secondary); }
+.cg-runtime-level-count.cg-info { color: var(--cg-info); }
+.cg-runtime-level-count.cg-warn { color: var(--cg-warning); }
+.cg-runtime-level-count.cg-error { color: var(--cg-error); }
+
+.cg-runtime-level-filter {
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* 「共 N 条，已折叠为最近 M 条」——风险 8 要求 UI 明说数据被预算裁过 */
+.cg-runtime-truncated {
+  padding: 3px 6px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-accent-soft);
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.cg-runtime-empty {
+  padding: 12px 4px;
+  text-align: center;
+}
+
+.cg-runtime-empty-title {
+  font-size: 11px;
+  color: var(--cg-text);
+}
+
+.cg-runtime-empty-hint {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--cg-text-secondary);
+}
+
+.cg-runtime-empty-line {
+  padding: 6px 2px;
+  font-size: 10px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-runtime-log-list,
+.cg-runtime-metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.cg-runtime-log-row {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: var(--cg-radius-xs);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.cg-runtime-log-row:hover {
+  background: var(--cg-surface-hover);
+}
+
+.cg-runtime-log-time {
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  color: var(--cg-text-secondary);
+  flex-shrink: 0;
+}
+
+.cg-runtime-log-level {
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cg-runtime-log-level.cg-debug { color: var(--cg-text-secondary); }
+.cg-runtime-log-level.cg-info { color: var(--cg-info); }
+.cg-runtime-log-level.cg-warn { color: var(--cg-warning); }
+.cg-runtime-log-level.cg-error { color: var(--cg-error); }
+
+.cg-runtime-log-scope {
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  color: var(--cg-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cg-runtime-log-message {
+  color: var(--cg-text);
+  word-break: break-word;
+}
+
+.cg-runtime-log-row.cg-warn .cg-runtime-log-message { color: var(--cg-warning); }
+.cg-runtime-log-row.cg-error .cg-runtime-log-message { color: var(--cg-error); }
+
+.cg-runtime-metric-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--cg-radius-xs);
+  font-size: 10px;
+}
+
+.cg-runtime-metric-row:hover {
+  background: var(--cg-surface-hover);
+}
+
+.cg-runtime-metric-name {
+  font-family: var(--cg-font-mono);
+  font-weight: 600;
+  color: var(--cg-text);
+  flex-shrink: 0;
+}
+
+.cg-runtime-metric-degraded {
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--cg-error);
+  /* 前景色必须走既有 token：`tokensContract.test.ts:296-307` 禁止样式表里出现裸色值 */
+  color: var(--cg-on-accent);
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cg-runtime-metric-values {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-runtime-metric-count {
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  color: var(--cg-text-secondary);
+  flex-shrink: 0;
+}
+
+/* 诚实声明：本层未接入 Trace ID / 请求 ID 维度 */
+.cg-runtime-footnote {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--cg-border);
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--cg-text-secondary);
+}

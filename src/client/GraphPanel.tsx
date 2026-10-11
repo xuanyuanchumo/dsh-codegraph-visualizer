@@ -58,6 +58,7 @@ import './styles/graph.css'; import './styles/node-detail.css'; import './styles
 import './styles/path-finder.css'; import './styles/health-score-card.css'; import './styles/rule-config-panel.css';
 import './styles/hotspot-godmodule-panel.css'; import './styles/impact-panel.css'; import './styles/cycle-panel.css'; import './styles/deadcode-panel.css';
 import './styles/tour-panel.css'; import './styles/responsive.css'; import './styles/misc.css';
+import './styles/runtime-panel.css';
 
 const log = scoped('panel');
 
@@ -289,6 +290,22 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   useViewModePanelGuard({ viewMode, setFocusNodeId, panel });
 
+  /**
+   * 进入运行时层时自动打开独立面板，离开时自动收起（cycle-88，P2-1）。
+   *
+   * 为什么不能只靠工具栏那个开关：切到运行时层后图谱容器被隐藏（这一层没有子图），
+   * 如果面板默认关闭，用户看到的是一块完全空白的区域，只能靠猜测去工具下拉里找一个
+   * 叫「运行时」的项——这正是 `docs/图谱按需加载.md:238-241` 风险 8
+   * 「UI 必须明确：不是数据没有，而是按预算展开」要避免的沉默。
+   *
+   * 依赖只取 `viewMode` 与稳定的 setter：把整个 `panel` 放进 deps 会让每次
+   * usePanelState 重渲染都触发一次 setState（toggle 回调虽稳定，但 `panel` 对象
+   * 本身每次渲染都是新引用），产生无意义的重渲染循环。
+   */
+  useEffect(() => {
+    panel.setShowRuntime(viewMode === 'runtime');
+  }, [viewMode, panel.setShowRuntime]);
+
   const handleRefresh = useCallback(() => {
     setLoading(true);
     dispatchCgEvent(DOM_EVENTS.REFRESH, { incremental: false });
@@ -353,6 +370,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const isCollapsed = panel.collapsed;
   const isMicroView = viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence';
+  /**
+   * 运行时层（cycle-88，P2-1 三层独立面板）。
+   *
+   * `docs/图谱按需加载.md:202`：「三层不要同时叠加到一张图。切换层时替换子图，
+   * 而不是追加节点。」运行时层根本没有图谱子图（`assembleDiagram('runtime', …)`
+   * 返回 null，因为 `macroAssemblerRegistry` 里没有它的装配器），所以这里必须
+   * 把图谱容器与空态都让位给 `RuntimePanel`——否则用户会看到一个「暂无数据 /
+   * 请导入仓库」的空态，误以为运行时层也需要先索引代码。
+   */
+  const isRuntimeView = viewMode === 'runtime';
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}
@@ -456,7 +483,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <MicroFunctionBar functionName={selectedFunction.functionName} filePath={selectedFunction.filePath} viewMode={viewMode} onClose={handleCloseMicroView} />
       )}
 
-      {nodes.length === 0 && !isLoading && !error && !isCollapsed && !isMicroView && (
+      {nodes.length === 0 && !isLoading && !error && !isCollapsed && !isMicroView && !isRuntimeView && (
         <EmptyState prerequisites={prerequisites} indexing={indexStatus === 'building'} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
@@ -471,7 +498,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           tabIndex={0}
           aria-label={t('a11y.graphContainerStats', { viewMode: t(`viewMode.${viewMode}`), nodeCount: nodes.length, edgeCount: edges.length })}
           aria-describedby="cg-graph-live-region"
-          style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
+          style={{ display: (viewMode === 'sequence' && selectedFunction) || isRuntimeView ? 'none' : undefined }}>
           <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
             {selectedNodeData
               ? t('a11y.selectedNodeDetail', { label: selectedNodeData.label, type: selectedNodeData.type, filePath: selectedNodeData.filePath, lineNumber: selectedNodeData.lineNumber ?? 0 })
@@ -522,6 +549,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           impactTotal: t('impact.total'),
           cycles: t('toolbar.cycles'),
           cyclesEmpty: t('cycles.empty'),
+          runtime: t('runtime.title'),
           godModuleStats: (n, e) => t('godmodule.stats', { nodes: n, edges: e }),
         }}
       />

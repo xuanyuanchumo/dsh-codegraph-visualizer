@@ -35,6 +35,21 @@ export const ToolbarActions = memo(function ToolbarActions({
 
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
 
+  /**
+   * 只保留「至少有一个可用项」的分组（cycle-88）。
+   *
+   * 在加入运行时层之前，三段分组里每段都至少有一项在两种层下可见，所以「先渲染
+   * 段标题、再逐项过滤」看不出问题。运行时层只提供 `showRuntime`（加上两个全局
+   * 叠加层），于是「分析」「质量」两段的标题会渲染出来、内容全空——用户看到两个
+   * 点不动的空标题，会以为工具下拉坏了。
+   *
+   * 过滤必须在 `map` 之前完成，而不是在渲染标题时判断，因为分隔符的位置取决于
+   * 「这是第几个**可见**分组」，用原始索引会得到连续两个分隔符。
+   */
+  const visibleSections = PANEL_DROPDOWN_SECTIONS
+    .map((section) => ({ ...section, items: section.items.filter((item) => availablePanels.has(item.panel)) }))
+    .filter((section) => section.items.length > 0);
+
   const onUndo = history?.undo;
   const onRedo = history?.redo;
   const canUndo = history?.canUndo;
@@ -86,20 +101,18 @@ export const ToolbarActions = memo(function ToolbarActions({
         >
           {(close) => (
             <>
-              {PANEL_DROPDOWN_SECTIONS.map((section, sectionIdx) => (
+              {visibleSections.map((section, sectionIdx) => (
                 <React.Fragment key={section.labelKey}>
                   {sectionIdx > 0 && <div className="cg-dropdown-separator" />}
                   <div className="cg-dropdown-section-label">{t(section.labelKey)}</div>
-                  {section.items.map(({ panel, Icon, key, btnClass, toggle }) =>
-                    availablePanels.has(panel) ? (
+                  {section.items.map(({ panel, Icon, key, btnClass, toggle }) => (
                       <button key={panel} className={`cg-dropdown-item ${btnClass} ${panelControls[panel] ? 'cg-active' : ''}`}
                         onClick={() => { panelControls[toggle](); close(); }}
                         role="menuitemcheckbox" aria-checked={panelControls[panel]} title={t(key)}>
                         <Icon size={14} /><span>{t(key)}</span>
                       </button>
-                    ) : null
-                  )}
-                  {sectionIdx === 0 && showCycles && (
+                  ))}
+                  {sectionIdx === 0 && showCycles && availablePanels.has('showCycles') && (
                     <button className={`cg-dropdown-item cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={() => { onToggleCycleIsolation(); close(); }}
                       role="menuitemcheckbox" aria-checked={cycleIsolation} title={t('toolbar.isolateCycles')}>
                       <FilterIcon size={14} /><span>{t('toolbar.isolateCycles')}</span>

@@ -6,7 +6,7 @@ import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
   HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  StarIcon, GhostIcon,
+  StarIcon, GhostIcon, WatchIcon,
 } from './Icons.tsx';
 import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
@@ -41,6 +41,18 @@ export const BEHAVIORAL_MICRO_MODE_KEYS: Partial<Record<ViewMode, string>> = {
   flowchart: 'viewMode.flowchart',
   sequence: 'viewMode.sequence',
 };
+/**
+ * 运行时层的下拉文案（cycle-88，P2-1 三层独立面板）。
+ *
+ * 与 structural/behavioral 三组键同形，是工具栏第四段的数据来源。之所以单独
+ * 一组而不是并进 `BEHAVIORAL_MICRO_MODE_KEYS`：运行时层不是「行为层的微观
+ * 子视图」，而是与结构层/行为层平级的第三层（`docs/图谱按需加载.md:276`
+ * 「结构 / 行为 / 运行时分层隔离，各自独立预算」）。合并会让工具栏无法表达
+ * 「这是第三层」这件事，也会让 `getViewLayer` 的映射与下拉分组对不上。
+ */
+export const RUNTIME_MODE_KEYS: Partial<Record<ViewMode, string>> = {
+  runtime: 'viewMode.runtime',
+};
 export const STRUCTURAL_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
   code: 'toolbar.viewModeCode',
 };
@@ -55,6 +67,9 @@ export const BEHAVIORAL_MICRO_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
   cfg: 'toolbar.viewModeCfg',
   flowchart: 'toolbar.viewModeFlowchart',
   sequence: 'toolbar.viewModeSequence',
+};
+export const RUNTIME_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
+  runtime: 'toolbar.viewModeRuntime',
 };
 
 export const CLUSTER_DEPTHS: { value: number; key: string }[] = [
@@ -87,9 +102,26 @@ export const QUALITY_ITEMS: ToolMenuItem[] = [
   { panel: 'showDeadCode', Icon: GhostIcon, key: 'toolbar.deadCode', btnClass: 'cg-deadcode-btn', toggle: 'onToggleDeadCode' },
 ];
 
+/**
+ * 运行时层的工具项（cycle-88，P2-1 三层独立面板）。
+ *
+ * 单独一段而不是并进 `ANALYSIS_ITEMS`：`ANALYSIS_ITEMS` 里的 5 项都是
+ * 行为层的图分析入口（调用链/环/影响/继承/路径），而 `showRuntime` 是**第三层
+ * 自己的面板入口**。并进去会让「工具下拉里为什么混着一个不画图的项」无法解释，
+ * 也会让 `availablePanels` 过滤后出现空段（段标题渲染了、段内容全被过滤掉）。
+ *
+ * 由 `availablePanels.has('showRuntime')` 门控：只有 `getViewLayer(viewMode)`
+ * 为 `'runtime'` 时该段才出现，结构层/行为层看不到它——这正是
+ * `docs/图谱按需加载.md:202`「三层不要同时叠加」在 UI 上的体现。
+ */
+export const RUNTIME_ITEMS: ToolMenuItem[] = [
+  { panel: 'showRuntime', Icon: WatchIcon, key: 'toolbar.runtime', btnClass: 'cg-runtime-btn', toggle: 'onToggleRuntime' },
+];
+
 export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] }[] = [
   { labelKey: 'toolbar.analysis', items: ANALYSIS_ITEMS },
   { labelKey: 'toolbar.quality', items: QUALITY_ITEMS },
+  { labelKey: 'toolbar.runtimeSection', items: RUNTIME_ITEMS },
 ];
 export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
   { value: 'png', key: 'export.png' },

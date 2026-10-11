@@ -36,6 +36,22 @@ export function setThreshold(name: string, threshold: PerfThreshold): void {
   thresholds.set(name, threshold);
 }
 
+/**
+ * 只读暴露当前的阈值表（cycle-88，运行时层面板用）。
+ *
+ * 运行时层要把「某个指标是否已降级」渲染出来（`docs/图谱按需加载.md:196-200`
+ * 的第三层职责含「性能排查」）。判定必须基于**窗口内样本**而不是
+ * `shouldDegrade(name)`——后者读的是 `measurements` 全量历史（含窗口外的老样本），
+ * 于是「面板显示最近 5 分钟」与「降级标记」会基于两个不同的样本集，出现
+ * 「平均 12ms 却标着降级」这种自相矛盾的行。
+ *
+ * 返回的是内部 Map 本身（不复制）：调用方只读，复制反而会让每次渲染都新建
+ * 一个 Map 并破坏 `useMemo` 的依赖比较。这一点在函数名上写明 `Readonly`。
+ */
+export function getThresholds(): ReadonlyMap<string, PerfThreshold> {
+  return thresholds;
+}
+
 export function startMeasure(name: string): void {
   pendingMarks.set(name, performance.now());
 }

@@ -49,6 +49,60 @@ describe('viewModeTransition', () => {
       expect(VIEW_MODE_LAYOUT.cfg).toBe('dagre');
       expect(VIEW_MODE_LAYOUT.flowchart).toBe('dagre');
       expect(VIEW_MODE_LAYOUT.sequence).toBe('cose');
+      // 运行时层没有图谱装配器，这个值只为满足 Record<ViewMode, LayoutType> 的穷尽性
+      expect(VIEW_MODE_LAYOUT.runtime).toBe('cose');
+    });
+  });
+
+  describe('computeViewModeTransition — runtime mode (cycle-88)', () => {
+    it('replaces the subgraph with an empty one instead of falling through to clustering', () => {
+      // 兜底分支会按 clusterDepth 生成聚类节点，切到运行时层就会看到一张与结构层
+      // 几乎一样的图，违反 docs/图谱按需加载.md:202「切换层时替换子图，而不是追加节点」。
+      const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+      const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+      const result = computeViewModeTransition(
+        'runtime',
+        makeState({ rawNodes: nodes, rawEdges: edges, savedRawNodes: nodes, savedRawEdges: edges }),
+        diagramCache,
+      );
+      expect(result.viewMode).toBe('runtime');
+      expect(result.nodes).toEqual([]);
+      expect(result.edges).toEqual([]);
+      expect(result.diagramData).toBeNull();
+      expect(result.currentLayer).toBe(0);
+      expect(result.layout).toBe('cose');
+    });
+
+    it('omits savedRawNodes so the store merge keeps the previous graph for the code branch', () => {
+      // 这是本分支最容易写错的一点：`setViewMode` 用 `_set(rest)` 做浅合并，
+      // 「不写这个键」才等于「保留原值」。若这里显式返回 savedRawNodes: []，
+      // 从运行时层切回代码图谱会得到一张空图，而「切层替换子图」本身看起来是成功的。
+      const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+      const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+      const runtime = computeViewModeTransition(
+        'runtime',
+        makeState({ rawNodes: nodes, rawEdges: edges, savedRawNodes: nodes, savedRawEdges: edges }),
+        diagramCache,
+      );
+      expect('savedRawNodes' in runtime).toBe(false);
+      expect('savedRawEdges' in runtime).toBe(false);
+
+      // 模拟 store 的浅合并：未出现的键沿用旧值，因此回切仍能还原图谱。
+      const backToCode = computeViewModeTransition(
+        'code',
+        makeState({ rawNodes: runtime.nodes, rawEdges: runtime.edges, savedRawNodes: nodes, savedRawEdges: edges }),
+        diagramCache,
+      );
+      expect(backToCode.nodes.length).toBeGreaterThan(0);
+    });
+
+    it('records the previous view mode expansion state', () => {
+      const result = computeViewModeTransition(
+        'runtime',
+        makeState({ viewMode: 'callgraph', expandedNodeIds: new Set(['n1']) }),
+        diagramCache,
+      );
+      expect(result.expandedNodeIdsByViewMode.callgraph).toEqual(new Set(['n1']));
     });
   });
 

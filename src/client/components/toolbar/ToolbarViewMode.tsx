@@ -3,12 +3,12 @@ import type { LayoutType, GraphType, RankDir } from '../../store/graphStore.ts';
 import type { ViewMode } from '../../../types/index.ts';
 import { useT } from '../../i18n/index.ts';
 import { Dropdown } from '../Dropdown.tsx';
-import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES } from '../../../shared/viewModeUtils.ts';
-import { ChevronDownIcon, GraphIcon, LayersIcon } from '../Icons.tsx';
+import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, RUNTIME_VIEW_MODES } from '../../../shared/viewModeUtils.ts';
+import { ChevronDownIcon, GraphIcon, LayersIcon, WatchIcon } from '../Icons.tsx';
 import {
   LAYOUTS, RANK_DIRS, GRAPH_TYPES,
-  STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS,
-  STRUCTURAL_TITLE_KEYS, BEHAVIORAL_TITLE_KEYS, BEHAVIORAL_MICRO_TITLE_KEYS,
+  STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS, RUNTIME_MODE_KEYS,
+  STRUCTURAL_TITLE_KEYS, BEHAVIORAL_TITLE_KEYS, BEHAVIORAL_MICRO_TITLE_KEYS, RUNTIME_TITLE_KEYS,
   CLUSTER_DEPTHS, HIERARCHY_LEVELS,
 } from '../toolbarConfig.ts';
 import type { ToolbarLayoutConfig, ToolbarViewConfig } from '../toolbarTypes.ts';
@@ -45,7 +45,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
   const onClusterDepthChange = useCallback((d: number) => layoutConfig.onChange('clusterDepth', d), [layoutConfig]);
 
   const { viewMode, graphType, currentLayer, layerNames, hierarchyLevel, hasSelectedFunction } = viewConfig;
-  const viewModeLabel = t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? 'toolbar.viewMode');
+  const viewModeLabel = t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? RUNTIME_MODE_KEYS[viewMode] ?? 'toolbar.viewMode');
   const onViewModeChange = useCallback((m: ViewMode) => viewConfig.onChange('viewMode', m), [viewConfig]);
   const onGraphTypeChange = useCallback((g: GraphType) => viewConfig.onChange('graphType', g), [viewConfig]);
   const onLayerChange = useCallback((l: number) => viewConfig.onChange('layer', l), [viewConfig]);
@@ -124,6 +124,16 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
                 aria-pressed={viewMode === m}
                 disabled={!hasSelectedFunction}
                 aria-disabled={!hasSelectedFunction}>{t(BEHAVIORAL_MICRO_MODE_KEYS[m]!)}</button>
+            ))}
+            <div className="cg-dropdown-separator" />
+            <div className="cg-dropdown-section-label">{t('toolbar.viewModeRuntimeSection')}</div>
+            {RUNTIME_VIEW_MODES.map((m) => (
+              <button key={m} className={`cg-dropdown-item cg-viewmode-option-${m} ${viewMode === m ? 'cg-active' : ''}`}
+                onClick={() => { onViewModeChange(m); close(); }}
+                title={t(RUNTIME_TITLE_KEYS[m]!)}
+                aria-pressed={viewMode === m}>
+                <WatchIcon size={14} />{t(RUNTIME_MODE_KEYS[m]!)}
+              </button>
             ))}
           </>
         )}
