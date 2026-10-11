@@ -1365,4 +1365,162 @@ describe('J17: 架构健康评估 - HealthScorer', () => {
       expect(score.overall).toBeGreaterThan(70);
     });
   });
+
+  // The four static graph helpers below are not used by calculate(); they are
+  // public API, so they are exercised directly against the source behaviour.
+  describe('static findOrphanNodes', () => {
+    it('returns nodes that appear in no edge', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      const orphans = HealthScorer.findOrphanNodes(nodes, edges);
+      expect(orphans.map((n) => n.id)).toEqual(['c']);
+    });
+
+    it('treats every node as an orphan when there are no edges', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      expect(HealthScorer.findOrphanNodes(nodes, [])).toHaveLength(2);
+    });
+
+    it('counts a node as connected when it is only an edge target', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      expect(HealthScorer.findOrphanNodes(nodes, edges)).toEqual([]);
+    });
+  });
+
+  describe('static findLeafNodes', () => {
+    it('returns nodes whose degree is exactly one', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      const leaves = HealthScorer.findLeafNodes(nodes, edges);
+      expect(leaves.map((n) => n.id)).toEqual(['a', 'b']);
+    });
+
+    it('excludes interior nodes of a chain', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call'), makeEdge('e2', 'b', 'c', 'call')];
+      const leaves = HealthScorer.findLeafNodes(nodes, edges);
+      expect(leaves.map((n) => n.id)).toEqual(['a', 'c']);
+    });
+
+    it('does not treat a self-loop as a leaf because both endpoints are counted', () => {
+      const nodes = [makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1)];
+      const edges = [makeEdge('e1', 'a', 'a', 'call')];
+      expect(HealthScorer.findLeafNodes(nodes, edges)).toEqual([]);
+    });
+
+    it('returns no leaves for an isolated node', () => {
+      const nodes = [makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1)];
+      expect(HealthScorer.findLeafNodes(nodes, [])).toEqual([]);
+    });
+  });
+
+  describe('static findHubNodes', () => {
+    const hubNodes = [
+      makeNode('h', 'H', 'function', 'src/mod1/h.ts', 1),
+      ...Array.from({ length: 10 }, (_, i) => makeNode(`x${i}`, `X${i}`, 'function', `src/mod1/x${i}.ts`, 1)),
+    ];
+    const tenEdges = Array.from({ length: 10 }, (_, i) => makeEdge(`e${i}`, 'h', `x${i}`, 'call'));
+
+    it('uses a default threshold of ten', () => {
+      const hubs = HealthScorer.findHubNodes(hubNodes, tenEdges);
+      expect(hubs.map((n) => n.id)).toEqual(['h']);
+    });
+
+    it('excludes a node one degree below the default threshold', () => {
+      const hubs = HealthScorer.findHubNodes(hubNodes, tenEdges.slice(0, 9));
+      expect(hubs).toEqual([]);
+    });
+
+    it('honours an explicit threshold', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'a', 'c', 'call'),
+      ];
+      const hubs = HealthScorer.findHubNodes(nodes, edges, 2);
+      expect(hubs.map((n) => n.id)).toEqual(['a']);
+    });
+
+    it('sorts hubs by descending degree', () => {
+      const nodes = [
+        makeNode('h1', 'H1', 'function', 'src/mod1/h1.ts', 1),
+        makeNode('h2', 'H2', 'function', 'src/mod1/h2.ts', 1),
+        makeNode('x1', 'X1', 'function', 'src/mod1/x1.ts', 1),
+        makeNode('x2', 'X2', 'function', 'src/mod1/x2.ts', 1),
+        makeNode('x3', 'X3', 'function', 'src/mod1/x3.ts', 1),
+        makeNode('y1', 'Y1', 'function', 'src/mod1/y1.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'h1', 'x1', 'call'),
+        makeEdge('e2', 'h1', 'x2', 'call'),
+        makeEdge('e3', 'h1', 'x3', 'call'),
+        makeEdge('e4', 'h2', 'x1', 'call'),
+        makeEdge('e5', 'h2', 'x2', 'call'),
+        makeEdge('e6', 'h2', 'x3', 'call'),
+        makeEdge('e7', 'h2', 'y1', 'call'),
+      ];
+      const hubs = HealthScorer.findHubNodes(nodes, edges, 3);
+      expect(hubs.map((n) => n.id)).toEqual(['h2', 'h1']);
+    });
+
+    it('returns an empty array when there are no edges', () => {
+      expect(HealthScorer.findHubNodes(hubNodes, [])).toEqual([]);
+    });
+  });
+
+  describe('static calculateOrphanRate', () => {
+    it('returns zero for an empty node list', () => {
+      expect(HealthScorer.calculateOrphanRate([], [])).toBe(0);
+    });
+
+    it('returns zero when every node is connected', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      expect(HealthScorer.calculateOrphanRate(nodes, edges)).toBe(0);
+    });
+
+    it('returns the orphan fraction when some nodes are isolated', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      expect(HealthScorer.calculateOrphanRate(nodes, edges)).toBeCloseTo(1 / 3, 10);
+    });
+
+    it('returns one when no node has any edge', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      expect(HealthScorer.calculateOrphanRate(nodes, [])).toBe(1);
+    });
+  });
 });

@@ -791,8 +791,8 @@ describe('useGraphRenderer', () => {
       }
     }
 
-    function Harness(props: { callbacks: GraphRendererCallbacks }) {
-      const r = useGraphRenderer(makeConfig({ callbacks: props.callbacks }));
+    function Harness(props: { callbacks: GraphRendererCallbacks; showCallChainRef?: { current: boolean } }) {
+      const r = useGraphRenderer(makeConfig({ callbacks: props.callbacks, showCallChainRef: props.showCallChainRef }));
       return createElement('div', { ref: r.containerRef });
     }
 
@@ -800,6 +800,36 @@ describe('useGraphRenderer', () => {
       return vi.mocked(CytoscapeRenderer).mock.calls[0]?.[0] as
         | { onNodeContextTap?: (nodeId: string, pos: { x: number; y: number }) => void }
         | undefined;
+    }
+
+    /**
+     * The renderer receives a single frozen options object at construction, so every
+     * interaction callback below has to be forwarded explicitly. These cases pin the
+     * whole forwarding table, not just the one that regressed in BUG-R12-01.
+     *
+     * The callbacks are declared REQUIRED here on purpose: `useGraphRenderer` wraps each
+     * optional `RendererCallbacks` member in a concrete arrow function before handing the
+     * options to `CytoscapeRenderer` (src/client/hooks/useGraphRenderer.ts:124-141), so at
+     * this boundary every callback exists. A `Record<string, …>` return type would make each
+     * lookup `| undefined` under `noUncheckedIndexedAccess` and force `?.` at every call site,
+     * which would silently turn "the hook forgot to forward this callback" into a passing test.
+     */
+    interface ForwardedOptions {
+      onNodeTap: (nodeId: string) => void;
+      onNodeDoubleTap: (nodeId: string) => void;
+      onNodeHover: (nodeId: string, pos: { x: number; y: number }) => void;
+      onNodeHoverPrefetch: (nodeId: string) => void;
+      onNodeHoverOut: () => void;
+      onEdgeTap: (edgeId: string, pos: { x: number; y: number }) => void;
+      onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => void;
+      onEdgeHoverOut: () => void;
+      onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => void;
+    }
+
+    function fullOptions(): ForwardedOptions {
+      const options = vi.mocked(CytoscapeRenderer).mock.calls[0]?.[0];
+      if (!options) throw new Error('CytoscapeRenderer was never constructed');
+      return options as unknown as ForwardedOptions;
     }
 
     it('forwards onNodeContextTap to the renderer so right-click reaches the panel', () => {
@@ -830,6 +860,133 @@ describe('useGraphRenderer', () => {
 
         expect(first).not.toHaveBeenCalled();
         expect(second).toHaveBeenCalledWith('n2', { x: 1, y: 2 });
+      });
+    });
+
+    it('forwards onNodeTap with a branded NodeId and drives the call-chain highlight', () => {
+      withSizedContainer(() => {
+        const onNodeTap = vi.fn();
+        render(
+          createElement(Harness, {
+            callbacks: { ...makeCallbacks(), onNodeTap },
+            showCallChainRef: { current: true },
+          }),
+        );
+
+        // Ignore the analysis effect's own init-time highlightCallChain(null).
+        mockRenderer.highlightCallChain.mockClear();
+
+        fullOptions().onNodeTap('n1');
+
+        expect(onNodeTap).toHaveBeenCalledWith(NodeId('n1'));
+        // showCallChainRef.current is true, so the tap must also refresh the highlight.
+        expect(mockRenderer.highlightCallChain).toHaveBeenCalledWith(NodeId('n1'));
+      });
+    });
+
+    it('does not highlight the call chain on tap while showCallChain is off', () => {
+      withSizedContainer(() => {
+        const onNodeTap = vi.fn();
+        render(
+          createElement(Harness, {
+            callbacks: { ...makeCallbacks(), onNodeTap },
+            showCallChainRef: { current: false },
+          }),
+        );
+
+        // The hook's own analysis effect already pushed highlightCallChain(null)
+        // during init (showCallChain is false); only the tap is under test here.
+        mockRenderer.highlightCallChain.mockClear();
+
+        fullOptions().onNodeTap('n1');
+
+        expect(onNodeTap).toHaveBeenCalledWith(NodeId('n1'));
+        expect(mockRenderer.highlightCallChain).not.toHaveBeenCalled();
+      });
+    });
+
+    it('forwards onNodeDoubleTap to the renderer', () => {
+      withSizedContainer(() => {
+        const onNodeDoubleTap = vi.fn();
+        render(createElement(Harness, { callbacks: { ...makeCallbacks(), onNodeDoubleTap } }));
+
+        fullOptions().onNodeDoubleTap('n7');
+
+        expect(onNodeDoubleTap).toHaveBeenCalledWith('n7');
+      });
+    });
+
+    it('forwards the node hover lifecycle to the renderer', () => {
+      withSizedContainer(() => {
+        const onNodeHover = vi.fn();
+        const onNodeHoverOut = vi.fn();
+        render(createElement(Harness, { callbacks: { ...makeCallbacks(), onNodeHover, onNodeHoverOut } }));
+
+        const options = fullOptions();
+        options.onNodeHover('n3', { x: 5, y: 6 });
+        options.onNodeHoverOut();
+
+        expect(onNodeHover).toHaveBeenCalledWith('n3', { x: 5, y: 6 });
+        expect(onNodeHoverOut).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('forwards onNodeHoverPrefetch when the caller supplies it', () => {
+      withSizedContainer(() => {
+        const onNodeHoverPrefetch = vi.fn();
+        render(createElement(Harness, { callbacks: { ...makeCallbacks(), onNodeHoverPrefetch } }));
+
+        fullOptions().onNodeHoverPrefetch('n9');
+
+        expect(onNodeHoverPrefetch).toHaveBeenCalledWith('n9');
+      });
+    });
+
+    it('tolerates a missing onNodeHoverPrefetch because the hook calls it optionally', () => {
+      withSizedContainer(() => {
+        render(createElement(Harness, { callbacks: makeCallbacks() }));
+
+        // makeCallbacks() deliberately omits the optional prefetch hook; the
+        // optional-call form is the only thing keeping hover from throwing.
+        expect(() => fullOptions().onNodeHoverPrefetch('n9')).not.toThrow();
+      });
+    });
+
+    it('forwards the edge hover lifecycle to the renderer', () => {
+      withSizedContainer(() => {
+        const onEdgeTap = vi.fn();
+        const onEdgeHover = vi.fn();
+        const onEdgeHoverOut = vi.fn();
+        render(
+          createElement(Harness, { callbacks: { ...makeCallbacks(), onEdgeTap, onEdgeHover, onEdgeHoverOut } }),
+        );
+
+        const options = fullOptions();
+        options.onEdgeTap('e1', { x: 1, y: 1 });
+        options.onEdgeHover('e1', { x: 2, y: 2 });
+        options.onEdgeHoverOut();
+
+        expect(onEdgeTap).toHaveBeenCalledWith('e1', { x: 1, y: 1 });
+        expect(onEdgeHover).toHaveBeenCalledWith('e1', { x: 2, y: 2 });
+        expect(onEdgeHoverOut).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('resizes the renderer through a window listener when ResizeObserver is unavailable', () => {
+      withSizedContainer(() => {
+        // jsdom provides no ResizeObserver, so the hook must take the window fallback.
+        expect(typeof (globalThis as any).ResizeObserver).toBe('undefined');
+
+        const { unmount } = render(createElement(Harness, { callbacks: makeCallbacks() }));
+        expect(mockRenderer.resize).not.toHaveBeenCalled();
+
+        window.dispatchEvent(new Event('resize'));
+        expect(mockRenderer.resize).toHaveBeenCalledTimes(1);
+
+        // The cleanup must detach the listener, otherwise every remount leaks one.
+        unmount();
+        window.dispatchEvent(new Event('resize'));
+        expect(mockRenderer.resize).toHaveBeenCalledTimes(1);
       });
     });
   });

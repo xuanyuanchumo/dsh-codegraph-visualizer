@@ -1037,4 +1037,73 @@ describe('sanitizeTypedGraph', () => {
     expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
   });
+
+  // ---------------------------------------------------------------------------
+  // Coverage completion cases (appended). autoFixEdge's missing/invalid-id guard
+  // (src/shared/GraphValidator.ts:239-242) is only reachable through
+  // processRawInput, i.e. via validateGraphData / sanitizeGraphData.
+  // ---------------------------------------------------------------------------
+  it('drops an edge with no id and records a dropped issue', () => {
+    const input = {
+      nodes: [{ id: 'n1', label: 'foo', type: 'function', filePath: 'src/foo.ts' }],
+      edges: [{ source: 'n1', target: 'n1', type: 'call' }],
+      metadata: { repoId: 'repo1', timestamp: 1000, nodeCount: 1, edgeCount: 1 },
+    };
+
+    const { data, issues } = validateGraphData(input);
+
+    expect(data.edges).toHaveLength(0);
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: 'dropped',
+          category: 'edge',
+          message: 'missing or invalid id',
+          path: 'edge[0]',
+        }),
+      ]),
+    );
+  });
+
+  it('drops an edge whose id is an empty string', () => {
+    const input = {
+      nodes: [
+        { id: 'n1', label: 'foo', type: 'function', filePath: 'src/foo.ts' },
+        { id: 'n2', label: 'bar', type: 'class', filePath: 'src/bar.ts' },
+      ],
+      edges: [
+        { id: '', source: 'n1', target: 'n2', type: 'call' },
+        { id: 'e2', source: 'n1', target: 'n2', type: 'call' },
+      ],
+      metadata: { repoId: 'repo1', timestamp: 1000, nodeCount: 2, edgeCount: 2 },
+    };
+
+    const { data, issues } = validateGraphData(input);
+
+    expect(data.edges).toHaveLength(1);
+    expect(data.edges[0]!.id).toBe('e2');
+    // The dropped entry is reported against the pre-filter index (edge[0]).
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ level: 'dropped', category: 'edge', message: 'missing or invalid id', path: 'edge[0]' }),
+      ]),
+    );
+  });
+
+  it('drops an edge with a non-string id via sanitizeGraphData', () => {
+    const input = {
+      nodes: [{ id: 'n1', label: 'foo', type: 'function', filePath: 'src/foo.ts' }],
+      edges: [{ id: 42, source: 'n1', target: 'n1', type: 'call' }],
+      metadata: { repoId: 'repo1', timestamp: 1000, nodeCount: 1, edgeCount: 1 },
+    };
+
+    const { data, issues } = sanitizeGraphData(input);
+
+    expect(data.edges).toHaveLength(0);
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ level: 'dropped', category: 'edge', message: 'missing or invalid id', path: 'edge[0]' }),
+      ]),
+    );
+  });
 });

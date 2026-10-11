@@ -15,6 +15,7 @@ import {
   getDegradationReport,
   type PerfThreshold,
 } from '../../src/shared/PerformanceMonitor.ts';
+import { logger } from '../../src/shared/Logger.ts';
 
 describe('PerformanceMonitor', () => {
   beforeEach(() => {
@@ -238,6 +239,69 @@ describe('PerformanceMonitor', () => {
       expect(report.length).toBe(1);
       expect(report[0]!.name).toBe('op');
       expect(report[0]!.baseline).toBe(50);
+    });
+  });
+
+  // recordMeasurement() logs only when a threshold is configured AND the recorded
+  // duration reaches it. Durations are fed through the real timing path (a
+  // synchronous busy-wait), never by stubbing performance.now(), so the
+  // assertions bind to the source's actual threshold comparison.
+  describe('threshold logging in recordMeasurement', () => {
+    function busyWait(ms: number): void {
+      const until = performance.now() + ms;
+      while (performance.now() < until) { /* spin */ }
+    }
+
+    function clearLogBuffer(): void {
+      logger.clear();
+    }
+
+    it('logs a warning when a measurement reaches the degrade threshold', () => {
+      setThreshold('sa2-degrade', { warnMs: 1, degradeMs: 5, degradationKey: 'slow-sa2' });
+      clearLogBuffer();
+      measureSync('sa2-degrade', () => busyWait(10));
+
+      const warnings = logger.entries().filter((e) => e.level === 'warn' && e.scope === 'perf');
+      expect(warnings.length).toBeGreaterThanOrEqual(1);
+      expect(warnings.some((e) => e.message.includes('exceeded degrade threshold'))).toBe(true);
+    });
+
+    it('logs info when a measurement reaches only the warn threshold', () => {
+      setThreshold('sa2-warn', { warnMs: 1, degradeMs: 60_000 });
+      clearLogBuffer();
+      measureSync('sa2-warn', () => busyWait(5));
+
+      const infos = logger.entries().filter((e) => e.level === 'info' && e.scope === 'perf');
+      expect(infos.length).toBeGreaterThanOrEqual(1);
+      expect(infos.some((e) => e.message.includes('exceeded warn threshold'))).toBe(true);
+      const warnings = logger.entries().filter((e) => e.level === 'warn' && e.scope === 'perf');
+      expect(warnings.some((e) => e.message.includes('exceeded degrade threshold'))).toBe(false);
+    });
+
+    it('logs nothing when a measurement stays below both thresholds', () => {
+      setThreshold('sa2-quiet', { warnMs: 60_000, degradeMs: 120_000 });
+      clearLogBuffer();
+      measureSync('sa2-quiet', () => busyWait(1));
+
+      const perf = logger.entries().filter((e) => e.scope === 'perf');
+      expect(perf).toEqual([]);
+    });
+
+    it('does not log a degrade warning when the threshold has no degradationKey', () => {
+      setThreshold('sa2-nokey', { warnMs: 1, degradeMs: 5 });
+      clearLogBuffer();
+      measureSync('sa2-nokey', () => busyWait(10));
+
+      const warnings = logger.entries().filter((e) => e.level === 'warn' && e.scope === 'perf');
+      expect(warnings.some((e) => e.message.includes('exceeded degrade threshold'))).toBe(false);
+      const infos = logger.entries().filter((e) => e.level === 'info' && e.scope === 'perf');
+      expect(infos.some((e) => e.message.includes('exceeded warn threshold'))).toBe(true);
+    });
+
+    it('records the measurement regardless of whether logging triggers', () => {
+      setThreshold('sa2-record', { warnMs: 60_000, degradeMs: 120_000 });
+      measureSync('sa2-record', () => busyWait(1));
+      expect(getMeasurements('sa2-record')).toHaveLength(1);
     });
   });
 });

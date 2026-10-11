@@ -485,4 +485,152 @@ describe('SearchController', () => {
     const matches = sc.search('foo');
     expect(matches).toBe(1);
   });
+
+  // ---------------------------------------------------------------------------
+  // Incremental index maintenance (addNode / removeNode) and the idle-callback
+  // compatibility shim used by the chunked Trie build.
+  // ---------------------------------------------------------------------------
+
+  it('addNode writes to the raw map and to the Trie once the index is built', async () => {
+    const { SearchController } = await import('../../src/client/renderer/SearchController.ts');
+    const { Trie } = await import('../../src/shared/Trie.ts');
+    const insertSpy = vi.spyOn(Trie.prototype, 'insert');
+    try {
+      const cy = makeMockCy([], []);
+      const rawNodesMap = new Map<string, { id: string; label: string; parentId?: string }>();
+      rawNodesMap.set('a', { id: 'a', label: 'alpha' });
+      const rawToVisibleMap = new Map<string, string>();
+      const sc = new SearchController(cy as any, rawNodesMap, rawToVisibleMap);
+
+      // Index not built yet: addNode only touches the raw map.
+      sc.addNode({ id: 'b', label: 'beta' });
+      expect(rawNodesMap.get('b')).toEqual({ id: 'b', label: 'beta' });
+      expect(insertSpy).not.toHaveBeenCalledWith('beta', 'b');
+
+      // Two nodes fit in one synchronous chunk, so rebuildIndex finishes inline.
+      sc.rebuildIndex();
+      expect(insertSpy).toHaveBeenCalledWith('alpha', 'a');
+      expect(insertSpy).toHaveBeenCalledWith('beta', 'b');
+
+      insertSpy.mockClear();
+      sc.addNode({ id: 'c', label: 'gamma' });
+      expect(rawNodesMap.get('c')).toEqual({ id: 'c', label: 'gamma' });
+      expect(insertSpy).toHaveBeenCalledWith('gamma', 'c');
+    } finally {
+      insertSpy.mockRestore();
+    }
+  });
+
+  it('removeNode drops the raw node and invalidates the built Trie index', async () => {
+    const { SearchController } = await import('../../src/client/renderer/SearchController.ts');
+    const { Trie } = await import('../../src/shared/Trie.ts');
+    const trieSearchSpy = vi.spyOn(Trie.prototype, 'search');
+    try {
+      const cy = makeMockCy([], []);
+      const rawNodesMap = new Map<string, { id: string; label: string; parentId?: string }>();
+      rawNodesMap.set('a', { id: 'a', label: 'alpha' });
+      rawNodesMap.set('b', { id: 'b', label: 'beta' });
+      const rawToVisibleMap = new Map<string, string>();
+      const sc = new SearchController(cy as any, rawNodesMap, rawToVisibleMap);
+
+      sc.rebuildIndex();
+      expect(sc.search('alpha')).toBe(1);
+      expect(trieSearchSpy).toHaveBeenCalled();
+
+      trieSearchSpy.mockClear();
+      sc.removeNode('a');
+      expect(rawNodesMap.has('a')).toBe(false);
+
+      // trieBuilt was cleared, so the next search must NOT consult the Trie
+      // (which still holds the stale 'alpha' entry) and must fall back to the map.
+      expect(sc.search('alpha')).toBe(0);
+      expect(trieSearchSpy).not.toHaveBeenCalled();
+      expect(sc.search('beta')).toBe(1);
+    } finally {
+      trieSearchSpy.mockRestore();
+    }
+  });
+
+  it('builds the Trie in deferred chunks when the raw node count exceeds one chunk', async () => {
+    const { SearchController } = await import('../../src/client/renderer/SearchController.ts');
+    const { Trie } = await import('../../src/shared/Trie.ts');
+    const insertSpy = vi.spyOn(Trie.prototype, 'insert');
+    try {
+      const rawNodesMap = new Map<string, { id: string; label: string; parentId?: string }>();
+      for (let i = 0; i < 201; i++) rawNodesMap.set(`n${i}`, { id: `n${i}`, label: `chunkFunc${i}` });
+      const cy = makeMockCy([], []);
+      const sc = new SearchController(cy as any, rawNodesMap, new Map());
+
+      sc.rebuildIndex();
+      // BUILD_CHUNK_SIZE = 200: the first chunk runs synchronously, the 201st node
+      // is deferred. Node has no requestIdleCallback, so the setTimeout fallback
+      // branch of requestIdleCallbackCompat is the one that runs here.
+      expect(insertSpy).toHaveBeenCalledTimes(200);
+
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(insertSpy).toHaveBeenCalledTimes(201);
+      expect(sc.search('chunkFunc')).toBe(201);
+    } finally {
+      insertSpy.mockRestore();
+    }
+  });
+
+  it('cancels a pending deferred build when the controller is destroyed', async () => {
+    const { SearchController } = await import('../../src/client/renderer/SearchController.ts');
+    const { Trie } = await import('../../src/shared/Trie.ts');
+    const insertSpy = vi.spyOn(Trie.prototype, 'insert');
+    try {
+      const rawNodesMap = new Map<string, { id: string; label: string; parentId?: string }>();
+      for (let i = 0; i < 201; i++) rawNodesMap.set(`n${i}`, { id: `n${i}`, label: `chunkFunc${i}` });
+      const cy = makeMockCy([], []);
+      const sc = new SearchController(cy as any, rawNodesMap, new Map());
+
+      sc.rebuildIndex();
+      expect(insertSpy).toHaveBeenCalledTimes(200); // second chunk still pending on a timer
+
+      sc.destroy(); // -> cancelIdleCallbackCompat clearTimeout branch
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(insertSpy).toHaveBeenCalledTimes(200); // the cancelled chunk never ran
+    } finally {
+      insertSpy.mockRestore();
+    }
+  });
+
+  it('prefers requestIdleCallback/cancelIdleCallback when the platform provides them', async () => {
+    const { SearchController } = await import('../../src/client/renderer/SearchController.ts');
+    const pending: Array<(deadline: { timeRemaining: () => number }) => void> = [];
+    const idleSpy = vi.fn((cb: (deadline: { timeRemaining: () => number }) => void) => {
+      pending.push(cb);
+      return 7;
+    });
+    const cancelSpy = vi.fn();
+    vi.stubGlobal('requestIdleCallback', idleSpy);
+    vi.stubGlobal('cancelIdleCallback', cancelSpy);
+    try {
+      const rawNodesMap = new Map<string, { id: string; label: string; parentId?: string }>();
+      for (let i = 0; i < 201; i++) rawNodesMap.set(`n${i}`, { id: `n${i}`, label: `chunkFunc${i}` });
+      const cy = makeMockCy([], []);
+      const sc = new SearchController(cy as any, rawNodesMap, new Map());
+
+      // The deferred chunk must be scheduled through requestIdleCallback, not setTimeout.
+      sc.rebuildIndex();
+      expect(idleSpy).toHaveBeenCalledTimes(1);
+      expect(pending).toHaveLength(1);
+
+      // Driving the real idle callback completes the chunked index.
+      const firstIdle = pending[0];
+      if (!firstIdle) throw new Error('expected a pending idle callback after the first rebuildIndex()');
+      firstIdle({ timeRemaining: () => 50 });
+      expect(sc.search('chunkFunc')).toBe(201);
+
+      // A build cancelled while its idle callback is still pending must hand the
+      // numeric handle to cancelIdleCallback, never to clearTimeout.
+      sc.rebuildIndex();
+      expect(idleSpy).toHaveBeenCalledTimes(2);
+      sc.destroy();
+      expect(cancelSpy).toHaveBeenCalledWith(7);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

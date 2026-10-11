@@ -1,4 +1,4 @@
-﻿// Unit tests for Host tool factory — graph_status/graph_data/graph_symbol/graph_impact
+// Unit tests for Host tool factory — graph_status/graph_data/graph_symbol/graph_impact
 // Note: fetchMergedGraph delegates to CodeGraphAdapter which reads .codegraph/
 // codegraph.db directly. In tests we test the pure transform functions which
 // don't depend on the live .codegraph DB or the adapter mock.
@@ -1036,6 +1036,116 @@ describe('render functions', () => {
     );
     const output = renderFn({}, data as never) as Array<{ type: string; text: string }>;
     expect(output[0]!.text).toContain('Graph');
+  });
+});
+
+// ── Tool presentation callbacks (presentCall / presentResult) ──────────
+// defineTool wraps BOTH callbacks in an argument-validation gate
+// (node_modules/@deepseek-ai/dsh-tools/lib/index.js:838-887): when the args
+// violate the parameter schema the wrapper returns undefined WITHOUT ever
+// calling the user callback. Every case below therefore passes schema-valid
+// args, and one case pins the gate itself.
+
+type GraphTools = Awaited<ReturnType<typeof createGraphTools>>;
+type PresentableKey = Exclude<keyof GraphTools, 'dispose'>;
+
+type CallView = { card?: string; title?: string; kind?: string; rawInput?: unknown };
+type ResultView = { card?: string; title?: string };
+
+/** Narrow one tool to its two presenter callbacks without fighting the union. */
+function presenters(tools: GraphTools, key: PresentableKey): {
+  presentCall?: (args: unknown) => CallView | undefined;
+  presentResult?: (args: unknown, result: { content: unknown[]; isError: boolean }) => ResultView | undefined;
+} {
+  return tools[key] as unknown as {
+    presentCall?: (args: unknown) => CallView | undefined;
+    presentResult?: (args: unknown, result: { content: unknown[]; isError: boolean }) => ResultView | undefined;
+  };
+}
+
+const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
+  graphStatus: { repoId: 'repo-1' },
+  graphData: { repoId: 'repo-1', source: 'codegraph' },
+  graphSymbol: { symbolId: 'sym-1' },
+  graphImpact: { symbolId: 'sym-1' },
+  graphPathFind: { repoId: 'repo-1', sourceSymbol: 'sym-a', targetSymbol: 'sym-b' },
+  graphHealth: { repoId: 'repo-1' },
+  graphRulesCheck: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 },
+  graphFocus: { repoId: 'repo-1', symbolId: 'sym-1' },
+};
+
+const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawInput: unknown }> = [
+  { key: 'graphStatus', title: 'Check graph status', kind: 'other', rawInput: { repoId: 'repo-1' } },
+  { key: 'graphData', title: 'Fetch code graph', kind: 'fetch', rawInput: { repoId: 'repo-1', source: 'codegraph' } },
+  { key: 'graphSymbol', title: 'Resolve symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
+  { key: 'graphImpact', title: 'Analyze impact', kind: 'search', rawInput: { symbolId: 'sym-1' } },
+  { key: 'graphPathFind', title: 'Find call path', kind: 'search', rawInput: { from: 'sym-a', to: 'sym-b' } },
+  { key: 'graphHealth', title: 'Calculate health score', kind: 'other', rawInput: { repoId: 'repo-1' } },
+  { key: 'graphRulesCheck', title: 'Check architecture rules', kind: 'other', rawInput: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 } },
+  { key: 'graphFocus', title: 'Focus on symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
+];
+
+const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = [
+  { key: 'graphStatus', ok: 'Graph status', fail: 'Graph status failed' },
+  { key: 'graphData', ok: 'Code graph fetched', fail: 'Graph fetch failed' },
+  { key: 'graphSymbol', ok: 'Symbol resolved', fail: 'Symbol resolution failed' },
+  { key: 'graphImpact', ok: 'Impact analyzed', fail: 'Impact analysis failed' },
+  { key: 'graphPathFind', ok: 'Call path', fail: 'Path search failed' },
+  { key: 'graphHealth', ok: 'Health score', fail: 'Health scoring failed' },
+  { key: 'graphRulesCheck', ok: 'Rules checked', fail: 'Rules check failed' },
+  { key: 'graphFocus', ok: 'Symbol neighborhood', fail: 'Focus failed' },
+];
+
+describe('createGraphTools presentation callbacks', () => {
+  let ctx: MockCtx;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+  });
+
+  it.each(CALL_VIEWS)('$key presentCall renders the "$title" call view', async ({ key, title, kind, rawInput }) => {
+    const tools = await createGraphTools(ctx);
+    const view = presenters(tools, key).presentCall!(VALID_ARGS[key]);
+    expect(view).toEqual({ card: 'generic', title, kind, rawInput });
+  });
+
+  it.each(RESULT_TITLES)('$key presentResult renders success and failure titles', async ({ key, ok, fail }) => {
+    const tools = await createGraphTools(ctx);
+    const presentResult = presenters(tools, key).presentResult!;
+
+    expect(presentResult(VALID_ARGS[key], { content: [], isError: false })).toEqual({ card: 'generic', title: ok });
+    expect(presentResult(VALID_ARGS[key], { content: [], isError: true })).toEqual({ card: 'generic', title: fail });
+  });
+
+  it('graph_data presentCall defaults source to "both" when omitted', async () => {
+    const tools = await createGraphTools(ctx);
+    const view = presenters(tools, 'graphData').presentCall!({ repoId: 'repo-1' });
+    expect(view).toEqual({ card: 'generic', title: 'Fetch code graph', kind: 'fetch', rawInput: { repoId: 'repo-1', source: 'both' } });
+  });
+
+  it('graph_rules_check presentCall defaults maxIndegree/maxOutdegree when omitted', async () => {
+    const tools = await createGraphTools(ctx);
+    const view = presenters(tools, 'graphRulesCheck').presentCall!({ repoId: 'repo-1' });
+    expect(view).toEqual({
+      card: 'generic',
+      title: 'Check architecture rules',
+      kind: 'other',
+      rawInput: { repoId: 'repo-1', maxIndegree: 10, maxOutdegree: 15 },
+    });
+  });
+
+  // Pins the defineTool validation gate: an invalid arg must short-circuit to
+  // undefined instead of reaching the user callback.
+  it('presentCall returns undefined for schema-invalid args', async () => {
+    const tools = await createGraphTools(ctx);
+    expect(presenters(tools, 'graphStatus').presentCall!({})).toBeUndefined();
+    expect(presenters(tools, 'graphSymbol').presentCall!({ symbolId: 42 })).toBeUndefined();
+    expect(presenters(tools, 'graphData').presentCall!({ repoId: 'repo-1', source: 'not-a-source' })).toBeUndefined();
+  });
+
+  it('presentResult returns undefined for schema-invalid args', async () => {
+    const tools = await createGraphTools(ctx);
+    expect(presenters(tools, 'graphHealth').presentResult!({}, { content: [], isError: false })).toBeUndefined();
   });
 });
 

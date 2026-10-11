@@ -863,4 +863,265 @@ describe('IndexedDBCache', () => {
       expect(purged).toBe(0);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Coverage completion cases (appended). These reuse the module-level
+  // createMockDB / mockIndexedDB fixtures above and add only the missing IDB
+  // callbacks: store.openCursor() (absent from the shared fixture), the
+  // setMany write-transaction onerror, and the private deleteFromStore path
+  // reached through getFromStore's expired-entry branch.
+  // ---------------------------------------------------------------------------
+  describe('cursor + deleteFromStore coverage completion', () => {
+    interface CursorLike {
+      key: string;
+      value: unknown;
+      continue: () => void;
+    }
+
+    interface CursorRequestLike {
+      result: CursorLike | null;
+      error: DOMException | null;
+      onsuccess: (() => void) | null;
+      onerror: (() => void) | null;
+    }
+
+    function storeStub(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
+      return {
+        get: vi.fn(),
+        put: vi.fn(() => ({ result: undefined, error: null, onsuccess: null, onerror: null })),
+        delete: vi.fn(() => ({ result: undefined, error: null, onsuccess: null, onerror: null })),
+        clear: vi.fn(() => ({ result: undefined, error: null, onsuccess: null, onerror: null })),
+        getAllKeys: vi.fn(),
+        openCursor: vi.fn(),
+        ...overrides,
+      };
+    }
+
+    function makeTx(
+      store: ReturnType<typeof storeStub>,
+      error: DOMException | null = null,
+      fireError = false,
+    ): MockIDBTransaction {
+      const tx: MockIDBTransaction = {
+        objectStore: vi.fn(() => store),
+        oncomplete: null,
+        onerror: null,
+        error,
+      };
+      queueMicrotask(() => {
+        if (fireError) tx.onerror?.();
+        else tx.oncomplete?.();
+      });
+      return tx;
+    }
+
+    /**
+     * A DB whose readonly transactions expose a working openCursor(): it walks
+     * `recordsFor(storeName)` one record per microtask and then reports an
+     * exhausted cursor (result === null), which is exactly the loop shape
+     * purgeExpiredStore expects.
+     */
+    function mockCursorDB(
+      recordsFor: (storeName: string) => Array<{ key: string; value: unknown }>,
+      options: { cursorError?: DOMException | null; writeError?: DOMException | null } = {},
+    ): MockIDBDatabase {
+      const db = createMockDB();
+      db.transaction = vi.fn((storeName: string, mode: string): MockIDBTransaction => {
+        if (mode !== 'readonly') {
+          return makeTx(storeStub(), options.writeError ?? null, options.writeError != null);
+        }
+        const records = recordsFor(storeName);
+        let index = 0;
+        const cursorReq: CursorRequestLike = {
+          result: null,
+          error: options.cursorError ?? null,
+          onsuccess: null,
+          onerror: null,
+        };
+        const step = () => {
+          if (index < records.length) {
+            const record = records[index++]!;
+            cursorReq.result = {
+              key: record.key,
+              value: record.value,
+              continue: () => {
+                queueMicrotask(step);
+              },
+            };
+          } else {
+            cursorReq.result = null;
+          }
+          cursorReq.onsuccess?.();
+        };
+        const store = storeStub({
+          openCursor: vi.fn(() => {
+            queueMicrotask(() => {
+              if (options.cursorError) {
+                cursorReq.onerror?.();
+                return;
+              }
+              step();
+            });
+            return cursorReq;
+          }),
+        });
+        return makeTx(store);
+      });
+      return db;
+    }
+
+    it('purges expired entries found by cursor and deletes them', async () => {
+      const expired = { value: { d: 1 }, timestamp: Date.now() - 60_000, ttlMs: 1_000 };
+      const fresh = { value: { d: 2 }, timestamp: Date.now(), ttlMs: 60_000 };
+      mockIndexedDB(
+        mockCursorDB((storeName) =>
+          storeName === 'cluster-cache'
+            ? [
+                { key: 'expired-key', value: expired },
+                { key: 'fresh-key', value: fresh },
+              ]
+            : [],
+        ),
+      );
+
+      const cursorCache = new IndexedDBCache('cursor-repo');
+      expect(await cursorCache.purgeExpired()).toBe(1);
+    });
+
+    it('returns 0 when the cursor yields only non-expired entries', async () => {
+      const fresh = { value: { d: 2 }, timestamp: Date.now(), ttlMs: 60_000 };
+      mockIndexedDB(
+        mockCursorDB((storeName) => (storeName === 'cluster-cache' ? [{ key: 'fresh-key', value: fresh }] : [])),
+      );
+
+      const cursorCache = new IndexedDBCache('cursor-fresh-repo');
+      expect(await cursorCache.purgeExpired()).toBe(0);
+    });
+
+    it('returns 0 when the cursor request fires onerror', async () => {
+      mockIndexedDB(mockCursorDB(() => [], { cursorError: new DOMException('cursor fail') }));
+
+      const cursorCache = new IndexedDBCache('cursor-error-repo');
+      expect(await cursorCache.purgeExpired()).toBe(0);
+    });
+
+    it('returns 0 when the expired-key delete transaction fails', async () => {
+      const expired = { value: { d: 1 }, timestamp: Date.now() - 60_000, ttlMs: 1_000 };
+      mockIndexedDB(
+        mockCursorDB(
+          (storeName) => (storeName === 'cluster-cache' ? [{ key: 'expired-key', value: expired }] : []),
+          { writeError: new DOMException('delete tx fail') },
+        ),
+      );
+
+      const cursorCache = new IndexedDBCache('cursor-write-error-repo');
+      expect(await cursorCache.purgeExpired()).toBe(0);
+    });
+
+    it('deletes an expired entry encountered by getFromStore and returns null', async () => {
+      const expired = { value: { d: 1 }, timestamp: Date.now() - 60_000, ttlMs: 1_000 };
+      const deletedKeys: string[] = [];
+      const db = createMockDB();
+      db.transaction = vi.fn((_storeName: string, mode: string): MockIDBTransaction => {
+        if (mode === 'readonly') {
+          return makeTx(
+            storeStub({
+              get: vi.fn(() => {
+                const req: MockIDBRequest = { result: expired, error: null, onsuccess: null, onerror: null };
+                queueMicrotask(() => req.onsuccess?.());
+                return req;
+              }),
+            }),
+          );
+        }
+        return makeTx(
+          storeStub({
+            delete: vi.fn((key: string) => {
+              deletedKeys.push(key);
+              return { result: undefined, error: null, onsuccess: null, onerror: null };
+            }),
+          }),
+        );
+      });
+      mockIndexedDB(db);
+
+      const deleteCache = new IndexedDBCache('delete-repo');
+      expect(await deleteCache.getCluster('expired-key')).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(deletedKeys).toEqual(['expired-key']);
+    });
+
+    it('logs and swallows a deleteFromStore transaction failure', async () => {
+      const expired = { value: { d: 1 }, timestamp: Date.now() - 60_000, ttlMs: 1_000 };
+      const deletedKeys: string[] = [];
+      const db = createMockDB();
+      db.transaction = vi.fn((_storeName: string, mode: string): MockIDBTransaction => {
+        if (mode === 'readonly') {
+          return makeTx(
+            storeStub({
+              get: vi.fn(() => {
+                const req: MockIDBRequest = { result: expired, error: null, onsuccess: null, onerror: null };
+                queueMicrotask(() => req.onsuccess?.());
+                return req;
+              }),
+            }),
+          );
+        }
+        return makeTx(
+          storeStub({
+            delete: vi.fn((key: string) => {
+              deletedKeys.push(key);
+              return { result: undefined, error: null, onsuccess: null, onerror: null };
+            }),
+          }),
+          new DOMException('delete tx fail'),
+          true,
+        );
+      });
+      mockIndexedDB(db);
+
+      const deleteCache = new IndexedDBCache('delete-error-repo');
+      expect(await deleteCache.getCluster('expired-key')).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(deletedKeys).toEqual(['expired-key']);
+    });
+
+    it('returns raw values that are not cache entries unchanged', async () => {
+      const rawValue = { legacy: true };
+      const db = createMockDB();
+      db.transaction = vi.fn((): MockIDBTransaction =>
+        makeTx(
+          storeStub({
+            get: vi.fn(() => {
+              const req: MockIDBRequest = { result: rawValue, error: null, onsuccess: null, onerror: null };
+              queueMicrotask(() => req.onsuccess?.());
+              return req;
+            }),
+          }),
+        ),
+      );
+      mockIndexedDB(db);
+
+      const rawCache = new IndexedDBCache('raw-repo');
+      expect(await rawCache.getCluster('raw-key')).toEqual(rawValue);
+    });
+
+    it('logs and swallows setMany transaction errors', async () => {
+      const db = createMockDB();
+      db.transaction = vi.fn((): MockIDBTransaction =>
+        makeTx(storeStub(), new DOMException('setMany tx fail'), true),
+      );
+      mockIndexedDB(db);
+
+      const manyCache = new IndexedDBCache('setmany-error-repo');
+      await expect(manyCache.setMany('cluster-cache', [{ key: 'k1', value: { n: 1 } }])).resolves.toBeUndefined();
+    });
+
+    it('splits a batch larger than MAX_ENTRIES and writes every entry', async () => {
+      const entries = Array.from({ length: 501 }, (_unused, i) => ({ key: `k${i}`, value: { n: i } }));
+      await cache.setMany('cluster-cache', entries);
+      expect(await cache.getCluster('k0')).toEqual({ n: 0 });
+      expect(await cache.getCluster('k500')).toEqual({ n: 500 });
+    });
+  });
 });
