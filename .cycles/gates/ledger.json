@@ -395,7 +395,43 @@
       "timestamp": "2026-10-11T09:47:08.740Z",
       "previousHash": "bc557f8431718f90ace53293e041871e3a1d0767f62dafc7a7644b6cb41f4798",
       "hash": "40b6e843d4784d191c6a65cbada4dcb6502421c234ed0da68ca525cb28a39554"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-89 P3-1 按需加载链路 E2E + P0 级 cytoscape 样式选择器缺陷：项目评估报告就绪（6 节 + 13 条事实基座抽验 + E1-E8 八维，E1/E2/E4/E5/E6 标注「不足（本轮修复）」）；问题清单 P0-R25-01（24 条布尔样式规则 + 2 条数字属性规则因选择器字符串比较从未命中任何真实元素，属跨渲染层系统性缺陷）+ P1-R25-01（按需加载四条计数契约无 E2E 覆盖）+ P1-R25-02（dev-server 缺 outline/ast/edges 三桩）+ P2-R25-01/02 + P3-R25-01/02。范围声明 4 条（不改渲染层写入侧语义、不新增 host 路由、不做服务端窗口查询、截图证据不可用已披露）。",
+      "timestamp": "2026-10-12T11:10:24.833Z",
+      "previousHash": "40b6e843d4784d191c6a65cbada4dcb6502421c234ed0da68ca525cb28a39554",
+      "hash": "07b31fc13ac556fe0e1cf561217fbb8e173b5347729cab5cca8b6ee71346ef8e"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-89 任务清单 T25-1..T25-22 全部 ✅（侦察 3 项 / dev-server 三桩 3 项 / helpers 网络原语 6 项 / 新 spec + projects 注册 3 项 / 缺陷量化与修复 3 项 / 守卫测试 1 项 / 真机验证与变异探针 2 项 / 门禁与制品 1 项）；5 条计数契约达成表（首屏零数据请求、展开文件 1 次 outline、展开函数 1 次 ast、目录簇 0 请求、选中后 edges 1 次）；诚实披露 6 条；流转 19 条（本轮新增 P3-R25-01/03/04/05/06 + 沿用 cycle-88 的 14 条）。",
+      "timestamp": "2026-10-12T11:10:24.970Z",
+      "previousHash": "07b31fc13ac556fe0e1cf561217fbb8e173b5347729cab5cca8b6ee71346ef8e",
+      "hash": "15f7f696e5fabbcf580bb0d185865514048affad47d7b46fea14f483d98219e6"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-89 测试收敛门：全量 pnpm run test = 193 files / 5296 passed exit 0（cycle-88 基线 192/5287 ⇒ +1 文件/+9 用例）；新增 tests/unit/styleSelectorContract.test.ts 9 例全绿、tests/e2e/on-demand-loading.spec.ts 5 例全绿；test:coverage exit 0（All files 94.87/91.13/96.61/94.87，四阈值 86 全过）；E2E smoke 57 passed (2.6m) exit 0；新 spec --project=regression 5 passed (15.5s)；3 条变异探针全部红→绿（A ThemeStylesheet.ts:575 改回 [isCluster=\\",
+      "timestamp": "2026-10-12T11:10:33.622Z",
+      "previousHash": "15f7f696e5fabbcf580bb0d185865514048affad47d7b46fea14f483d98219e6",
+      "hash": "062f1239e4939cef06a80e64aa3f8d8ad711282cb28ca6ef574798b1da632bed"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-89 构建零失败：pnpm run typecheck（host+client+test）exit 0；pnpm run lint = oxlint src/ → Found 0 warnings and 0 errors.（247 files / 103 rules / 12 threads）；pnpm run build exit 0（layout worker bytes: 1528568）；perf-gate 全 PASS（client bundle 2.46MB/3MB、host bundle 202KB/512KB、test count 5296/4463）；hygiene 单独运行（绝不与 build 并发）exit 0（dist/index.js ES module 0.20 MB、dist/client.js __ModuleLoader__ 2.43 MB、layoutWorker.js 1.46 MB、no stale hashed chunks 3/12、19 artefact(s) reachable from 7 root(s)、published payload size 11.66 MB、publint skip）；同口径体积 dist/client.js 2574799（cycle-88 2574991 ⇒ −192 B，A/B 双 build 对照证明修复无膨胀）、dist/index.js 207020、dist/client/index.css 167449（±0）、dist/client/index.esm.js 2380422（−192）、dist/client/worker/layoutWorker.js 1528568；跨轮基线在干净 cd573b1 上复现逐项一致。",
+      "timestamp": "2026-10-12T11:10:33.741Z",
+      "previousHash": "062f1239e4939cef06a80e64aa3f8d8ad711282cb28ca6ef574798b1da632bed",
+      "hash": "07200141866ec007bc0580dbc31519977c2d35baf03f00f576fbd35709055b3d"
     }
   ],
-  "chainHead": "40b6e843d4784d191c6a65cbada4dcb6502421c234ed0da68ca525cb28a39554"
+  "chainHead": "07200141866ec007bc0580dbc31519977c2d35baf03f00f576fbd35709055b3d"
 }

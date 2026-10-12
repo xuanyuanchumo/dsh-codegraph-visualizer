@@ -1,7 +1,13 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-88",
+  "currentCycle": "cycle-89",
   "phaseHistory": [
+    {
+      "cycle": "cycle-89",
+      "phase": "complete",
+      "result": "P3-1 按需加载链路 E2E 测试 + P0 级 cytoscape 样式选择器缺陷（objective #2 主线 + #5/#6）： (a) 缺陷形态：cytoscape 数据属性选择器把 JS 布尔值当字符串比较，`[isCluster=\"true\"]` 只命中字符串 `\"true\"`，而写入侧存的是真布尔 ⇒ 24 条布尔样式规则 + 2 条数字属性规则（`[clusterHue=\"3\"]`/`[parentCount=\"0\"]`）从未命中任何真实元素；cytoscape 无布尔字面量语法（`[flag=true]` 抛 `The selector '[flag = true]' is invalid`），`[?flag]` 是**真值**判定（实测命中 `\"false\"` 与 `1`），唯一严格写法是 `filter(el => el.data(flag) === true)`。 (b) 修复 2 个源码文件 26 处：ThemeStylesheet.ts 15 处（[isCluster] ×5 / [isRoot] ×2 / [isEntry] / [isRecursive] / [isPackage] ×2 / [isPackageEdge] / [isAbstract]，另 :100 改 `node[?isCluster][clusterHue = ${i}]`、:824 改 `node[?isRoot][parentCount = 0]`）+ diagramStyles.ts 11 处（isFragment/isAsync/isReturn/isSelfCall/isRoot ×3/isAbstract ×2/isEntry/isRecursive）；有意保留 diagramStyles.ts:151/166 的 `edge[cfgEdgeType=\"true\"|\"false\"]`（CFGAssembler.ts:325/342/398 写入值就是字符串）并纳入白名单 STRING_VALUED_PROPS。 (c) 新增守卫 tests/unit/styleSelectorContract.test.ts 9 例：静态扫描 + 反向自检 + [?flag] 覆盖度 + 数字属性 + 真实 buildStylesheet('dark',10)+headless cytoscape 行为验证（z-index===5 / font-weight===bold）+ 写入侧守卫（遍历 src/ >100 文件断言 11 个布尔属性零字符串赋值）。 (d) 新增 tests/e2e/on-demand-loading.spec.ts 5 例：以 Playwright 进程侧 page.on('request') 录制（不用 page.route()，后者会改变被测行为）验证四条计数契约——首屏零数据请求（仅豁免 layoutWorker.js 静态资源）、展开文件恰好 1 次 outline、展开函数恰好 1 次 ast、目录簇展开 0 请求、选中后 edges 恰好 1 次且 from=n2/scope=file/cursor=0/limit ≤ 500。 (e) dev-server 补三桩（905→981 行，:885-959）：outline（未找到 404 INVALID_FILEPATH）、ast（必须返 6 键含 total/cursor/hasMore，少一键客户端就走「本页即全部」降级）、edges（from/scope/cursor/limit）。 (f) tests/e2e/helpers.ts 436→537 行：getClusterNodeIds 改布尔过滤，新增 ApiRequestRecord/ApiRecorder/startApiRecording/resolveRawNodeId/expandNodeViaStore/waitForNoPendingRequests。 (g) 变异探针 3 条全红→绿：A ThemeStylesheet.ts:575 改回 `[isCluster=\"true\"]` ⇒ 3 failed|6 passed (9)；B :100 改回 `[clusterHue=\"${i}\"]` ⇒ 1 failed|8 passed (9)；C SequenceAssembler.ts:612 `isFragment: true` → `'true'` ⇒ 1 failed|8 passed (9)。 (h) 共享原语三跑对照：clean HEAD 11 failed/28 passed（含 v020-features.spec.ts:223 J25）、旧 helper 11-28（失败清单完全一致）、新 helper 10-31（J25 转绿）⇒ 只转绿一条且不引入新失败。 (i) 门禁：typecheck host+client+test exit 0；lint oxlint src/ Found 0 warnings and 0 errors（247 files/103 rules/12 threads）；test 193 files/5296 passed（cycle-88 基线 192/5287 ⇒ +1 文件/+9 用例）；test:coverage exit 0（All files 94.87/91.13/96.61/94.87，四阈值 86 全过）；build exit 0（layout worker bytes 1528568）；perf-gate 全 PASS（client 2.46MB/3MB、host 202KB/512KB、test count 5296/4463）；hygiene 单独跑 exit 0（payload 11.66 MB）；E2E smoke 57 passed (2.6m)；新 spec --project=regression 5 passed (15.5s)。 (j) 同口径体积：dist/client.js 2574799（cycle-88 2574991 ⇒ −192 B）、dist/index.js 207020、dist/client/index.css 167449（±0）、dist/client/index.esm.js 2380422（−192）、dist/client/worker/layoutWorker.js 1528568；A/B 双 build 对照 + 干净 cd573b1 跨轮基线复现逐项一致。 (k) 真机（objective #7，dev-server localhost:3080）：修复前聚类节点 bg rgb(219,39,119)（module 兜底色）/z-index 0/border 3px/fw normal；修复后 z-index 5 / fw bold / border 2px，6 个聚类节点按 hue 分 4 色（hue3→rgb(245,158,11)、hue4→rgb(6,182,212)、hue10→rgb(52,211,153)、hue7→rgb(132,204,22)）；callgraph 入口节点 border-width 3px / border-color rgb(16,185,129) / fw bold ⇒ diagramStyles.ts:746 首次生效；reload 后 console 0 error。 诚实披露：真机工作区 D:\\Projects\\TraeProjects\\JetHUB\\Jet-Hub 返回 0 节点（codegraph:false Windows 降级），端到端靠 dev-server 桩 + DOM/样式读回；take_screenshot 写盘被拒（Access denied: path is not within any of the configured workspace roots）⇒ 本轮无截图证据链；getClusterNodeIds 修复只转绿 1 条，其余 10 条 E2E 失败在 clean HEAD 上已存在（既有缺陷）。",
+      "timestamp": "2026-10-12T11:11:14.074Z"
+    },
     {
       "cycle": "cycle-88",
       "phase": "complete",
@@ -216,5 +222,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-11T09:48:31.934Z"
+  "updatedAt": "2026-10-12T11:11:14.074Z"
 }
