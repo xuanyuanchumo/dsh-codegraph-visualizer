@@ -2,9 +2,12 @@
 //
 // cycle-81 修正：原用例用 `getCyNodeIdsByClass(page, 'cluster')` 取聚类节点，
 // 但聚类标记是 cytoscape **数据属性** `isCluster`（`DataController.ts:265`、
-// `ThemeStylesheet.ts:100` 用 `node[isCluster="true"]` 选择），不是类名——
+// `ThemeStylesheet.ts:575` 用 `node[?isCluster]` 选择），不是类名——
 // 原选择器恒返回空数组，三条 `expect(nodeIds.length).toBeGreaterThan(0)` 必然失败。
-// 这里改用 `getClusterNodeIds`（`[isCluster = "true"]`）；若当前图谱未触发聚类
+// 这里改用 `getClusterNodeIds`（按 `data('isCluster') === true` 显式布尔过滤）。
+// cycle-89 补充：`[isCluster="true"]` 本身也是错的——`isCluster` 写入的是 JS 布尔，
+// 而 cytoscape 的 `[prop="true"]` 只匹配**字符串** "true"，该选择器命中 0 个元素
+// （详见 `tests/unit/styleSelectorContract.test.ts`）。若当前图谱未触发聚类
 // （dev-server 只有 21 个节点，远低于 `CLUSTER.MIN_NODES_FOR_SUBGROUP = 50`），
 // 则退回全量节点 id，保证并发路径本身仍被覆盖。
 import { test, expect, type Page } from '@playwright/test';

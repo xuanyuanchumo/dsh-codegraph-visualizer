@@ -882,6 +882,82 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // --- 文件大纲：`expandNode` 对 `type === 'module'` 的节点会打这个端点。
+  // 契约逐字对齐 `src/host/routes/dataRoutes.ts:252-306 registerFileOutlineRoute`：
+  // 正则 `^\/api\/v1\/codegraph\/files\/([^/]+)\/outline$`，返回 `{ symbols, edges }`。
+  // 符号一律从 `API_GRAPH` 派生，绝不另写一份节点副本（否则会与页面内联的
+  // `mockGraphData` 漂移，正是历史上 `API_GRAPH` 被抽出来的原因）。
+  const outlineMatch = path.match(/^\/api\/v1\/codegraph\/files\/([^/]+)\/outline$/);
+  if (outlineMatch && method === 'GET') {
+    const fileId = decodeURIComponent(outlineMatch[1] ?? '');
+    const fileNode = API_GRAPH.nodes.find((n) => n.id === fileId);
+    if (!fileNode) {
+      sendJson(res, 404, { error: 'INVALID_FILEPATH', message: 'Invalid filePath' });
+      return;
+    }
+    const symbols = API_GRAPH.nodes.filter(
+      (n) => n.filePath === fileNode.filePath && n.type !== 'module' && n.id !== fileNode.id,
+    );
+    const symbolIds = new Set(symbols.map((n) => n.id));
+    const edges = API_GRAPH.edges.filter((e) => symbolIds.has(e.source) && symbolIds.has(e.target));
+    sendJson(res, 200, { symbols, edges });
+    return;
+  }
+
+  // --- 单符号 AST：`expandNode` 对 `type === 'function'` 的节点会打这个端点。
+  // 契约逐字对齐 `src/host/routes/dataRoutes.ts:308+ registerSymbolASTRoute`：
+  // 正则 `^\/api\/v1\/codegraph\/symbols\/([^/]+)\/ast$`，**必须返回 6 个键**
+  // （`astNodes` / `astEdges` / `sourceLines` / `total` / `cursor` / `hasMore`）——
+  // 少一个键客户端就会走「本页即全部」的降级分支，契约用例也就失去意义。
+  const astMatch = path.match(/^\/api\/v1\/codegraph\/symbols\/([^/]+)\/ast$/);
+  if (astMatch && method === 'GET') {
+    const symbolId = decodeURIComponent(astMatch[1] ?? '');
+    const symbolNode = API_GRAPH.nodes.find((n) => n.id === symbolId);
+    if (!symbolNode) {
+      sendJson(res, 404, { error: 'INVALID_FILEPATH', message: 'Invalid filePath' });
+      return;
+    }
+    // 默认只回该符号自身：AST 的兄弟函数体必须**不被**加载，
+    // 这正是「展开 foo 后同文件其他函数体请求数必须为 0」要守住的语义。
+    const astNodes = [symbolNode];
+    const astEdges = [];
+    sendJson(res, 200, {
+      astNodes,
+      astEdges,
+      sourceLines: [],
+      total: astNodes.length,
+      cursor: astNodes.length,
+      hasMore: false,
+    });
+    return;
+  }
+
+  // --- 节点关联边：`NodeDetail` 挂载时 `loadNodeEdges` 会打这个端点。
+  // 契约逐字对齐 `src/host/routes/dataRoutes.ts:413-549 registerEdgesRoute`：
+  // 参数 `from` / `scope` / `cursor` / `limit`，返回 `{ edges, total, cursor, hasMore }`。
+  if (path === '/api/v1/codegraph/edges' && method === 'GET') {
+    const query = new URL(url, 'http://localhost').searchParams;
+    const from = query.get('from') ?? '';
+    const scope = query.get('scope') ?? 'file';
+    const cursor = Number.parseInt(query.get('cursor') ?? '0', 10) || 0;
+    const limit = Number.parseInt(query.get('limit') ?? '100', 10) || 100;
+    const anchor = API_GRAPH.nodes.find((n) => n.id === from);
+    const fileNodeIds = new Set(
+      anchor && scope === 'file'
+        ? API_GRAPH.nodes.filter((n) => n.filePath === anchor.filePath).map((n) => n.id)
+        : [from],
+    );
+    const incident = API_GRAPH.edges.filter((e) => fileNodeIds.has(e.source) || fileNodeIds.has(e.target));
+    const paged = incident.slice(cursor, cursor + limit);
+    sendJson(res, 200, {
+      edges: paged,
+      total: incident.length,
+      cursor: cursor + paged.length,
+      hasMore: cursor + paged.length < incident.length,
+    });
+    return;
+  }
+
   // --- SSE：保持连接并周期心跳，让 `EventSource` 不报错 ---
   if (path === '/api/v1/codegraph/events') {
     res.writeHead(200, {

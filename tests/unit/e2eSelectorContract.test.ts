@@ -13,8 +13,10 @@ import { detectCyclesDFS } from '../../src/shared/analysis/CycleDFS.ts';
  *
  *   1. `tests/e2e/selectors.ts` 里每个 `cg-*` 字面量都必须能在 `src/` 静态找到（动态拼接族按前缀放行）；
  *   2. spec 文件里不得出现 `selectors.ts` 未定义的 `cg-*` 类选择器（想加新选择器必须先进单一事实源）；
- *   3. 两个"数据属性伪装成类名"的坑不得复现：节点类型是 `[type="..."]`、聚类是 `[isCluster="true"]`，
- *      不是 cytoscape 类名，所以 `getCyNodeIdsByClass(page, 'function' | 'cluster')` 必须已绝迹。
+ *   3. 两个"数据属性伪装成类名"的坑不得复现：节点类型是 `[type="..."]`、聚类是 `[?isCluster]`
+ *      （`isCluster` 是布尔数据属性，`[isCluster="true"]` 只匹配字符串，见 cycle-89 与
+ *      `tests/unit/styleSelectorContract.test.ts`），不是 cytoscape 类名，
+ *      所以 `getCyNodeIdsByClass(page, 'function' | 'cluster')` 必须已绝迹。
  */
 const ROOT = resolve(__dirname, '../..');
 const E2E_DIR = resolve(ROOT, 'tests/e2e');

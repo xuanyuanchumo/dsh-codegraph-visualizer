@@ -386,7 +386,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[isFragment="true"]',
+      selector: 'node[?isFragment]',
       style: {
         'shape': 'round-rectangle',
         'background-color': readCssVar('--cg-seq-grid', isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
@@ -433,7 +433,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'edge[isAsync="true"]',
+      selector: 'edge[?isAsync]',
       style: {
         'line-style': 'dashed',
         'line-color': readCssVar('--cg-seq-async', isDark ? '#fbbf24' : '#f59e0b'),
@@ -448,7 +448,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'edge[isReturn="true"]',
+      selector: 'edge[?isReturn]',
       style: {
         'line-style': 'dotted',
         'line-color': c.edgeDefault,
@@ -463,7 +463,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'edge[isSelfCall="true"]',
+      selector: 'edge[?isSelfCall]',
       style: {
         'curve-style': 'bezier',
         'line-color': accentColor,
@@ -508,7 +508,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="inheritance"][isRoot="true"]',
+      selector: 'node[diagramType="inheritance"][?isRoot]',
       style: {
         'border-width': 3,
         'border-color': accentColor,
@@ -516,7 +516,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="inheritance"][isAbstract="true"]',
+      selector: 'node[diagramType="inheritance"][?isAbstract]',
       style: {
         'border-style': 'double',
         'border-width': 3,
@@ -575,7 +575,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="class"][isAbstract="true"]',
+      selector: 'node[diagramType="class"][?isAbstract]',
       style: {
         'border-style': 'double',
         'border-width': 3,
@@ -583,7 +583,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="class"][isRoot="true"]',
+      selector: 'node[diagramType="class"][?isRoot]',
       style: {
         'border-width': 3,
         'border-color': accentColor,
@@ -669,7 +669,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="package"][isRoot="true"]',
+      selector: 'node[diagramType="package"][?isRoot]',
       style: {
         'border-width': 3,
         'border-color': accentColor,
@@ -743,7 +743,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="callgraph"][isEntry="true"]',
+      selector: 'node[diagramType="callgraph"][?isEntry]',
       style: {
         'border-width': 3,
         'border-color': successColor,
@@ -773,7 +773,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       },
     },
     {
-      selector: 'node[diagramType="callgraph"][isRecursive="true"]',
+      selector: 'node[diagramType="callgraph"][?isRecursive]',
       style: {
         'border-width': 3,
         'border-color': errorColor,

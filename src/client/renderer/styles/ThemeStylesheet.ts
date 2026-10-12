@@ -97,7 +97,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
   ];
 
   const clusterHueStyles = CLUSTER_HUE_FALLBACKS.map((fb, i) => ({
-    selector: `node[isCluster="true"][clusterHue="${i}"]`,
+    selector: `node[?isCluster][clusterHue = ${i}]`,
     style: {
       'background-color': readCssVarCached(`--cg-cluster-hue-${i}-bg`, isDark ? fb.darkBg : fb.lightBg),
       'border-color': readCssVarCached(`--cg-cluster-hue-${i}-border`, isDark ? fb.darkBorder : fb.lightBorder),
@@ -572,7 +572,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isCluster="true"]',
+      selector: 'node[?isCluster]',
       style: {
         'shape': 'round-rectangle',
         'background-color': clusterBg,
@@ -596,7 +596,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     },
     ...clusterHueStyles,
     {
-      selector: 'node[isCluster="true"].hovered',
+      selector: 'node[?isCluster].hovered',
 
       style: {
         'background-color': clusterHoverBg,
@@ -605,7 +605,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'edge[isCluster="true"]',
+      selector: 'edge[?isCluster]',
       style: {
         'width': 'mapData(aggregatedCount, 1, 200, 1.5, 4)',
         'line-color': clusterEdge,
@@ -624,7 +624,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'edge[isCluster="true"].hovered',
+      selector: 'edge[?isCluster].hovered',
       style: {
         'opacity': 1,
         'width': 'mapData(aggregatedCount, 1, 200, 2.5, 6)',
@@ -691,7 +691,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isRoot="true"]',
+      selector: 'node[?isRoot]',
       style: {
         'border-width': 3,
         'border-color': accentColor,
@@ -700,7 +700,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isEntry="true"]',
+      selector: 'node[?isEntry]',
       style: {
         'border-width': 3,
         'border-color': successColor,
@@ -709,7 +709,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isRecursive="true"]',
+      selector: 'node[?isRecursive]',
       style: {
         'border-width': 3,
         'border-color': errorColor,
@@ -754,7 +754,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isPackage="true"]',
+      selector: 'node[?isPackage]',
       style: {
         'shape': 'round-rectangle',
         'background-color': readCssVar('--cg-node-package', isDark ? '#6366f1' : COLORS.PACKAGE_LIGHT),
@@ -774,14 +774,14 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isPackage="true"].hovered',
+      selector: 'node[?isPackage].hovered',
       style: {
         'border-width': 4,
         'border-color': hoverBorder,
       },
     },
     {
-      selector: 'edge[isPackageEdge="true"]',
+      selector: 'edge[?isPackageEdge]',
       style: {
         'width': 'mapData(aggregatedCount, 1, 50, 1.5, 5)',
         'line-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
@@ -801,7 +801,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isAbstract="true"]',
+      selector: 'node[?isAbstract]',
       style: {
         'border-style': 'double',
         'border-width': 3,
@@ -821,7 +821,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isRoot="true"][parentCount="0"]',
+      selector: 'node[?isRoot][parentCount = 0]',
       style: {
         'border-width': 3,
         'border-color': accentColor,

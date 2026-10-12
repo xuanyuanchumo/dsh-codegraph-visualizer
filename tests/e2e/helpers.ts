@@ -159,11 +159,34 @@ export async function getCyNodeCount(page: Page): Promise<number> {
   });
 }
 
+/**
+ * 取当前图中所有聚类节点 id。
+ *
+ * cycle-89 修复：旧实现用 cytoscape 选择器 `[isCluster = "true"]`，但
+ * `isCluster` 是**布尔**数据属性（`DataController.ts:260-265` 写入 `true`，
+ * `:397` 读回时用 `=== true`），cytoscape 的选择器比较把 `"true"` 当字符串，
+ * 布尔 `true` 永不匹配 ⇒ 该 helper 一直返回 `[]`。
+ * 实测（`tmp-cy-selector-probe.mjs`，cytoscape 3.34.2 headless）：
+ *   `[isCluster = "true"]` → `["strTrue"]`（只命中字符串 true）
+ *   `[?isCluster]`         → `["boolTrue","strTrue"]`（真值判定）
+ * 与源码 `data('isCluster') === true` 语义一致的只有显式布尔过滤。
+ *
+ * 下游 `view-modes.spec.ts:66/84/103` 用 `if (clusterIds.length === 0) return;`
+ * 静默跳过，所以缺陷长期不可见（假绿）；而 `v020-features.spec.ts:227` 的
+ * `expect(clusterNodeIds.length).toBeGreaterThan(0)` 是本 helper 唯一的强断言，
+ * 它在 clean HEAD 上失败、在本次修复后通过（cycle-89 的回归证据）。
+ *
+ * 不要改回选择器写法；用 `node.data('isCluster') === true` 与源码语义一致。
+ * 如需选择器写法，布尔属性必须写 `[?isCluster]`。
+ */
 export async function getClusterNodeIds(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const cy = (window as any).__cytoscape;
     if (!cy) return [];
-    return cy.nodes('[isCluster = "true"]').map((n: any) => n.id());
+    return cy
+      .nodes()
+      .filter((n: any) => n.data('isCluster') === true)
+      .map((n: any) => n.id());
   });
 }
 
@@ -431,6 +454,107 @@ export async function getIntegrationMode(page: Page): Promise<string | null> {
 export async function isPanelResizable(page: Page): Promise<boolean> {
   const cls = await page.locator(PANEL.root).getAttribute('class');
   return (cls ?? '').split(/\s+/).includes('cg-resizable');
+}
+
+// ---------------------------------------------------------------------------
+// 网络层原语：按需加载的定量契约只能靠「请求了哪个 URL、几次」来断言
+// ---------------------------------------------------------------------------
+
+/** 一条被记录下来的插件 API 请求。 */
+export interface ApiRequestRecord {
+  url: string;
+  /** 去掉 query 的 pathname，例如 `/api/v1/codegraph/files/m2/outline`。 */
+  path: string;
+  method: string;
+  /** query 键值对；重复键只保留最后一个（本插件的参数名都是单值）。 */
+  query: Record<string, string>;
+}
+
+/**
+ * 插件 API 请求记录器。
+ *
+ * 为什么需要它：`docs/图谱按需加载.md:248-285` 的验收指标里有 5 条是**计数**契约
+ * （首屏 1 个 bootstrap；展开某目录后同级其他目录 = 0；展开某文件后其他文件 = 0；
+ * 展开某符号后同文件其他函数体 = 0；URL 恢复兄弟节点 = 0）。这些契约无法用
+ * DOM 断言表达——「节点没出现」和「压根没请求」在画面上完全一样，
+ * 只有请求记录能把两者区分开。
+ *
+ * 记录发生在 Playwright 进程侧（`page.on('request')`），不注入页面脚本，
+ * 因此不会与被测代码争抢 `window.fetch`。
+ */
+export interface ApiRecorder {
+  readonly requests: ApiRequestRecord[];
+  /** 停止记录并摘掉监听器。 */
+  stop(): void;
+  /** 清空已记录条目（用于「某一步之后」的计数）。 */
+  reset(): void;
+  /** path 完全相等的请求。 */
+  byPath(path: string): ApiRequestRecord[];
+  /** 满足谓词的请求数。 */
+  count(predicate: (record: ApiRequestRecord) => boolean): number;
+}
+
+/** 开始记录插件 API 请求（`/api/v1/codegraph/**`）。 */
+export function startApiRecording(page: Page): ApiRecorder {
+  const requests: ApiRequestRecord[] = [];
+  const onRequest = (request: Request): void => {
+    let parsed: URL;
+    try {
+      parsed = new URL(request.url());
+    } catch {
+      return;
+    }
+    if (!parsed.pathname.startsWith('/api/v1/codegraph/')) return;
+    requests.push({
+      url: request.url(),
+      path: parsed.pathname,
+      method: request.method(),
+      query: Object.fromEntries(parsed.searchParams.entries()),
+    });
+  };
+  page.on('request', onRequest);
+  return {
+    requests,
+    stop: () => { page.off('request', onRequest); },
+    reset: () => { requests.length = 0; },
+    byPath: (path) => requests.filter((r) => r.path === path),
+    count: (predicate) => requests.filter(predicate).length,
+  };
+}
+
+/** 从 store 的 `rawNodes` 里解析一个指定类型的节点 id（不依赖聚类后是否可见）。 */
+export async function resolveRawNodeId(page: Page, type: string): Promise<string | null> {
+  return page.evaluate((nodeType) => {
+    const store = (window as any).__graphStore;
+    if (!store) throw new Error('__graphStore missing — dev-server must set localStorage.__cg_debug=1');
+    const raw: Array<{ id: string; type: string }> = store.getState().rawNodes ?? [];
+    return raw.find((n) => n.type === nodeType)?.id ?? null;
+  }, type);
+}
+
+/**
+ * 通过 store 直接展开一个节点。
+ *
+ * 不能改用双击：`useNodeInteraction.ts:122-148` 的双击只对**聚类节点**展开，
+ * 对 `function` 节点是「选中」、对其它类型是「聚焦」，因此双击永远触发不了
+ * 文件大纲 / 单符号 AST 这两条按需链路。
+ */
+export async function expandNodeViaStore(page: Page, nodeId: string): Promise<void> {
+  await page.evaluate(async (id) => {
+    const store = (window as any).__graphStore;
+    if (!store) throw new Error('__graphStore missing — dev-server must set localStorage.__cg_debug=1');
+    await store.getState().expandNode(id);
+  }, nodeId);
+}
+
+/** 等待所有在飞的按需请求结束（`pendingRequests` 是展开链路的统一账本）。 */
+export async function waitForNoPendingRequests(page: Page, timeout = 10000): Promise<void> {
+  await page.waitForFunction(() => {
+    const store = (window as any).__graphStore;
+    if (!store) return false;
+    const pending = store.getState().pendingRequests;
+    return !pending || pending.size === 0;
+  }, { timeout });
 }
 
 export { PANEL, TRIGGERS, DROPDOWN_CONTENT, OPTION };
