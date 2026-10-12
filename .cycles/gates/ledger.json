@@ -431,7 +431,43 @@
       "timestamp": "2026-10-12T11:10:33.741Z",
       "previousHash": "062f1239e4939cef06a80e64aa3f8d8ad711282cb28ca6ef574798b1da632bed",
       "hash": "07200141866ec007bc0580dbc31519977c2d35baf03f00f576fbd35709055b3d"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-90 评估基线就绪（Q1+Q5）：主题=对齐报告 §4「visual baseline PARTIAL」。只读审计确认 tests/e2e/visual-screenshots.spec.ts 的 13 处裸 page.screenshot 零像素比对、产物落 .gitignore:33 忽略的 screenshots/、visual project 不在 CI；两跑对照 13 张里 12 张像素不同（平均 19.38%、最高 35.75%、最大通道差 217-241 即结构性位移）。三个不确定性来源逐一源码定位：LayoutController.ts:389/397 randomize:true + cose-base@2.2.0 positionNodesRandomly（grep Math.random src/ 零命中、grep randomSeed cytoscape.cjs.js 零命中）；waitForGraphReady 只等 cy.nodes().length>0 而面板 2714ms 才 240→720 且初始跑两次 cose（2594/3017ms）；StatusBar.tsx:22-25 formatTime + :85 实时时钟。解法与预算均已实测（种子 PRNG+冻结无参 Date ⇒ 两跑 sha 相同；噪声底 34px、真实变化 726px/77 万px ⇒ MAX_DIFF_PIXELS=500）。",
+      "timestamp": "2026-10-12T15:38:56.162Z",
+      "previousHash": "07200141866ec007bc0580dbc31519977c2d35baf03f00f576fbd35709055b3d",
+      "hash": "2b3f1583ef74369c994c3adf6eced56f3c65a1100a4b8d7ba1e29eeb108bd273"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-90 任务清单清零（Q7）：T26-1..T26-22 全部完成。(1) tests/e2e/helpers.ts 新增 installDeterminism（mulberry32 覆盖 Math.random + Proxy(Date) 只冻结无参构造）+ waitForVisualStable（面板几何/容器矩形/zoom/pan/全部节点坐标合成单一签名，连续 SETTLE_MS=300ms 不变；字体就绪后再确认一次；取景语义判据 maxScroll>=panelTop-1 且 scrollTo 后 |top|<=1）。(2) visual-screenshots.spec.ts 179 行，13 处 page.screenshot 全改 toHaveScreenshot，MAX_DIFF_PIXELS=500。(3) playwright.config.ts 78 行，+viewport 1280x720 +snapshotPathTemplate 含 {projectName}-{platform}。(4) 新建 tests/unit/visualBaselineContract.test.ts 7 用例（禁裸 page.screenshot / 每处截图前须 waitForVisualStable / 所在用例须 installDeterminism / 三条反向自检 / .gitignore 不得忽略 __screenshots__）。(5) 顺带修复真实缺陷 src/client/components/Dropdown.tsx：视口坐标+position:fixed 却只监听 resize ⇒ 滚 100px 后间距 6px→106px，新增 capture:true 的 scroll 监听 + rAF 合并，tests/component/Dropdown.test.tsx +2 用例。(6) package.json +test:visual/+test:visual:update；.github/workflows/ci.yml 新增 visual job（按 visual-linux 基线是否存在分派，不存在时只生成+artifact+::warning::，绝不把「没有基线」报告成「通过比对」）。(7) 文档 docs/需求分析.md §59.30（11 条 R10）、docs/测试体系.md §2.ah（8 条）、CLAUDE.md +16 条。",
+      "timestamp": "2026-10-12T15:38:56.236Z",
+      "previousHash": "2b3f1583ef74369c994c3adf6eced56f3c65a1100a4b8d7ba1e29eeb108bd273",
+      "hash": "5b8e2ad878f794bc02b87c9de437fd9cae2ea26bff7a64912cab0d76eb14715a"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-90 测试报告零错误：typecheck exit 0；lint 0 warnings/0 errors（247 files）；test 194 files/5305 passed；E2E smoke 57 passed；视觉 8 passed 连跑 5 次全绿；变异探针 3/3 红；基线非空洞性决定性成立（graph.css 背景变异 => 8 failed，每张 77-79 万像素差异）",
+      "timestamp": "2026-10-12T15:42:19.621Z",
+      "previousHash": "5b8e2ad878f794bc02b87c9de437fd9cae2ea26bff7a64912cab0d76eb14715a",
+      "hash": "1a07c554399080183aa11b8c2b78a0b7e0253adf9f664ef49d6c0f3c337b564a"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-90 构建零失败：pnpm run build exit 0（layout worker bytes 1528568）；perf-gate 全 PASS（client 2.46MB/3MB、host 202KB/512KB、test count 5305/4463）；hygiene 单独跑 exit 0（published payload 11.66 MB，no stale hashed chunks 3/12）；E2E smoke 57 passed (3.8m)；视觉 8 passed (38.0s)",
+      "timestamp": "2026-10-12T15:42:26.707Z",
+      "previousHash": "1a07c554399080183aa11b8c2b78a0b7e0253adf9f664ef49d6c0f3c337b564a",
+      "hash": "365c062326086262abaca9545cd2870a91fafc6aa658ac86bd7ac850558244ee"
     }
   ],
-  "chainHead": "07200141866ec007bc0580dbc31519977c2d35baf03f00f576fbd35709055b3d"
+  "chainHead": "365c062326086262abaca9545cd2870a91fafc6aa658ac86bd7ac850558244ee"
 }
