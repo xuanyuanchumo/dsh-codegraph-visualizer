@@ -109,3 +109,61 @@ jobs:
           name: e2e-report
           path: playwright-report/
           retention-days: 7
+
+  # 视觉回归。
+  #
+  # ## 为什么这个 job 分两步
+  #
+  # 视觉基线的 PNG 是**按平台**隔离的（`playwright.config.ts:33` 的
+  # `snapshotPathTemplate` 含 `{platform}`），因为 ubuntu 与 Windows 的字体渲染、
+  # 抗锯齿不同，同一份 PNG 无法互通。本机（Windows）生成的基线是
+  # `tests/e2e/__screenshots__/visual-win32/`，而 CI 是 ubuntu ⇒ 对应
+  # `visual-linux/`，**该目录目前尚不存在**。
+  #
+  # 若直接跑严格比对，第一次必然全红（缺基线），于是这个 job 从第一天起就是噪声，
+  # 久而久之所有人都会忽略它——那比没有这个 job 更糟。若直接跑 `--update-snapshots`，
+  # 它又永远绿，同样没有回归能力。
+  #
+  # 所以这里按「基线是否存在」分派：存在 ⇒ 严格比对（真正的门禁）；不存在 ⇒
+  # 只生成并把基线作为 artifact 传出来，供人下载后提交进仓库。**任何一次运行都
+  # 不会把「没有基线」报告成「通过比对」**，日志里跑的是哪一步一目了然。
+  # 一旦 `visual-linux/` 被提交，这个 job 自动变成真实门禁，无需再改配置。
+  visual:
+    name: Visual Regression
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Check whether Linux baselines are committed
+        id: baselines
+        run: |
+          if [ -d tests/e2e/__screenshots__/visual-linux ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Compare against committed Linux baselines
+        if: steps.baselines.outputs.exists == 'true'
+        run: pnpm run test:visual
+      - name: No Linux baseline yet — generate them for review (NOT a comparison)
+        if: steps.baselines.outputs.exists == 'false'
+        run: |
+          echo "::warning::visual-linux 基线尚未提交，本次只生成基线、不做比对。请下载 visual-baselines-linux artifact 并提交。"
+          pnpm run test:visual:update
+      - name: Upload visual diffs and baselines
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          path: |
+            tests/e2e/__screenshots__/visual-linux/
+            test-results/
+          retention-days: 14

@@ -122,7 +122,31 @@ export const Dropdown = memo(function Dropdown({
 
     measure();
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+
+    // 内容用 `position: fixed` 定位，写进 `--cg-portal-*` 的是**视口坐标**
+    // （layout.css 的 `.cg-export-dropdown` / `.cg-dropdown-content`）。
+    // 视口坐标只在「触发器的视口位置不变」时才成立，所以页面或任一祖先容器一滚动
+    // 就必须重新测量，否则菜单停在原地、触发器移走。实测向下滚 100px 后菜单与
+    // 触发器底边的间距从 6px 变成 106px —— 菜单会飘到离触发器很远的地方。
+    //
+    // capture: true 是必需的：滚动祖先（如 DSH 会话面板）的 scroll 事件不冒泡到
+    // window，只有捕获阶段才收得到。
+    // 用 rAF 合并同一帧内的多次 scroll，避免每帧多次 setState 重排。
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        measure();
+      });
+    };
+    window.addEventListener('scroll', onScroll, true);
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', onScroll, true);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [open]);
 
   // 五条自定义属性始终全部写出，避免切换形态时残留上一形态的定位值。

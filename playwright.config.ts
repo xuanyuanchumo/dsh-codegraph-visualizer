@@ -17,7 +17,20 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     actionTimeout: 30000,
     navigationTimeout: 60000,
+    // 视口必须显式钉住：视觉基线的像素尺寸是快照契约的一部分，
+    // 依赖浏览器默认值意味着换 Playwright 版本就可能整体错位。
+    viewport: { width: 1280, height: 720 },
   },
+  // 视觉基线按「项目 + 平台」隔离。
+  //
+  // 为什么必须分平台：本机（Windows）与 CI（`.github/workflows/ci.yml` 全部 job 都是
+  // `runs-on: ubuntu-latest`）的字体渲染与抗锯齿不同，同一份 PNG 无法互通；
+  // 不加 `{platform}` 的话，本机生成的基线到了 ubuntu 上会整体假红。
+  // `{projectName}` 让 visual 与 firefox 等项目的基线互不覆盖。
+  //
+  // 注：`firefox` project 无 testMatch（全量），所以视觉用例也会在 firefox 下跑一次，
+  // 其基线落在 `.../firefox/` 子目录里，与 chromium 互不干扰。
+  snapshotPathTemplate: 'tests/e2e/__screenshots__/{projectName}-{platform}/{testFilePath}/{arg}{ext}',
   projects: [
     // smoke 集（核心 P0 旅程 J0/J1/J3/J4/J9/J13，每次提交运行）
     // 实际覆盖：user-journey(J0/J1) plugin-install(J0) search-and-analysis(J3/J4)

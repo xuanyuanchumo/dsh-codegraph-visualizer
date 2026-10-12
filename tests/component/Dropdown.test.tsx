@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { render, fireEvent, cleanup, act } from '@testing-library/react';
 import { Dropdown } from '../../src/client/components/Dropdown.tsx';
 
 afterEach(() => {
@@ -208,5 +208,63 @@ describe('Dropdown', () => {
     fireEvent.click(getByLabelText('Test menu'));
     fireEvent.mouseDown(document.body);
     expect(queryByTestId('content')).toBeTruthy();
+  });
+
+  // --- cycle-90：下拉内容用 position: fixed + 视口坐标定位，滚动后必须重新测量 ---
+
+  it('页面滚动后应重新测量并把下拉内容锚回触发器下方', async () => {
+    // 内容定位写的是**视口坐标**（--cg-portal-top），一旦页面滚动，触发器上移而
+    // fixed 内容原地不动，菜单就会飘走（真机实测滚 100px 后间距 6px → 106px）。
+    // 因此组件必须监听 scroll 并重新测量。
+    const { getByLabelText } = render(<Dropdown {...defaultProps} />);
+    const trigger = getByLabelText('Test menu') as HTMLButtonElement;
+
+    let triggerTop = 300;
+    trigger.getBoundingClientRect = () =>
+      ({ left: 100, top: triggerTop, right: 130, bottom: triggerTop + 28, width: 30, height: 28 }) as DOMRect;
+
+    fireEvent.click(trigger);
+    const content = document.querySelector('.cg-dropdown-content') as HTMLElement;
+    expect(content.style.getPropertyValue('--cg-portal-top')).toBe('334px'); // 328 + 6
+
+    // 模拟页面滚动 100px：触发器的视口位置随之上移 100px
+    triggerTop = 200;
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    });
+
+    // 若未重新测量，这里会仍是 334px（菜单停在原处）
+    expect(content.style.getPropertyValue('--cg-portal-top')).toBe('234px');
+  });
+
+  it('同一帧内的多次滚动事件只重新测量一次', async () => {
+    // 滚动会在每一帧触发 measure()，用 rAF 合并同一帧内的多次 scroll，
+    // 避免一次滚动里反复 setState 重排。
+    //
+    // 判据用**测量次数**（getBoundingClientRect 的调用数），不用 React 的渲染次数：
+    // 即使 commit() 返回同一个 state 对象，React 仍可能再渲染一次才 bail out，
+    // 断言精确渲染次数会绑定到 React 内部实现。
+    const { getByLabelText } = render(<Dropdown {...defaultProps} />);
+    const trigger = getByLabelText('Test menu') as HTMLButtonElement;
+
+    let measureCalls = 0;
+    trigger.getBoundingClientRect = () => {
+      measureCalls += 1;
+      return { left: 100, top: 300, right: 130, bottom: 328, width: 30, height: 28 } as DOMRect;
+    };
+
+    fireEvent.click(trigger);
+    const baseline = measureCalls; // 打开时的首次测量
+
+    await act(async () => {
+      // 同一帧内连发 5 次 scroll，随后只推进一帧
+      for (let i = 0; i < 5; i += 1) window.dispatchEvent(new Event('scroll'));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    });
+
+    // 5 次事件被合并成 1 次测量；去掉 rAF 合并后这里会变成 baseline + 5
+    expect(measureCalls).toBe(baseline + 1);
   });
 });

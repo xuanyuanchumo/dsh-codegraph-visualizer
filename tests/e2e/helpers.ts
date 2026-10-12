@@ -557,4 +557,194 @@ export async function waitForNoPendingRequests(page: Page, timeout = 10000): Pro
   }, { timeout });
 }
 
+// ---------------------------------------------------------------------------
+// 确定性初始化：像素基线的前提（cycle-90）
+// ---------------------------------------------------------------------------
+
+/**
+ * 页面初始化脚本：把「随机布局」与「实时时钟」这两个不确定性来源钉死。
+ *
+ * ## 为什么必须是这两件事（cycle-90 实测）
+ *
+ * 视觉基线落地前先做了两跑对照：`visual-screenshots.spec.ts` 的 13 张截图里
+ * **12 张像素不同**（平均 19.38%、最高 35.75%，最大通道差 217-241 ⇒ 是结构性位移
+ * 而不是抗锯齿噪声）。逐一定位后只剩两个来源：
+ *
+ *   1. **随机初始位置**：`src/client/renderer/LayoutController.ts:389`（cose）与 `:397`（fcose）
+ *      都传 `randomize: true, tile: true`，随机数来自 `node_modules/cose-base@2.2.0`
+ *      的 `CoSELayout.js:135 this.positionNodesRandomly()`。`grep Math.random src/` 是 0 命中
+ *      ⇒ 页面内覆盖 `Math.random` 即可完全接管；cytoscape/cose 本身**不提供 randomSeed 选项**
+ *      （`grep randomSeed node_modules/cytoscape/dist/cytoscape.cjs.js` 0 命中），所以只能从这里下手。
+ *   2. **状态栏实时时钟**：`src/client/components/StatusBar.tsx:22-25 formatTime()` 把
+ *      `lastUpdated` 渲染成 `HH:MM:SS`（`:85`），全页截图必然带上一秒一跳的文本。
+ *
+ * 实测：只钉 `Math.random` 时两次加载的 6 个节点坐标已逐位相同，但 sha 仍不同；
+ * 再冻结 `Date` 后 dagre 与 circle 两跑 **sha 完全相同**（`6d0a7fe880728bdb` / `c90f546dc2ae9ad5`）。
+ *
+ * ## 用法
+ *
+ * `page.addInitScript` 必须在 `page.goto` **之前**生效，所以本函数要排在
+ * `setupPluginPage()` / `setupPluginPageInBehavioralLayer()` 之前调用：
+ *
+ * ```ts
+ * await installDeterminism(page);
+ * await setupPluginPage(page);
+ * ```
+ */
+const DETERMINISM_SCRIPT = `
+(() => {
+  // 1) 固定 Math.random：mulberry32，种子 0x9e3779b9
+  let s = 0x9e3779b9 >>> 0;
+  Math.random = function () {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  // 2) 冻结无参 Date（状态栏「更新于 HH:MM:SS」）；带参构造保持原样，
+  //    否则会把数据里真实的时间戳（lastUpdated / SSE 事件）一起改掉。
+  const FROZEN = Date.parse('2026-01-01T00:00:00Z');
+  const RealDate = Date;
+  window.Date = new Proxy(RealDate, {
+    construct(target, args, newTarget) {
+      if (args.length === 0) return new target(FROZEN);
+      return Reflect.construct(target, args, newTarget);
+    },
+    apply(target, thisArg, args) {
+      if (args.length === 0) return new RealDate(FROZEN).toString();
+      return Reflect.apply(target, thisArg, args);
+    },
+    get(target, prop, receiver) {
+      if (prop === 'now') return () => FROZEN;
+      const v = Reflect.get(target, prop, receiver);
+      return typeof v === 'function' ? v.bind(target) : v;
+    },
+  });
+})();
+`;
+
+/** 安装确定性初始化脚本。**必须在首次 `page.goto` 之前调用**。 */
+export async function installDeterminism(page: Page): Promise<void> {
+  await page.addInitScript(DETERMINISM_SCRIPT);
+}
+
+/**
+ * 面板几何（高度 + 文档高度 + 滚动位置）必须连续稳定这么久才算「可以截图」。
+ *
+ * 100 ms 不够：首屏会跑两次 cose 布局（实测 2594 ms 与 3017 ms），两次之间几何
+ * 可能恰好一样。300 ms 足以跨过两次采样的间隔而不会让每个用例多等太久。
+ */
+const SETTLE_MS = 300;
+
+/**
+ * 等待画面「可以截图」：面板几何稳定 + 取景固定 + 布局坐标稳定 + 字体就绪。
+ *
+ * `waitForGraphReady()`（`:148-153`）只等 `cy.nodes().length > 0`，那是**节点存在**，
+ * 不是**布局结束**，更不是**面板展开完成**。cycle-90 实测：
+ *
+ *   - 面板高度在 ~2714 ms 才从 240px 变成 720px（`layout.css:3-8` 的
+ *     `min-height: var(--cg-panel-min-h, 240px)` 先撑住，随后 `height: 100%` 生效）；
+ *     早于此刻截图拍到的就是 `e2e-01-default.png` 那张「只有 dev-server 外壳」的图。
+ *   - 首屏会**跑两次 cose 布局**（实测 2594 ms 与 3017 ms），所以「等一次 layoutstop」不够。
+ *   - `#plugin-root` 位于文档第二屏（`offsetTop = 720`，`documentHeight = 1440`），
+ *     而 Playwright 点击工具栏按钮时**会自动滚动**；不显式固定取景，
+ *     同一张截图在不同用例里落在不同的滚动位置上。
+ */
+export async function waitForVisualStable(page: Page, timeout = 15000): Promise<void> {
+  // 1) 等取景固定 + 面板几何 + 图容器几何 + cytoscape 坐标**全部**持续稳定 SETTLE_MS。
+  //
+  // 判据分两类，缺一不可：
+  //
+  //   (a) 取景是**语义判据**而非计时：
+  //       - 只要求「高度连续两次采样相同」是不够的（cycle-90 实测翻车）：首屏有一个
+  //         240px 平台期（`layout.css:3-8` 的 `min-height` 先撑住），此时
+  //         `documentHeight = 960`、`maxScroll = 240`，而面板的绝对 top 是 720，
+  //         于是 `scrollTo(0, 720)` **被 clamp 到 240**，面板停在视口 y=480。
+  //         实测三跑里两跑停在这个错误位置、一跑（面板已展开）停在 y=0 ⇒ 同一用例的
+  //         截图在不同滚动位置上，J39 因此单条失败（218 万像素差异，bbox 覆盖全图）。
+  //       - 所以这里显式要求 `scrollHeight - innerHeight >= panelTop`（文档够高）并且
+  //         `scrollTo` 之后 `getBoundingClientRect().top` 真的接近 0（没被 clamp）。
+  //         这个条件只有在面板完成 240px → 720px 展开之后才可能满足。
+  //
+  //   (b) 稳定性必须是**持续**的，不能是「采样到两次相同就放行」：
+  //       cycle-90 第二处翻车正是这个——早先版本第 1 步只等面板几何、第 2 步只要
+  //       「zoom/pan/节点坐标连续两次采样一致」就 return true（≈100ms），于是**一次
+  //       短暂平台期就能骗过它**；而打开筛选面板/分析面板之后图容器还会再 resize 一次
+  //       并触发 cytoscape 重新 fit，落在这个窗口之后 ⇒ 截图拍到的是重新 fit 后的画面。
+  //       实测 J7/J39/J5/J23 轮流出错、差异 655-701 px 且集中在图区域（工具栏逐像素
+  //       相同），量化后是整幅图约 10-15px 的平移，而不是子像素噪声。
+  //       因此把「面板几何 + 图容器矩形 + zoom/pan/全部节点坐标」合成**一个签名**，
+  //       要求它连续 SETTLE_MS 不变才放行；任何一次 resize/fit 都会重置计时。
+  await page.waitForFunction(
+    (settle) => {
+      const panel = document.querySelector('.cg-graph-panel');
+      if (!panel) return false;
+
+      const panelTop = panel.getBoundingClientRect().top + window.scrollY;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxScroll < panelTop - 1) return false;
+
+      window.scrollTo(0, panelTop);
+      if (Math.abs(panel.getBoundingClientRect().top) > 1) return false;
+
+      const cy = (window as any).__cytoscape;
+      if (!cy || cy.nodes().length === 0) return false;
+
+      const container = document.querySelector('.cg-graph-container');
+      const cr = container ? container.getBoundingClientRect() : null;
+      const pr = panel.getBoundingClientRect();
+      const sig =
+        `p${Math.round(pr.height)}#d${document.documentElement.scrollHeight}#s${Math.round(window.scrollY)}` +
+        `#c${cr ? `${Math.round(cr.width)}x${Math.round(cr.height)}` : 'none'}` +
+        `#z${cy.zoom().toFixed(6)}#n${cy
+          .nodes()
+          .map((n: any) => `${n.id()}@${n.position('x').toFixed(2)},${n.position('y').toFixed(2)}`)
+          .join('|')}`;
+
+      const w = window as any;
+      if (w.__cgVisSig !== sig) {
+        w.__cgVisSig = sig;
+        w.__cgVisSigSin = performance.now();
+        return false;
+      }
+      return performance.now() - (w.__cgVisSigSin ?? 0) >= settle;
+    },
+    SETTLE_MS,
+    { timeout, polling: 100 }
+  );
+
+  // 2) 字体就绪：文字未落定时截图会拍到 fallback 字形。
+  //    放在稳定性判据之后——字体加载本身可能触发一次重排。
+  await page.evaluate(async () => {
+    await document.fonts?.ready;
+  });
+
+  // 3) 字体就绪后再确认一次签名未变（字体若触发了 resize/fit，上面那轮就白等了）
+  await page.waitForFunction(
+    (settle) => {
+      const cy = (window as any).__cytoscape;
+      if (!cy) return false;
+      const container = document.querySelector('.cg-graph-container');
+      const cr = container ? container.getBoundingClientRect() : null;
+      const sig =
+        `c${cr ? `${Math.round(cr.width)}x${Math.round(cr.height)}` : 'none'}` +
+        `#z${cy.zoom().toFixed(6)}#n${cy
+          .nodes()
+          .map((n: any) => `${n.id()}@${n.position('x').toFixed(2)},${n.position('y').toFixed(2)}`)
+          .join('|')}`;
+      const w = window as any;
+      if (w.__cgVisSigAfterFonts !== sig) {
+        w.__cgVisSigAfterFonts = sig;
+        w.__cgVisSigAfterFontsSin = performance.now();
+        return false;
+      }
+      return performance.now() - (w.__cgVisSigAfterFontsSin ?? 0) >= settle;
+    },
+    SETTLE_MS,
+    { timeout, polling: 100 }
+  );
+}
+
 export { PANEL, TRIGGERS, DROPDOWN_CONTENT, OPTION };
