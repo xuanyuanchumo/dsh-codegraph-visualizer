@@ -17,6 +17,7 @@ import { createPathFocusSlice } from './slices/pathFocusSlice.ts';
 import { createFilterSlice } from './slices/filterSlice.ts';
 import { createAnalysisSlice } from './slices/analysisSlice.ts';
 import { createPanelLodSlice } from './slices/panelLodSlice.ts';
+import { clearEtagCache } from '../api/index.ts';
 import { getMinPanelSize } from '../../shared/constants.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
@@ -65,6 +66,9 @@ export function disposeStore(): void {
   internals.multiAssemblyGeneration = 0;
   internals.expandGeneration = 0;
   clearLoadingFailsafe();
+  // 按需路由的校验值缓存与"客户端持有的载荷"是一对：store 被释放后载荷没了，
+  // 校验值留着只会让重新挂载的实例拿到 304。
+  clearEtagCache();
   if (internals.persistentCache) { internals.persistentCache.close(); internals.persistentCache = null; }
   internals.persistentCacheRepoId = null;
 }

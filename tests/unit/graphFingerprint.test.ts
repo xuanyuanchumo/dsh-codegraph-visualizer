@@ -14,7 +14,13 @@ import {
   computeContentHash,
   computeGraphFingerprint,
   computeGraphEtag,
+  etagKeyForChildren,
+  etagKeyForOutline,
+  etagKeyForAst,
+  etagKeyForEdges,
+  resolveAstBudget,
 } from '../../src/shared/graphFingerprint.ts';
+import { SYMBOL_AST } from '../../src/shared/constants.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { GraphData } from '../../src/types/index.ts';
 
@@ -291,5 +297,102 @@ describe('computeGraphEtag', () => {
     expect(computeGraphEtag(null, 1, 'graph')).toMatch(/^W\/"1-[0-9a-f]{16}"$/);
     expect(computeGraphEtag(undefined, 1, 'graph')).toBe(computeGraphEtag(null, 1, 'graph'));
     expect(computeGraphEtag('', 1, 'graph')).toBe(computeGraphEtag(null, 1, 'graph'));
+  });
+
+  // P3-R18-02 深一层：资源维度只够区分"端点"，不够区分"同一端点的不同参数"。
+  //
+  // 缓存图只有一个槽（`getLastGraphData()`），所以 `children(nodeA)` 与 `children(nodeB)`
+  // 在 (工作区, 版本, 资源) 三维下会算出**同一个校验值**。客户端拿 A 的校验值问 B 就会收到
+  // 304，而它手上没有 B 的子节点 ⇒ B 永远展开不出来，且没有任何错误可见。
+  // 这与 P0-R16-02 是同一类缺陷：校验器必须与被校验的**那一次请求**有关，而不是与被校验的资源类有关。
+  describe('request keys', () => {
+    it('changes the validator when the request key changes', () => {
+      const base = computeGraphEtag('/repo/a', 5, 'children');
+      expect(computeGraphEtag('/repo/a', 5, 'children', etagKeyForChildren('n1', null, 50))).not.toBe(base);
+    });
+
+    it('omitting the request key keeps the legacy byte shape', () => {
+      // 在途客户端手里可能还有 `/data`、`/bootstrap` 的旧校验值；加了第 4 个可选参数后
+      // 省略它必须产生**逐字节相同**的字符串，否则已部署客户端会全量重取一次。
+      expect(computeGraphEtag('/repo/a', 1, 'graph', undefined)).toBe(computeGraphEtag('/repo/a', 1, 'graph'));
+    });
+
+    it('two different nodes never share a children validator', () => {
+      // 这条就是本机制存在的理由：把节点维度写进请求键。
+      const a = computeGraphEtag('/repo/a', 5, 'children', etagKeyForChildren('nodeA', null, 50));
+      const b = computeGraphEtag('/repo/a', 5, 'children', etagKeyForChildren('nodeB', null, 50));
+      expect(a).not.toBe(b);
+    });
+
+    it('pagination parameters are part of the children key', () => {
+      // 第 2 页与第 1 页是两个不同载荷；少了 cursor 维度会让第 2 页请求命中第 1 页的校验值。
+      const p1 = etagKeyForChildren('n1', null, 50);
+      const p2 = etagKeyForChildren('n1', 'cursor-1', 50);
+      const p1b = etagKeyForChildren('n1', null, 100);
+      expect(p1).not.toBe(p2);
+      expect(p1).not.toBe(p1b);
+      // 反向自检：同一组参数必须稳定（键是纯函数，不含时间/随机）。
+      expect(etagKeyForChildren('n1', null, 50)).toBe(p1);
+    });
+
+    it('outline keys distinguish files', () => {
+      expect(etagKeyForOutline('f1')).not.toBe(etagKeyForOutline('f2'));
+      expect(etagKeyForOutline('f1')).toBe(etagKeyForOutline('f1'));
+    });
+
+    it('ast keys distinguish cursor and budget', () => {
+      const k = etagKeyForAst('sym1', 0, 800);
+      expect(etagKeyForAst('sym1', 800, 800)).not.toBe(k);
+      expect(etagKeyForAst('sym1', 0, 400)).not.toBe(k);
+      expect(etagKeyForAst('sym1', 0, 800)).toBe(k);
+    });
+
+    it('edges keys distinguish scope, cursor, limit and detail', () => {
+      const k = etagKeyForEdges('n1', 'file', 0, 100, false);
+      expect(etagKeyForEdges('n1', 'symbol', 0, 100, false)).not.toBe(k);
+      expect(etagKeyForEdges('n1', 'file', 100, 100, false)).not.toBe(k);
+      expect(etagKeyForEdges('n1', 'file', 0, 500, false)).not.toBe(k);
+      // `detail` 决定这一页是聚合摘要还是原始边：同一 (from, scope, cursor, limit) 下
+      // 聚合页与明细页的载荷完全不同，少算这一维就会用聚合页的校验值让明细请求收 304。
+      expect(etagKeyForEdges('n1', 'file', 0, 100, true)).not.toBe(k);
+      expect(etagKeyForEdges('n1', 'file', 0, 100, false)).toBe(k);
+    });
+
+    it('a request key cannot collide with a bare resource validator', () => {
+      // 键的字符串形状必须与 `resource` 本身不同，否则 `computeGraphEtag` 里的拼接
+      // 可能让"带键"与"不带键"产生同一条 identity。
+      expect(computeGraphEtag('/repo/a', 5, 'children', 'children')).not.toBe(
+        computeGraphEtag('/repo/a', 5, 'children'),
+      );
+    });
+  });
+
+  // `resolveAstBudget` 是 host 与客户端**共用**的预算解析。客户端从不发 `budget` 参数，
+  // 所以两侧都算出 `SYMBOL_AST.MAX_NODES`——但"两侧相等"必须是**算出来的**而不是各写常量：
+  // 一旦 host 改了预算上限而客户端写死旧值，请求键会静默分叉，校验值永远匹配不上，
+  // 表现是"缓存永不生效"而没有任何测试会红。
+  describe('resolveAstBudget', () => {
+    it('falls back to the max node budget when the parameter is absent', () => {
+      expect(resolveAstBudget(null)).toBe(800);
+      expect(resolveAstBudget(undefined)).toBe(800);
+      expect(resolveAstBudget('')).toBe(800);
+    });
+
+    it('clamps to the configured maximum', () => {
+      expect(resolveAstBudget('99999')).toBe(800);
+      expect(resolveAstBudget('200')).toBe(200);
+    });
+
+    it('treats unparsable input as absent instead of zero', () => {
+      // `parseInt('abc')` 是 NaN；若直接用 NaN 做预算，`slice(0, NaN)` 会返回空页，
+      // 且请求键里出现 `ast:sym:0:NaN` —— 一个所有畸形请求共用的键。
+      expect(resolveAstBudget('abc')).toBe(800);
+      expect(resolveAstBudget('-5')).toBe(800);
+    });
+
+    it('the fallback is the same constant the host route clamps against', () => {
+      // 反向自检：确保上面几个数字不是"碰巧"，而是真的绑定在 SYMBOL_AST 上。
+      expect(resolveAstBudget(null)).toBe(SYMBOL_AST.MAX_NODES);
+    });
   });
 });

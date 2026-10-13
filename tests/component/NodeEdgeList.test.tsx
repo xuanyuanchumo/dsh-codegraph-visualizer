@@ -7,7 +7,12 @@ import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
 const mocks = vi.hoisted(() => ({ fetchEdges: vi.fn() }));
-vi.mock('../../src/client/api/index.ts', () => ({ fetchEdges: mocks.fetchEdges }));
+// 展开真实模块再只覆盖 fetchEdges：ETag 旁路（createEtagSink / commitEtag）必须是真实实现，
+// 否则 store 的 edgeSlice 拿到 undefined 会静默吞掉整页边。
+vi.mock('../../src/client/api/index.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/client/api/index.ts')>();
+  return { ...actual, fetchEdges: mocks.fetchEdges };
+});
 
 import { NodeEdgeList } from '../../src/client/components/NodeEdgeList.tsx';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
@@ -69,7 +74,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(1));
     expect(mocks.fetchEdges).toHaveBeenCalledWith(
-      'n1', 'file', 0, 100, expect.any(AbortSignal), '.', false,
+      'n1', 'file', 0, 100, expect.any(AbortSignal), '.', false, expect.any(Object),
     );
   });
 
@@ -163,7 +168,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(2));
     expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-      'n1', 'file', 0, 100, expect.any(AbortSignal), '.', true,
+      'n1', 'file', 0, 100, expect.any(AbortSignal), '.', true, expect.any(Object),
     );
   });
 
@@ -214,7 +219,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(2));
     expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-      'n1', 'file', 5, 100, expect.any(AbortSignal), '.', false,
+      'n1', 'file', 5, 100, expect.any(AbortSignal), '.', false, expect.any(Object),
     );
   });
 
@@ -259,7 +264,7 @@ describe('NodeEdgeList component', () => {
 
     await waitFor(() => expect(mocks.fetchEdges).toHaveBeenCalledTimes(2));
     expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-      'n9', 'file', 0, 100, expect.any(AbortSignal), '.', false,
+      'n9', 'file', 0, 100, expect.any(AbortSignal), '.', false, expect.any(Object),
     );
   });
 

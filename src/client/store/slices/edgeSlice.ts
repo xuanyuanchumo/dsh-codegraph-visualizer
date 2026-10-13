@@ -1,7 +1,7 @@
 import type { GraphEdge } from '../../../types/index.ts';
 import type { GraphState } from '../types.ts';
 import { EDGE_DETAIL } from '../../../shared/constants.ts';
-import { fetchEdges } from '../../api/index.ts';
+import { fetchEdges, createEtagSink, commitEtag } from '../../api/index.ts';
 import { internals, log, replaceController } from '../internals.ts';
 
 type SetFn = (partial: Partial<GraphState>) => void;
@@ -123,11 +123,17 @@ export function createEdgeSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
           }
         }
 
+        const sink = createEtagSink();
         const data = await fetchEdges(
           nodeId, scope, cursor, EDGE_DETAIL.PAGE_SIZE,
-          controller.signal, _get().currentWorkspace, detail,
+          controller.signal, _get().currentWorkspace, detail, sink,
         );
         if (!isCurrent() || gen !== internals.expandGeneration) return;
+        if (sink.notModified) {
+          // 服务端确认这一页没变，且客户端此前应用过 ⇒ 保留已合并的边，不要用 null 清空面板。
+          log.info('node edges not modified (304)', { nodeId, scope, cursor, detail });
+          return;
+        }
         if (!data) {
           log.warn('loadNodeEdges: no response', { nodeId, scope, cursor, detail });
           return;
@@ -154,6 +160,8 @@ export function createEdgeSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
           nodeId, scope, detail, edges: incoming.length, total: data.total,
           hasMore: data.hasMore, aggregated: data.aggregated === true,
         });
+        // 载荷已并入 store，此刻才登记校验值（见 `commitEtag` 的注释）。
+        commitEtag(sink);
       } catch (err) {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           log.warn('loadNodeEdges failed', { nodeId, scope, err });

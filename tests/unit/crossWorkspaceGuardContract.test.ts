@@ -58,10 +58,27 @@ describe('cross-workspace guard contract (P0-R16-01)', () => {
     expect(shared).toMatch(/resource: GraphEtagResource/);
     expect(shared).toContain('computeGraphEtag(');
 
+    // 资源维度必须在**每个调用点**被显式声明。校验入口有两个：`returnIfEtagMatch`（布尔便捷形式，
+    // `/data` 用它，因为它的校验值另有一处手工构造）与 `etagGuard`（一次给出 304 判定与待回写的
+    // etag）。断言不能只认其中一种写法，否则把调用点迁到 `etagGuard` 会让守卫转红——那不是缺陷，
+    // 是守卫本身写窄了；但也不能放宽成"只要出现字符串就行"，必须锚定"函数调用 + 资源字面量"。
     const dataRoutes = read('src/host/routes/dataRoutes.ts');
-    for (const resource of ['graph', 'bootstrap', 'children', 'outline', 'ast', 'edges']) {
-      expect(dataRoutes).toMatch(new RegExp(`returnIfEtagMatch\\([^)]*'${resource}'`));
+    const RESOURCES = ['graph', 'bootstrap', 'children', 'outline', 'ast', 'edges'] as const;
+    for (const resource of RESOURCES) {
+      expect(dataRoutes).toMatch(
+        new RegExp(`(?:returnIfEtagMatch|etagGuard)\\([^)]*'${resource}'`),
+      );
     }
+
+    // 反向自检：正则必须真的能区分资源维度。用 `'outline'` 构造一条只差资源名的负样本，
+    // 它必须不匹配——否则上面 6 条断言可能在"任意字符串都算命中"的退化状态下恒真。
+    expect(`etagGuard(req, res, corsConfig, deps, 'children')`).not.toMatch(
+      new RegExp(`(?:returnIfEtagMatch|etagGuard)\\([^)]*'${'outline'}'`),
+    );
+    // 自检的另一半：正样本必须命中，证明正则不是恒假。
+    expect(`etagGuard(req, res, corsConfig, deps, 'outline', ws, key)`).toMatch(
+      new RegExp(`(?:returnIfEtagMatch|etagGuard)\\([^)]*'${'outline'}'`),
+    );
 
     // 跨源客户端必须能读到 `etag`，否则增量取数静默退化成全量重取。
     expect(read('src/host/HttpHelpers.ts')).toContain("'access-control-expose-headers'");

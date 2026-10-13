@@ -211,20 +211,94 @@ export function checkEtag(
 }
 
 /**
+ * 算出本次请求的校验值；缓存槽为空时返回 `null`（此时既不能校验、也不能回写 etag）。
+ *
+ * 这是校验值的**唯一构造点**：304 分支与 200 响应回写都必须调用本函数，否则两侧各算一遍，
+ * 一旦 `requestKey` 的拼法漂移，客户端拿到 200 里的 etag 再发回来就永远匹配不上——
+ * "增量取数"静默退化成每次都全量重取（`/data` 分支 `dataRoutes.ts:71-73` 的注释记录了同一约束）。
+ */
+export function resourceEtag(
+  deps: RouteDeps,
+  resource: GraphEtagResource,
+  repoId?: string | null | undefined,
+  requestKey?: string,
+): string | null {
+  const cachedData = deps.getLastGraphData();
+  if (!cachedData) return null;
+  return computeGraphEtag(
+    repoId ?? cachedData.metadata.repoId,
+    cachedData.metadata.timestamp,
+    resource,
+    requestKey,
+  );
+}
+
+/**
+ * 校验值的唯一构造点 + 304 判定，**一次调用同时给出两件东西**：
+ *   - `handled === true`：已回 304，调用方必须立刻 `return`；
+ *   - `etag`：非 null 时调用方**必须**把它写进 200 响应头。
+ *
+ * 为什么把两件事合成一个返回值（P3-R18-02）：分开写就会出现"校验器能回 304、但 200 从不带校验值"
+ * 的状态——客户端手里永远没有可回传的值，`returnIfEtagMatch` 于是成了**可达但无用**的死代码。
+ * 合并后"算了校验值"与"回传校验值"在结构上不可能只做一半。
+ */
+export interface EtagDecision {
+  /** 已回 304，调用方应立即返回。 */
+  handled: boolean;
+  /** 本次请求的校验值；槽为空时为 null（既不校验、也无值可回）。 */
+  etag: string | null;
+}
+
+/**
+ * 校验值 + 304 判定。`requestKey` 见 `computeGraphEtag`：参数化路由必须传入请求键，
+ * 否则同一资源下不同参数的请求会共用一个校验值，客户端拿 A 的校验值问 B 会收到 304。
+ */
+export function etagGuard(
+  req: IncomingMessage,
+  res: ServerResponse,
+  corsConfig: CorsConfig,
+  deps: RouteDeps,
+  resource: GraphEtagResource,
+  repoId?: string | null | undefined,
+  requestKey?: string,
+): EtagDecision {
+  const etag = resourceEtag(deps, resource, repoId, requestKey);
+  if (etag === null) return { handled: false, etag: null };
+  return { handled: checkEtag(req, res, corsConfig, etag), etag };
+}
+
+/**
+ * 把校验值转成 `sendJson` 的附加响应头；无校验值时返回 `undefined`（不写该头）。
+ *
+ * 存在的意义是让调用点**没有机会忘记回写**：`sendJson(..., etagHeaders(etag))` 是全仓统一写法，
+ * 新增分支时若漏掉它，`etagGuard` 的返回类型不会报错——所以这条约束由
+ * `tests/unit/etagContract.test.ts` 的源码扫描兜底。
+ */
+export function etagHeaders(etag: string | null): Record<string, string> | undefined {
+  return etag === null ? undefined : { etag };
+}
+
+/**
  * 用**资源身份**（repoId + revision）与**资源维度**构造校验值，再交给 `checkEtag` 比较。
  *
  * `resource` 是必填参数，理由见 `computeGraphEtag`：缺少资源维度，"拿 `/data` 的校验值让 `/children`
  * 回 304"就重新成立——同一条"校验器与被校验资源无关"的缺陷换了个形状。
  *
+ * `requestKey` 同样是必填语义（P3-R18-02）：四条按需路由是参数化的，同一资源下 `children(nodeA)`
+ * 与 `children(nodeB)` 必须算出不同校验值，否则客户端拿 A 的校验值问 B 会收到 304，
+ * B 的子节点永远加载不出来。传 `undefined` 表示该资源确实无请求参数（`/data`、`/bootstrap`）。
+ *
  * `repoId` 传**请求方声明的工作区**（`resolveWorkspaceFromRequest()` 的结果）。这样校验值对
- * `(工作区, 版本, 资源)` 三元组单射：两个不同的请求永远不会算出同一个校验值。调用方必须先解析工作区、
- * 再调本函数（顺序反了就等于把身份维度丢掉一半）。
+ * `(工作区, 版本, 资源, 请求键)` 四元组单射：两个不同的请求永远不会算出同一个校验值。调用方必须
+ * 先解析工作区、再调本函数（顺序反了就等于把身份维度丢掉一半）。
  *
  * `repoId` 省略时回落到槽自身的 `metadata.repoId`——`/data` 返回的就是这个槽，没有请求方工作区可言。
  *
  * 为什么身份维度可以取"请求方声明的工作区"，而 revision 必须取槽的：这两类错误的代价不对称。校验值
  * 多算一次不匹配，只是多回一次 200、少省一次传输；而假 304 会让客户端保留过期数据并**静默丢弃一次
  * 真实更新**（P0-R16-01 的同类机理）。取请求方工作区只会让校验值更难撞上，方向是安全的。
+ *
+ * 本函数是 `etagGuard` 的布尔便捷形式，保留给 `/data` 这类"校验值另有一处手工构造"的调用点。
  */
 export function returnIfEtagMatch(
   req: IncomingMessage,
@@ -233,11 +307,9 @@ export function returnIfEtagMatch(
   deps: RouteDeps,
   resource: GraphEtagResource,
   repoId?: string | null | undefined,
+  requestKey?: string,
 ): boolean {
-  const cachedData = deps.getLastGraphData();
-  if (!cachedData) return false;
-  const etag = computeGraphEtag(repoId ?? cachedData.metadata.repoId, cachedData.metadata.timestamp, resource);
-  return checkEtag(req, res, corsConfig, etag);
+  return etagGuard(req, res, corsConfig, deps, resource, repoId, requestKey).handled;
 }
 
 export interface RouteDeps {

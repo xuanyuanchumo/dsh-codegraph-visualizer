@@ -45,10 +45,12 @@ export default defineConfig({
     // on-demand-loading 归此集而非 smoke：它守的是 P3-1 的定量契约（请求计数），
     // 不是每次提交都要跑的核心旅程；但它是唯一断言「请求了哪个 URL、几次」的 spec，
     // 因此必须留在回归集里，否则「按需加载」的 5 条计数契约在 CI 中无人执行。
+    // conditional-requests 同理：它守的是 ETag/304 的条件请求契约，只有请求头与
+    // 响应码能区分「304 保留现状」与「304 被当成失败把面板清空」，必须进回归集。
     {
       name: 'regression',
       use: { browserName: 'chromium' },
-      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|large-repo|conversation-remote-web-ui|on-demand-loading)\.spec\.ts$/,
+      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|large-repo|conversation-remote-web-ui|on-demand-loading|conditional-requests)\.spec\.ts$/,
     },
     // 独立集：视觉快照（手动触发）
     {

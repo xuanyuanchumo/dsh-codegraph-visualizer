@@ -99,10 +99,25 @@ export function handleCorsPreflight(req: IncomingMessage, res: ServerResponse, c
   return true;
 }
 
-export function sendJson(res: ServerResponse, code: number, data: unknown, req: IncomingMessage | undefined, config: CorsConfig): void {
+/**
+ * 回 200 时可选附加响应头。`etag` 必须走这里而不是由调用方自行 `writeHead`：
+ * `sendJson` 是唯一同时写 `content-type` 与 CORS 头的地方，绕过它就会漏掉 CORS，
+ * 跨源客户端（桌面端 / dsh-remote-web-ui）读不到响应头。
+ */
+export type ExtraResponseHeaders = Record<string, string>;
+
+export function sendJson(
+  res: ServerResponse,
+  code: number,
+  data: unknown,
+  req: IncomingMessage | undefined,
+  config: CorsConfig,
+  extraHeaders?: ExtraResponseHeaders,
+): void {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     ...buildCorsHeaders(req, config),
+    ...extraHeaders,
   };
   res.writeHead(code, headers);
   res.end(JSON.stringify(data));

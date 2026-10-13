@@ -2,7 +2,7 @@ import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { GraphState, AstPageInfo } from '../types.ts';
 import { CLUSTER, PREFETCH, RESTORE, FUNCTION_BODY, SYMBOL_AST } from '../../../shared/constants.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
-import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST } from '../../api/index.ts';
+import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST, createEtagSink, commitEtag } from '../../api/index.ts';
 import { readUrlExpand, restoreExpandedNodeIds } from '../../utils/urlState.ts';
 import { measureAsync } from '../../../shared/PerformanceMonitor.ts';
 import {
@@ -91,8 +91,17 @@ async function loadFunctionBodyAst(
   }
 
   try {
-    const data = await measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, signal, _get().currentWorkspace, cursor));
+    // 条件请求：304 表示服务端确认本请求键对应的载荷没变，此时 `data` 为 null 但**不是**失败。
+    // 校验值只在载荷被真正合并后才登记（`commitEtag`），否则"拿到 200 却因代际过期丢弃载荷"
+    // 会让下次请求命中 304，而客户端手里从未有过那份数据 ⇒ 节点永久空白。
+    const sink = createEtagSink();
+    const data = await measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, signal, _get().currentWorkspace, cursor, sink));
     if (gen !== internals.expandGeneration || !isCurrent()) return;
+    if (sink.notModified) {
+      // 服务端说没变，且客户端此前确实应用过这份载荷 ⇒ 保留现状即可。
+      log.info('symbol AST not modified (304)', { nodeId, cursor });
+      return;
+    }
     if (!data) return;
     const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
     if (truncatedAstNodes.length < data.astNodes.length) {
@@ -117,6 +126,8 @@ async function loadFunctionBodyAst(
     if (internals.persistentCache && !data.hasMore && cursor === 0) {
       await internals.persistentCache.setAST(nodeId, data);
     }
+    // 载荷已合并进 store，此刻登记校验值才是安全的（见 `commitEtag` 的注释）。
+    commitEtag(sink);
   } catch (err) {
     log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
   }
@@ -174,13 +185,21 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
                 }
               }
             }
-            fetchFileOutline(nodeId, expandController.signal, _get().currentWorkspace).then(async (data) => {
+            // 条件请求：只有此前**确实应用过**这份 outline 时缓存里才有校验值，
+            // 因此 304 可以安全地当作"保留现状"。载荷被丢弃（代际过期）时不登记校验值。
+            const sink = createEtagSink();
+            fetchFileOutline(nodeId, expandController.signal, _get().currentWorkspace, sink).then(async (data) => {
               if (gen !== internals.expandGeneration) return;
+              if (sink.notModified) {
+                log.info('file outline not modified (304)', { nodeId });
+                return;
+              }
               if (data && data.symbols.length > 0) {
                 mergeAndRecluster(data.symbols, data.edges, _set, 'file outline loaded', { nodeId });
                 if (internals.persistentCache) {
                   await internals.persistentCache.setOutline(nodeId, data);
                 }
+                commitEtag(sink);
               }
             }).catch((err) => {
               log.warn('expandNode: fetchFileOutline failed', { nodeId, err });
@@ -209,14 +228,28 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       const gen = internals.expandGeneration;
       try {
         const signal = options?.signal ?? controller.signal;
-        const data = await fetchNodeChildren(nodeId, undefined, undefined, signal, _get().currentWorkspace);
+        const sink = createEtagSink();
+        const data = await fetchNodeChildren(nodeId, undefined, undefined, signal, _get().currentWorkspace, sink);
         if (gen !== internals.expandGeneration) return;
+        if (sink.notModified) {
+          // 服务端确认这批子节点没变，且客户端此前应用过 ⇒ 只需标记"已加载"，不要重新合并。
+          const newLoaded = new Set(_get().loadedChildrenByNodeId);
+          newLoaded.add(nodeId);
+          const clearedPending = new Map(_get().pendingRequests);
+          clearedPending.delete(nodeId);
+          _set({ loadedChildrenByNodeId: newLoaded, pendingRequests: clearedPending });
+          log.info('node children not modified (304)', { nodeId });
+          return;
+        }
         if (!data || data.nodes.length === 0) {
           const newLoaded = new Set(_get().loadedChildrenByNodeId);
           newLoaded.add(nodeId);
           const clearedPending = new Map(_get().pendingRequests);
           clearedPending.delete(nodeId);
           _set({ loadedChildrenByNodeId: newLoaded, pendingRequests: clearedPending });
+          // "这个节点确实没有子节点"也是一个被应用的结果，值得记住校验值：
+          // 下次展开同一节点可直接 304，不必再传一次空载荷。
+          commitEtag(sink);
           return;
         }
         const s2 = _get();
@@ -230,6 +263,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
           const clearedPending = new Map(s2.pendingRequests);
           clearedPending.delete(nodeId);
           _set({ loadedChildrenByNodeId: newLoaded, pendingRequests: clearedPending });
+          commitEtag(sink);
           return;
         }
         const mergedRawNodes = [...s2.rawNodes, ...newNodes];
@@ -255,6 +289,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
           pendingRequests: clearedPending,
         });
         log.info('node children loaded', { nodeId, newNodes: newNodes.length, newEdges: newEdges.length });
+        commitEtag(sink);
       } catch (err) {
         const clearedPending = new Map(_get().pendingRequests);
         clearedPending.delete(nodeId);

@@ -1,4 +1,4 @@
-import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, SYMBOL_AST, FILE_OUTLINE } from '../../shared/constants.ts';
+import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, FILE_OUTLINE } from '../../shared/constants.ts';
 import type { GraphEdge, GraphNode, GraphData } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import {
@@ -6,9 +6,12 @@ import {
 } from '../../adapters/CodeGraphAdapter.ts';
 import { mapDbNodesToGraphNodes, mapDbEdgesToGraphEdges } from '../DbMapper.ts';
 import { computeGraphEtag } from '../../shared/graphFingerprint.ts';
+import {
+  etagKeyForChildren, etagKeyForOutline, etagKeyForAst, etagKeyForEdges, resolveAstBudget,
+} from '../../shared/graphFingerprint.ts';
 import { buildCorsHeaders, sendJson, sendError } from '../HttpHelpers.ts';
 import {
-  withRouteMiddleware, resolveWorkspaceFromRequest, returnIfEtagMatch, slimGraphData,
+  withRouteMiddleware, resolveWorkspaceFromRequest, returnIfEtagMatch, etagGuard, etagHeaders, slimGraphData,
   triggerBackgroundBuild, type RouteContext,
 } from './shared.ts';
 
@@ -89,7 +92,10 @@ export function registerDataRoute(rc: RouteContext): void {
           res.end(payload);
         }
       } else {
-        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
+        // 槽为空时**没有**校验值可算（`resourceEtag` 返回 null），所以这里显式传 `etagHeaders(null)`
+        // 表示"本响应刻意不带校验器"，而不是忘了写。全仓 `sendJson(res, 200, ...)` 一律带 etag 参数，
+        // 这条统一形状由 `tests/unit/etagContract.test.ts` 的源码扫描兜底。
+        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig, etagHeaders(null));
       }
     }),
   }), 'codegraph: data route');
@@ -106,7 +112,10 @@ export function registerBootstrapRoute(rc: RouteContext): void {
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps, 'bootstrap', workspacePath)) return;
+      // `/bootstrap` 没有请求参数（工作区已在 repoId 维度里），故不传请求键。
+      const etagDecision = etagGuard(req, res, corsConfig, deps, 'bootstrap', workspacePath);
+      if (etagDecision.handled) return;
+      const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -128,7 +137,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
               totalNodeCount: dbResult.total,
               totalEdgeCount: countEdgesInDb(dbPath),
             },
-          }, req, corsConfig);
+          }, req, corsConfig, etagHeader);
           return;
         }
       }
@@ -154,7 +163,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
             totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
             totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length,
           },
-        }, req, corsConfig);
+        }, req, corsConfig, etagHeader);
         return;
       }
 
@@ -174,7 +183,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
           totalNodeCount: 0,
           totalEdgeCount: 0,
         },
-      }, req, corsConfig);
+      }, req, corsConfig, etagHeader);
     }),
   }), 'codegraph: bootstrap route');
 }
@@ -202,7 +211,12 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
       // 客户端切到别的工作区时会因槽里还留着旧图而收到 304，静默保留错误画布。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps, 'children', workspacePath)) return;
+      // 请求键含 nodeId、cursor 与 limit：三者任一不同都会产生不同载荷，
+      // 少一个就会让客户端拿 A 的校验值问 B 时收到假 304（P3-R18-02）。
+      const etagKey = etagKeyForChildren(nodeId, cursor, limit);
+      const etagDecision = etagGuard(req, res, corsConfig, deps, 'children', workspacePath, etagKey);
+      if (etagDecision.handled) return;
+      const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -219,7 +233,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
             edges: childEdges,
             cursor: dbResult.nodes.length < limit || !lastNode ? null : lastNode.id,
             total: dbResult.total,
-          }, req, corsConfig);
+          }, req, corsConfig, etagHeader);
           return;
         }
       }
@@ -240,11 +254,11 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
           edges: childEdges,
           cursor: page.length < limit || !lastChild ? null : lastChild.id,
           total: children.length,
-        }, req, corsConfig);
+        }, req, corsConfig, etagHeader);
         return;
       }
 
-      sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, req, corsConfig);
+      sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, req, corsConfig, etagHeader);
     }),
   }), 'codegraph: node children route');
 }
@@ -273,7 +287,12 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
       // 先解析工作区、再校验 ETag（理由同 /children）。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps, 'outline', workspacePath)) return;
+      // 请求键含 nodeId：`outline(fileA)` 与 `outline(fileB)` 必须算出不同校验值。
+      const etagDecision = etagGuard(
+        req, res, corsConfig, deps, 'outline', workspacePath, etagKeyForOutline(nodeId),
+      );
+      if (etagDecision.handled) return;
+      const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -283,14 +302,14 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
           const symbolIds = new Set(symbols.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...symbolIds]);
           const symbolEdges = mapDbEdgesToGraphEdges(dbEdges);
-          sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig);
+          sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig, etagHeader);
           return;
         }
       }
 
       const lastGraphData = deps.getLastGraphData();
       if (!lastGraphData) {
-        sendJson(res, 200, { symbols: [], edges: [] }, req, corsConfig);
+        sendJson(res, 200, { symbols: [], edges: [] }, req, corsConfig, etagHeader);
         return;
       }
 
@@ -300,7 +319,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         (e) => symbolIds.has(e.source) && symbolIds.has(e.target),
       );
 
-      sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig);
+      sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig, etagHeader);
     }),
   }), 'codegraph: file outline route');
 }
@@ -332,13 +351,16 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
       // 单符号预算：`budget` 是每页节点上限，`cursor` 是分段加载的起点。
       // 两者共同实现 docs/图谱按需加载.md 的「超限时折叠为摘要 / 分段加载」：
       // 只截断而不给 cursor，客户端就无法取回被折叠的部分，只能永久丢失。
-      const budget = Math.min(
-        parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10) || SYMBOL_AST.MAX_NODES,
-        SYMBOL_AST.MAX_NODES,
-      );
+      const budget = resolveAstBudget(url.searchParams.get('budget'));
       const cursor = Math.max(parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0, 0);
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps, 'ast', workspacePath)) return;
+      // 请求键含 nodeId、cursor 与 budget：budget 直接决定这一页切多少节点，
+      // 不同预算的响应绝不能共用校验值。
+      const etagDecision = etagGuard(
+        req, res, corsConfig, deps, 'ast', workspacePath, etagKeyForAst(nodeId, cursor, budget),
+      );
+      if (etagDecision.handled) return;
+      const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -351,14 +373,14 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
           const astNodeIds = new Set(astNodes.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...astNodeIds]);
           const astEdges = mapDbEdgesToGraphEdges(dbEdges);
-          sendJson(res, 200, { astNodes, astEdges, sourceLines: [], total: allAstNodes.length, cursor: nextCursor, hasMore }, req, corsConfig);
+          sendJson(res, 200, { astNodes, astEdges, sourceLines: [], total: allAstNodes.length, cursor: nextCursor, hasMore }, req, corsConfig, etagHeader);
           return;
         }
       }
 
       const lastGraphData = deps.getLastGraphData();
       if (!lastGraphData) {
-        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig);
+        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig, etagHeader);
         return;
       }
 
@@ -371,7 +393,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         (e) => astNodeIds.has(e.source) && astNodeIds.has(e.target),
       );
 
-      sendJson(res, 200, { astNodes, astEdges, sourceLines: [], total: allAstNodes.length, cursor: nextCursor, hasMore }, req, corsConfig);
+      sendJson(res, 200, { astNodes, astEdges, sourceLines: [], total: allAstNodes.length, cursor: nextCursor, hasMore }, req, corsConfig, etagHeader);
     }),
   }), 'codegraph: symbol AST route');
 }
@@ -440,7 +462,15 @@ export function registerEdgesRoute(rc: RouteContext): void {
       // 先解析工作区、再校验 ETag（理由同 /children）。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps, 'edges', workspacePath)) return;
+      // 请求键覆盖全部改变载荷的参数：fromId / scope / cursor / limit / detail。
+      // `detail` 尤其关键——它决定这一页是聚合摘要还是原始边，两者绝不能共用校验值。
+      // 键多算几个维度只会多回一次 200（安全方向），少算一个就会产生假 304。
+      const etagDecision = etagGuard(
+        req, res, corsConfig, deps, 'edges', workspacePath,
+        etagKeyForEdges(fromId, scope, cursor, limit, detailRequested),
+      );
+      if (etagDecision.handled) return;
+      const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -464,7 +494,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
                 cursor: 0,
                 hasMore: false,
                 aggregated: true,
-              }, req, corsConfig);
+              }, req, corsConfig, etagHeader);
               return;
             }
             const pagedEdges = mapDbEdgesToGraphEdges(allEdges.slice(cursor, cursor + limit));
@@ -473,7 +503,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
               total: allEdges.length,
               cursor: cursor + pagedEdges.length,
               hasMore: cursor + limit < allEdges.length,
-            }, req, corsConfig);
+            }, req, corsConfig, etagHeader);
             return;
           }
         }
@@ -487,7 +517,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
             total: dbResult.total,
             cursor: cursor + pagedEdges.length,
             hasMore: cursor + limit < dbResult.total,
-          }, req, corsConfig);
+          }, req, corsConfig, etagHeader);
           return;
         }
       }
@@ -530,7 +560,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
               cursor: 0,
               hasMore: false,
               aggregated: true,
-            }, req, corsConfig);
+            }, req, corsConfig, etagHeader);
             return;
           }
         }
@@ -539,11 +569,11 @@ export function registerEdgesRoute(rc: RouteContext): void {
         const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
         const hasMore = cursor + limit < total;
 
-        sendJson(res, 200, { edges: pagedEdges, total, cursor: cursor + limit, hasMore }, req, corsConfig);
+        sendJson(res, 200, { edges: pagedEdges, total, cursor: cursor + limit, hasMore }, req, corsConfig, etagHeader);
         return;
       }
 
-      sendJson(res, 200, { edges: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig);
+      sendJson(res, 200, { edges: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig, etagHeader);
     }),
   }), 'codegraph: edges route');
 }

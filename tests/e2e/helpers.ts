@@ -468,6 +468,19 @@ export interface ApiRequestRecord {
   method: string;
   /** query 键值对；重复键只保留最后一个（本插件的参数名都是单值）。 */
   query: Record<string, string>;
+  /**
+   * 本次请求带上的 `if-none-match`（没带则为 `null`）。
+   *
+   * 条件请求契约**只能**靠它断言：「服务端回了 304」与「服务端回 200 但客户端丢弃了载荷」
+   * 在画面上完全一样；而「客户端是否真的回传了校验值」更是只有请求头能看见。
+   */
+  ifNoneMatch: string | null;
+}
+
+/** 一条被记录下来的插件 API 响应（只记状态码与 path，够断言 304 了）。 */
+export interface ApiResponseRecord {
+  path: string;
+  status: number;
 }
 
 /**
@@ -484,6 +497,8 @@ export interface ApiRequestRecord {
  */
 export interface ApiRecorder {
   readonly requests: ApiRequestRecord[];
+  /** 响应记录（只含 path 与状态码）。条件请求契约需要它来确认服务端真的回了 304。 */
+  readonly responses: ApiResponseRecord[];
   /** 停止记录并摘掉监听器。 */
   stop(): void;
   /** 清空已记录条目（用于「某一步之后」的计数）。 */
@@ -497,6 +512,7 @@ export interface ApiRecorder {
 /** 开始记录插件 API 请求（`/api/v1/codegraph/**`）。 */
 export function startApiRecording(page: Page): ApiRecorder {
   const requests: ApiRequestRecord[] = [];
+  const responses: ApiResponseRecord[] = [];
   const onRequest = (request: Request): void => {
     let parsed: URL;
     try {
@@ -510,13 +526,33 @@ export function startApiRecording(page: Page): ApiRecorder {
       path: parsed.pathname,
       method: request.method(),
       query: Object.fromEntries(parsed.searchParams.entries()),
+      ifNoneMatch: request.headers()['if-none-match'] ?? null,
     });
   };
+  // 响应侧只需要 path + status：304 是「服务端确认未变化」的唯一外部证据。
+  const onResponse = (response: Response): void => {
+    let parsed: URL;
+    try {
+      parsed = new URL(response.url());
+    } catch {
+      return;
+    }
+    if (!parsed.pathname.startsWith('/api/v1/codegraph/')) return;
+    responses.push({ path: parsed.pathname, status: response.status() });
+  };
   page.on('request', onRequest);
+  page.on('response', onResponse);
   return {
     requests,
-    stop: () => { page.off('request', onRequest); },
-    reset: () => { requests.length = 0; },
+    responses,
+    stop: () => {
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+    },
+    reset: () => {
+      requests.length = 0;
+      responses.length = 0;
+    },
     byPath: (path) => requests.filter((r) => r.path === path),
     count: (predicate) => requests.filter(predicate).length,
   };

@@ -6,6 +6,7 @@ import { sanitizeTypedGraph } from '../../../shared/GraphValidator.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
 import { applyGraphDelta as applyDeltaToSkeleton, canApplyGraphDelta } from '../../../shared/graphDelta.ts';
 import { assembleDiagram } from '../../diagram/index.ts';
+import { clearEtagCache } from '../../api/index.ts';
 import { emptyEdgeState } from './edgeSlice.ts';
 import {
   diagramCache, clusterCache, internals, clearLoadingFailsafe, log,
@@ -31,6 +32,11 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
     setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null }) => {
       try {
         clearLoadingFailsafe();
+        // 整图替换会把 rawNodes 重置为"仅服务端来源"的节点，并把派生容器清空（`emptyEdgeState()`）——
+        // 于是合并进来的 outline / AST / 子节点全部消失。此时按需路由的校验值缓存**必须**一起失效：
+        // 否则同版本下重新展开会带着旧校验值拿到 304，而客户端已经没有那份数据，节点永远加载不出来。
+        // 这是"真 304 仍然是错的"：校验器只保证服务端没变，不保证客户端还留着那份载荷。
+        clearEtagCache();
         internals.expandGeneration++;
         const prevPending = _get().pendingRequests;
         abortAllControllers(prevPending);
@@ -125,6 +131,9 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
     setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number }) => {
       try {
         clearLoadingFailsafe();
+        // 与 setGraphData 同理：首屏 bootstrap 会重置 rawNodes 与派生容器，
+        // 但服务端 revision 可能没变，旧的按需校验值一旦回传就会得到 304 而客户端手里已无数据。
+        clearEtagCache();
         internals.expandGeneration++;
         const prevPending = _get().pendingRequests;
         abortAllControllers(prevPending);
@@ -197,6 +206,9 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
     },
     clearGraph: () => {
       clearLoadingFailsafe();
+      // 图被清空，派生容器同时清空；校验值缓存描述的是"服务端某版本对应的那份载荷"，
+      // 客户端已不持有任何载荷，留着只会让下次展开拿到 304。
+      clearEtagCache();
       internals.expandGeneration++;
       const prevPending = _get().pendingRequests;
       abortAllControllers(prevPending);
@@ -216,6 +228,11 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       }
       try {
         clearLoadingFailsafe();
+        // 与 :286 把 `graphEtag` 置 null 同一条推理，只是对象换成按需路由的校验值缓存：
+        // 增量补丁落地后派生容器已被 `emptyEdgeState()` 清空，而"新版本"只是由时间戳推进。
+        // 若两次更新落在同一毫秒（时间戳即 revision，粒度不足），旧校验值就会匹配上新版本并回 304，
+        // 而客户端手里已无数据 ⇒ 静默失效。清空使下一次取数必然 200，代价只是一次传输。
+        clearEtagCache();
         // Bump the generation like a full set does: in-flight expand/prefetch requests were computed
         // against the pre-delta revision and must not write their stale children into the new one.
         internals.expandGeneration++;

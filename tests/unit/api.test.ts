@@ -13,6 +13,9 @@ import {
   fetchSymbolAST,
   fetchAst,
   fetchEdges,
+  createEtagSink,
+  commitEtag,
+  clearEtagCache,
 } from '../../src/client/api/index.ts';
 
 describe('client api', () => {
@@ -690,6 +693,186 @@ describe('client api', () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchEdges('node-1');
       expect(result).toBeNull();
+    });
+  });
+
+  // P3-R18-02：按需路由的条件请求。
+  //
+  // 缺陷的形状是"校验器可达但校验值不可达"：五条路由都能回 304，但 200 从不带 `etag`，
+  // 客户端手里永远没有可回传的值。修好之后还有第二个坑：**304 不是失败**。
+  // 这四个 fetcher 的返回类型是 `T | null`，`null` 已被"失败"占用；若把 304 也当失败，
+  // "服务器说没变"就变成"客户端当作没有数据"，面板静默清空。
+  describe('conditional requests (EtagSink)', () => {
+    const outlinePayload = {
+      symbols: [{ id: 's1', label: 'f', type: 'function', filePath: '/src/a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+    };
+
+    function okResponse(payload: unknown, etag: string | null): Response {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        headers: { get: (name: string) => (name === 'etag' ? etag : null) },
+      } as unknown as Response;
+    }
+
+    function notModifiedResponse(etag: string | null): Response {
+      return {
+        ok: false,
+        status: 304,
+        json: async () => null,
+        headers: { get: (name: string) => (name === 'etag' ? etag : null) },
+      } as unknown as Response;
+    }
+
+    /** 读第 `index` 次 fetch 调用的 `if-none-match`（没有则返回 undefined）。 */
+    function sentEtag(mock: ReturnType<typeof vi.fn>, index = 0): string | undefined {
+      const options = mock.mock.calls[index]![1] as RequestInit | undefined;
+      return (options?.headers as Record<string, string> | undefined)?.['if-none-match'];
+    }
+
+    beforeEach(() => {
+      clearEtagCache();
+    });
+
+    it('a 304 is reported through the sink, not through the null-on-failure channel', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(notModifiedResponse('W/"1-abc"')) as unknown as typeof fetch;
+      const sink = createEtagSink();
+      const result = await fetchFileOutline('file1', undefined, undefined, sink);
+      // 返回 null 是"没有新载荷"，但 sink 明确区分了"没变"与"失败"。
+      expect(result).toBeNull();
+      expect(sink.notModified).toBe(true);
+      expect(sink.etag).toBe('W/"1-abc"');
+    });
+
+    it('a 304 without a sink stays indistinguishable from a failure (old call sites unchanged)', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(notModifiedResponse('W/"1-abc"')) as unknown as typeof fetch;
+      const result = await fetchFileOutline('file1');
+      expect(result).toBeNull();
+    });
+
+    it('a validator is only replayed after the payload was actually committed', async () => {
+      const mock = vi.fn().mockResolvedValue(okResponse(outlinePayload, 'W/"1-abc"'));
+      globalThis.fetch = mock as unknown as typeof fetch;
+
+      const sink = createEtagSink();
+      const first = await fetchFileOutline('file1', undefined, undefined, sink);
+      expect(first).not.toBeNull();
+      // 关键：收到 200 之后、调用方提交之前，**不得**登记校验值。
+      // 否则"拿到 200 但因代际过期丢弃载荷"会让下一次请求收到 304，而客户端从未应用过那份数据。
+      await fetchFileOutline('file1', undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 1)).toBeUndefined();
+
+      // 提交之后才允许回传。
+      commitEtag(sink);
+      await fetchFileOutline('file1', undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 2)).toBe('W/"1-abc"');
+    });
+
+    it('commitEtag is a no-op for a 304 and for a sink that never fetched', async () => {
+      // 一个 304 的 sink：`notModified` 为 true，提交它不得把校验值写进缓存
+      // （否则会把"没变"变成下一轮的"没变"循环，而客户端可能已经丢了载荷）。
+      const notModified = createEtagSink();
+      notModified.etag = 'W/"1-abc"';
+      notModified.notModified = true;
+      notModified.key = 'outline:file1';
+      commitEtag(notModified);
+
+      // 一个从未取数的 sink：`key` 为 null，提交它是空操作。
+      commitEtag(createEtagSink());
+
+      const mock = vi.fn().mockResolvedValue(okResponse(outlinePayload, 'W/"1-abc"'));
+      globalThis.fetch = mock as unknown as typeof fetch;
+      await fetchFileOutline('file1');
+      expect(sentEtag(mock, 0)).toBeUndefined();
+    });
+
+    it('a validator is scoped to one request key, not to the whole resource', async () => {
+      const mock = vi.fn().mockResolvedValue(okResponse(outlinePayload, 'W/"1-abc"'));
+      globalThis.fetch = mock as unknown as typeof fetch;
+
+      const sink = createEtagSink();
+      await fetchFileOutline('file1', undefined, undefined, sink);
+      commitEtag(sink);
+
+      // 同一资源、不同节点：不得复用 file1 的校验值，否则 file2 会收到"没变"而客户端没有它的数据。
+      await fetchFileOutline('file2', undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 1)).toBeUndefined();
+      // 同一个键才复用。
+      await fetchFileOutline('file1', undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 2)).toBe('W/"1-abc"');
+    });
+
+    it('pagination parameters are part of the request key', async () => {
+      const mock = vi.fn().mockResolvedValue(okResponse({ nodes: [], edges: [], cursor: null, total: 0 }, 'W/"1-abc"'));
+      globalThis.fetch = mock as unknown as typeof fetch;
+
+      const sink = createEtagSink();
+      await fetchNodeChildren('node-1', undefined, undefined, undefined, undefined, sink);
+      commitEtag(sink);
+
+      // 第 2 页是不同的载荷，不得命中第 1 页的校验值。
+      await fetchNodeChildren('node-1', 'cursor-2', undefined, undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 1)).toBeUndefined();
+      // 同一个 (node, cursor, limit) 才复用。
+      await fetchNodeChildren('node-1', undefined, undefined, undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 2)).toBe('W/"1-abc"');
+    });
+
+    it('a 500 is still a failure even when a sink is passed', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'boom' }),
+        headers: { get: () => null },
+      }) as unknown as typeof fetch;
+      const sink = createEtagSink();
+      const result = await fetchFileOutline('file1', undefined, undefined, sink);
+      expect(result).toBeNull();
+      // 失败与"没变"必须可区分：`notModified` 保持 false。
+      expect(sink.notModified).toBe(false);
+    });
+
+    it('a 304 keeps the last known validator usable for the next round trip', async () => {
+      // 304 响应未必带 etag（代理可能剥掉）；此时必须回落到缓存里的值，否则客户端下一轮
+      // 就发不出条件请求，每次全量重取——正是本缺陷的原始症状。
+      const mock = vi.fn().mockResolvedValueOnce(okResponse(outlinePayload, 'W/"1-abc"'));
+      globalThis.fetch = mock as unknown as typeof fetch;
+      const first = createEtagSink();
+      await fetchFileOutline('file1', undefined, undefined, first);
+      commitEtag(first);
+
+      mock.mockResolvedValueOnce(notModifiedResponse(null));
+      const second = createEtagSink();
+      const result = await fetchFileOutline('file1', undefined, undefined, second);
+      expect(result).toBeNull();
+      expect(second.notModified).toBe(true);
+      expect(second.etag).toBe('W/"1-abc"');
+
+      // 再问一次：仍然带上同一个校验值（没有因为 304 而丢掉它）。
+      mock.mockResolvedValueOnce(notModifiedResponse('W/"1-abc"'));
+      await fetchFileOutline('file1', undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 2)).toBe('W/"1-abc"');
+    });
+
+    it('the edges request key includes scope, limit and detail', async () => {
+      const mock = vi.fn().mockResolvedValue(okResponse({ edges: [], total: 0, cursor: 0, hasMore: false }, 'W/"1-abc"'));
+      globalThis.fetch = mock as unknown as typeof fetch;
+
+      const sink = createEtagSink();
+      await fetchEdges('node-1', 'file', undefined, undefined, undefined, undefined, undefined, sink);
+      commitEtag(sink);
+
+      // `detail=1` 决定这一页是聚合摘要还是原始边，载荷完全不同。
+      await fetchEdges('node-1', 'file', undefined, undefined, undefined, undefined, true, createEtagSink());
+      expect(sentEtag(mock, 1)).toBeUndefined();
+      // scope 变了同理。
+      await fetchEdges('node-1', 'symbol', undefined, undefined, undefined, undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 2)).toBeUndefined();
+      // 完全相同的请求才复用。
+      await fetchEdges('node-1', 'file', undefined, undefined, undefined, undefined, undefined, createEtagSink());
+      expect(sentEtag(mock, 3)).toBe('W/"1-abc"');
     });
   });
 

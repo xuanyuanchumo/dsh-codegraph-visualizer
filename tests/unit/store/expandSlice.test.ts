@@ -20,12 +20,18 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // --- Module mocks ------------------------------------------------------------
-vi.mock('../../../src/client/api/index.ts', () => ({
-  fetchNodeChildren: mocks.fetchNodeChildren,
-  fetchBootstrap: mocks.fetchBootstrap,
-  fetchFileOutline: mocks.fetchFileOutline,
-  fetchSymbolAST: mocks.fetchSymbolAST,
-}));
+// 用 importOriginal 展开真实模块再只覆盖四个 fetcher：ETag 旁路（createEtagSink /
+// commitEtag）是真实实现，测试里对 fetch 的断言与校验值登记互不干扰。
+vi.mock('../../../src/client/api/index.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/client/api/index.ts')>();
+  return {
+    ...actual,
+    fetchNodeChildren: mocks.fetchNodeChildren,
+    fetchBootstrap: mocks.fetchBootstrap,
+    fetchFileOutline: mocks.fetchFileOutline,
+    fetchSymbolAST: mocks.fetchSymbolAST,
+  };
+});
 
 vi.mock('../../../src/shared/PerformanceMonitor.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/shared/PerformanceMonitor.ts')>();
@@ -277,7 +283,7 @@ describe('expandSlice', () => {
       h.slice.expandNode('mod1');
       await nextTick();
 
-      expect(mocks.fetchFileOutline).toHaveBeenCalledWith('mod1', expect.any(AbortSignal), '.');
+      expect(mocks.fetchFileOutline).toHaveBeenCalledWith('mod1', expect.any(AbortSignal), '.', expect.any(Object));
       expect(mocks.mergeAndRecluster).toHaveBeenCalledWith(
         [sym],
         [],
@@ -332,7 +338,7 @@ describe('expandSlice', () => {
       h.slice.expandNode('fn1');
       await nextTick();
 
-      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.', 0);
+      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.', 0, expect.any(Object));
       expect(warnSpy).toHaveBeenCalledWith(
         'symbol AST truncated',
         expect.objectContaining({ nodeId: 'fn1', original: astNodes.length }),
@@ -558,7 +564,7 @@ describe('expandSlice', () => {
       await nextTick();
 
       expect(h.state.prefetchedNodeIds.has('n1')).toBe(true);
-      expect(mocks.fetchNodeChildren).toHaveBeenCalledWith('n1', undefined, undefined, expect.any(AbortSignal), '.');
+      expect(mocks.fetchNodeChildren).toHaveBeenCalledWith('n1', undefined, undefined, expect.any(AbortSignal), '.', expect.any(Object));
       expect(mocks.computeClusteredGraph).toHaveBeenCalled();
       expect(internals.prefetchAbortControllers.has('n1')).toBe(false);
     });
@@ -1059,7 +1065,7 @@ describe('expandSlice', () => {
       });
 
       await expect(h.slice.loadMoreAst('fn1')).resolves.toBe(true);
-      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.', 1);
+      expect(mocks.fetchSymbolAST).toHaveBeenCalledWith('fn1', expect.any(AbortSignal), '.', 1, expect.any(Object));
       expect(h.state.astPageByNodeId.get('fn1')).toEqual({ loaded: 3, total: 5, hasMore: true, cursor: 3 });
     });
 
@@ -1250,7 +1256,9 @@ describe('expandSlice', () => {
         await vi.advanceTimersByTimeAsync(50);
         await p;
 
-        expect(mocks.fetchNodeChildren).toHaveBeenCalledWith('parent', undefined, undefined, expect.any(AbortSignal), '.');
+        expect(mocks.fetchNodeChildren).toHaveBeenCalledWith(
+          'parent', undefined, undefined, expect.any(AbortSignal), '.', expect.any(Object),
+        );
         expect(h.state.urlRestored).toBe(true);
       } finally {
         vi.useRealTimers();

@@ -8,9 +8,12 @@ const mocks = vi.hoisted(() => ({
   fetchEdges: vi.fn(),
 }));
 
-vi.mock('../../../src/client/api/index.ts', () => ({
-  fetchEdges: mocks.fetchEdges,
-}));
+// 用 importOriginal 展开真实模块再只覆盖 fetchEdges：ETag 旁路（createEtagSink /
+// commitEtag）是真实实现，测试里对 fetch 的断言与校验值登记互不干扰。
+vi.mock('../../../src/client/api/index.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/client/api/index.ts')>();
+  return { ...actual, fetchEdges: mocks.fetchEdges };
+});
 
 // --- Imports under test (after mocks are in place) ---------------------------
 import { createEdgeSlice, emptyEdgeState } from '../../../src/client/store/slices/edgeSlice.ts';
@@ -99,7 +102,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1');
 
       expect(mocks.fetchEdges).toHaveBeenCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false, expect.any(Object),
       );
       expect(h.state.nodeEdgesByNodeId.get('n1')).toEqual([e1, e2]);
       expect(h.state.nodeEdgeTotals.get('n1')).toBe(2);
@@ -113,13 +116,13 @@ describe('edgeSlice', () => {
 
       await h.slice.loadNodeEdges('n1');
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false, expect.any(Object),
       );
 
       mocks.fetchEdges.mockClear();
       await h.slice.loadNodeEdges('n2', { scope: 'symbol' });
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n2', 'symbol', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
+        'n2', 'symbol', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false, expect.any(Object),
       );
     });
 
@@ -130,7 +133,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1');
 
       expect(mocks.fetchEdges).toHaveBeenCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '/repo', false,
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '/repo', false, expect.any(Object),
       );
     });
 
@@ -186,7 +189,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1', { append: true });
 
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
+        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false, expect.any(Object),
       );
       expect(h.state.nodeEdgesByNodeId.get('n1')?.map((e) => e.id)).toEqual(['e1', 'e2']);
       expect(h.state.nodeEdgeCursors.get('n1')).toBe(2);
@@ -212,7 +215,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1', { append: true });
 
       expect(mocks.fetchEdges).toHaveBeenCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false,
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', false, expect.any(Object),
       );
       expect(h.state.nodeEdgesByNodeId.get('n1')).toEqual([e1]);
     });
@@ -421,7 +424,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1', { detail: true });
 
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', true,
+        'n1', 'file', 0, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', true, expect.any(Object),
       );
       expect(h.state.detailEdgeNodeIds.has('n1')).toBe(true);
     });
@@ -466,7 +469,7 @@ describe('edgeSlice', () => {
       await h.slice.loadNodeEdges('n1', { append: true });
 
       expect(mocks.fetchEdges).toHaveBeenLastCalledWith(
-        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', true,
+        'n1', 'file', 1, EDGE_DETAIL.PAGE_SIZE, expect.any(AbortSignal), '.', true, expect.any(Object),
       );
     });
 

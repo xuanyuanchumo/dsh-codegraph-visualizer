@@ -1,5 +1,5 @@
 import type { GraphData, GraphEdge, GraphNode } from '../types/index.ts';
-import { FINGERPRINT } from './constants.ts';
+import { FINGERPRINT, SYMBOL_AST } from './constants.ts';
 
 /**
  * Structural fingerprint + content hash for the code graph (P0-6).
@@ -121,6 +121,63 @@ export function computeContentHash(content: string): string {
 export type GraphEtagResource = 'graph' | 'bootstrap' | 'children' | 'outline' | 'ast' | 'edges';
 
 /**
+ * 请求键：同一资源下**区分不同请求参数**的维度（P3-R18-02）。
+ *
+ * 为什么资源维度还不够：`children` / `outline` / `ast` / `edges` 四条路由是**参数化**的，
+ * 而缓存图只有一个槽。只按 (工作区, 版本, 资源) 定域时，`children(nodeA)` 与 `children(nodeB)`
+ * 会算出**同一个校验值** —— 客户端拿着 A 的校验值去问 B，host 回 304，B 的子节点永远加载不出来。
+ * 这与 P0-R16-02「校验器与被校验资源无关」是同一类缺陷，只是深了一层：校验器还必须与被校验的
+ * **那一次请求**有关。
+ *
+ * 每条键必须覆盖**所有会改变响应载荷的参数**，一个都不能少。少一个参数就等价于"两个不同响应
+ * 共用一个校验值"，假 304 会把其中一个响应的内容当成另一个的答案。因此：
+ *   - `children` 含 `limit`（不同页大小返回不同页）；
+ *   - `ast` 含 `budget`（预算直接决定切多少节点）；
+ *   - `edges` 含 `limit` 与 `detail`（`detail` 决定聚合与否，是响应形状的分水岭）。
+ *
+ * 四个构造函数是本文件的唯一真源：host 写 200 与客户端存/回传都必须调用同一对函数，
+ * 否则两侧键格式一旦漂移，304 要么永不命中（每次都全量重取），要么**假命中**（静默丢一次真实加载）。
+ */
+export function etagKeyForChildren(nodeId: string, cursor: string | null | undefined, limit: number): string {
+  return `children:${nodeId}:${cursor ?? ''}:${limit}`;
+}
+
+export function etagKeyForOutline(nodeId: string): string {
+  return `outline:${nodeId}`;
+}
+
+export function etagKeyForAst(nodeId: string, cursor: number, budget: number): string {
+  return `ast:${nodeId}:${cursor}:${budget}`;
+}
+
+/**
+ * `budget` 的规范化解析。host 与客户端**必须**共用本函数。
+ *
+ * 客户端从来不发送 `budget`（它只用 `cursor` 分段），因此请求键里的 budget 在两侧都等于
+ * `SYMBOL_AST.MAX_NODES`——但"等于"必须是**算出来的**，不能是两边各写一个常量字面量：
+ * 一旦 host 改成发送/钳制预算，两侧键就会静默分叉，校验值永远匹配不上（每次全量重取），
+ * 而这种失败没有任何测试会红——它只表现为"缓存没生效"。
+ */
+export function resolveAstBudget(raw: string | null | undefined): number {
+  const parsed = parseInt(raw ?? String(SYMBOL_AST.MAX_NODES), 10);
+  // `parsed || MAX` 只挡住 NaN 与 0：`?budget=-5` 会原样穿过，随后 `slice(cursor, cursor + budget)`
+  // 得到空页，且请求键里出现 `ast:sym:0:-5` —— 一个所有负数请求共用的键（不同预算共用校验值）。
+  // 负预算没有任何合法语义（预算就是"最多给多少"），故与畸形输入一并回落。
+  if (!Number.isFinite(parsed) || parsed <= 0) return SYMBOL_AST.MAX_NODES;
+  return Math.min(parsed, SYMBOL_AST.MAX_NODES);
+}
+
+export function etagKeyForEdges(
+  fromId: string,
+  scope: string,
+  cursor: number,
+  limit: number,
+  detail: boolean,
+): string {
+  return `edges:${fromId}:${scope}:${cursor}:${limit}:${detail ? 1 : 0}`;
+}
+
+/**
  * ETag for a graph resource, **scoped to both the workspace identity and the resource dimension**.
  *
  * 为什么不能只回 `String(metadata.timestamp)`：host 只保留一个 `lastGraphData` 槽，槽里可能装着另一个
@@ -136,13 +193,24 @@ export type GraphEtagResource = 'graph' | 'bootstrap' | 'children' | 'outline' |
  * 值仍然是"弱校验器"语义（`W/` 前缀）：它随内容变化，但不是逐字节摘要。刻意**不**改用
  * `computeGraphFingerprint()`——指纹要遍历全部节点与边，而 ETag 在每次 `/data` 请求上都会被计算；
  * 这里的目的是**身份定域**，不是内容寻址。
+ *
+ * `requestKey` 是第三个身份维度（P3-R18-02）。`children` / `outline` / `ast` / `edges` 四条路由
+ * 是**参数化**的，而缓存图只有一个槽：只按 (工作区, 版本, 资源) 定域时，`children(nodeA)` 与
+ * `children(nodeB)` 会算出同一个校验值，客户端拿 A 的校验值问 B 就会收到 304，B 的子节点永远
+ * 加载不出来。请求键由 `etagKeyFor*` 构造函数产出，host 与客户端必须共用同一对函数。
  */
 export function computeGraphEtag(
   repoId: string | null | undefined,
   revision: number,
   resource: GraphEtagResource,
+  requestKey?: string,
 ): string {
-  return `W/"${revision}-${hash64(`${resource}\u0001${repoId ?? ''}`)}"`;
+  // 省略 `requestKey` 时保持原字符串形状不变：`/data` 与 `/bootstrap` 的校验值对已部署的客户端
+  // 必须逐字节稳定，否则一次升级就会让所有在途校验值失配（多回一次 200 是安全的，但没必要）。
+  const identity = requestKey === undefined
+    ? `${resource}\u0001${repoId ?? ''}`
+    : `${resource}\u0001${repoId ?? ''}\u0001${requestKey}`;
+  return `W/"${revision}-${hash64(identity)}"`;
 }
 
 /**

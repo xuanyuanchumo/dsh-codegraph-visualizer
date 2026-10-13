@@ -774,6 +774,50 @@ function sendJson(res, status, body, headers = {}) {
   res.end(text);
 }
 
+/**
+ * 带条件请求的最小桩 —— 与 host `src/host/routes/shared.ts` 的 `etagGuard` 同语义。
+ *
+ * 为什么 dev-server 需要它：P3-R18-02 的原始缺陷是"校验器可达但校验值不可达"——
+ * 路由能回 304，但 200 从不带 `etag`，客户端手里永远没有可回传的值。
+ * 只补服务端、不在 dev-server 里也给出这个形状，端到端就**无法验证**条件请求真的发生
+ * （E2E 只能看到"面板渲染了"，而"每次都全量重取"在画面上完全一样）。
+ *
+ * 校验值的字符串形状刻意与 host 一致（`W/"<revision>-<hash>"`），但哈希算法**不必**相同：
+ * dev-server 是自洽的桩，客户端只做"原样保存、原样回传"，不解析这个值。
+ * 请求键必须覆盖所有会改变载荷的参数，少一个就等价于两个不同响应共用一个校验值。
+ */
+function etagFor(resource, requestKey) {
+  const identity = `${resource}\u0001${DEV_REPO_ID}\u0001${requestKey}`;
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < identity.length; i++) {
+    const c = identity.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ (c + i), 0x85ebca6b) >>> 0;
+  }
+  const hex = (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0'));
+  return `W/"${DEV_REVISION}-${hex}"`;
+}
+
+/**
+ * 条件请求短路：命中就回 304（带 ETag），否则调用 `send()` 并附带 ETag。
+ *
+ * 两条路径都写 ETag 是关键：只写 304 分支正是原缺陷；只写 200 分支则客户端第二轮无从比较。
+ */
+function conditionalJson(req, res, resource, requestKey, send) {
+  const etag = etagFor(resource, requestKey);
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, { ETag: etag });
+    res.end();
+    return;
+  }
+  send(etag);
+}
+
+/** dev-server 的"版本"：桩数据是静态的，所以固定为 1（与 `/data` 桩一致）。 */
+const DEV_REVISION = 1;
+const DEV_REPO_ID = 'dev-workspace';
+
 async function readJsonBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -859,13 +903,16 @@ async function handleApi(req, res, url) {
 
   if (path === '/api/v1/codegraph/bootstrap' && method === 'GET') {
     const payload = graphPayload();
-    sendJson(res, 200, {
-      rootNodes: payload.nodes,
-      topLevelNodes: payload.nodes,
-      topLevelTotal: payload.nodes.length,
-      edges: payload.edges,
-      indexStatus: 'ready',
-      metadata: { ...payload.metadata, totalNodeCount: payload.nodes.length, totalEdgeCount: payload.edges.length },
+    // 请求键 = `bootstrap`：这条路由没有参数（工作区已在校验值的身份维度里）。
+    conditionalJson(req, res, 'bootstrap', 'bootstrap', (etag) => {
+      sendJson(res, 200, {
+        rootNodes: payload.nodes,
+        topLevelNodes: payload.nodes,
+        topLevelTotal: payload.nodes.length,
+        edges: payload.edges,
+        indexStatus: 'ready',
+        metadata: { ...payload.metadata, totalNodeCount: payload.nodes.length, totalEdgeCount: payload.edges.length },
+      }, { ETag: etag });
     });
     return;
   }
@@ -873,12 +920,24 @@ async function handleApi(req, res, url) {
   // --- 子节点展开：`resource-exhaustion` 用它验证并发取消 ---
   const childrenMatch = path.match(/^\/api\/v1\/codegraph\/nodes\/([^/]+)\/children$/);
   if (childrenMatch) {
-    sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 });
+    const childNodeId = decodeURIComponent(childrenMatch[1] ?? '');
+    conditionalJson(req, res, 'children', `children:${childNodeId}::50`, (etag) => {
+      sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, { ETag: etag });
+    });
     return;
   }
 
   if (path === '/api/v1/codegraph/children' && method === 'GET') {
-    sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 });
+    // 请求键 = `children:<nodeId>:<cursor>:<limit>`，与 `etagKeyForChildren` 同形。
+    // 节点维度是必需的：少了它，nodeA 的校验值会让 nodeB 的请求收到 304，
+    // 而客户端手上没有 nodeB 的子节点 ⇒ nodeB 永远展开不出来且无错误可见。
+    const childQuery = new URL(url, 'http://localhost').searchParams;
+    const childNodeId = childQuery.get('nodeId') ?? '';
+    const childCursor = childQuery.get('cursor') ?? '';
+    const childLimit = Number.parseInt(childQuery.get('limit') ?? '50', 10) || 50;
+    conditionalJson(req, res, 'children', `children:${childNodeId}:${childCursor}:${childLimit}`, (etag) => {
+      sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, { ETag: etag });
+    });
     return;
   }
 
@@ -900,7 +959,10 @@ async function handleApi(req, res, url) {
     );
     const symbolIds = new Set(symbols.map((n) => n.id));
     const edges = API_GRAPH.edges.filter((e) => symbolIds.has(e.source) && symbolIds.has(e.target));
-    sendJson(res, 200, { symbols, edges });
+    // 请求键 = `outline:<nodeId>`，与 `etagKeyForOutline` 同形（不同文件不得共用校验值）。
+    conditionalJson(req, res, 'outline', `outline:${fileId}`, (etag) => {
+      sendJson(res, 200, { symbols, edges }, { ETag: etag });
+    });
     return;
   }
 
@@ -921,13 +983,23 @@ async function handleApi(req, res, url) {
     // 这正是「展开 foo 后同文件其他函数体请求数必须为 0」要守住的语义。
     const astNodes = [symbolNode];
     const astEdges = [];
-    sendJson(res, 200, {
-      astNodes,
-      astEdges,
-      sourceLines: [],
-      total: astNodes.length,
-      cursor: astNodes.length,
-      hasMore: false,
+    // 请求键 = `ast:<nodeId>:<cursor>:<budget>`，与 `etagKeyForAst` 同形。
+    // `cursor` 与 `budget` 都在键里：它们是载荷的一部分（不同分页/预算不得共用校验值）。
+    // budget 的解析必须与 host 的 `resolveAstBudget` 同语义（默认 800、上限 800、非法回落），
+    // 否则同一请求在桩与 host 上算出不同的校验值。
+    const astQuery = new URL(url, 'http://localhost').searchParams;
+    const astCursor = Math.max(Number.parseInt(astQuery.get('cursor') ?? '0', 10) || 0, 0);
+    const astBudgetRaw = Number.parseInt(astQuery.get('budget') ?? '800', 10);
+    const astBudget = !Number.isFinite(astBudgetRaw) || astBudgetRaw <= 0 ? 800 : Math.min(astBudgetRaw, 800);
+    conditionalJson(req, res, 'ast', `ast:${symbolId}:${astCursor}:${astBudget}`, (etag) => {
+      sendJson(res, 200, {
+        astNodes,
+        astEdges,
+        sourceLines: [],
+        total: astNodes.length,
+        cursor: astNodes.length,
+        hasMore: false,
+      }, { ETag: etag });
     });
     return;
   }
@@ -949,11 +1021,16 @@ async function handleApi(req, res, url) {
     );
     const incident = API_GRAPH.edges.filter((e) => fileNodeIds.has(e.source) || fileNodeIds.has(e.target));
     const paged = incident.slice(cursor, cursor + limit);
-    sendJson(res, 200, {
-      edges: paged,
-      total: incident.length,
-      cursor: cursor + paged.length,
-      hasMore: cursor + paged.length < incident.length,
+    const detail = query.get('detail') === '1';
+    // 请求键 = `edges:<from>:<scope>:<cursor>:<limit>:<detail>`，与 `etagKeyForEdges` 同形。
+    // `detail` 决定这一页是聚合摘要还是原始边——少算这一维就会用摘要的校验值让明细请求收 304。
+    conditionalJson(req, res, 'edges', `edges:${from}:${scope}:${cursor}:${limit}:${detail ? 1 : 0}`, (etag) => {
+      sendJson(res, 200, {
+        edges: paged,
+        total: incident.length,
+        cursor: cursor + paged.length,
+        hasMore: cursor + paged.length < incident.length,
+      }, { ETag: etag });
     });
     return;
   }

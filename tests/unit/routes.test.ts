@@ -95,7 +95,13 @@ import type { VisualizerConfig } from '../../src/host/config.ts';
 import { isSafeRelativePath, triggerBackgroundBuild } from '../../src/host/routes/shared.ts';
 import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
 import { FINGERPRINT, VALIDATION, SYMBOL_AST, EDGES_AGGREGATION } from '../../src/shared/constants.ts';
-import { computeGraphEtag } from '../../src/shared/graphFingerprint.ts';
+import {
+  computeGraphEtag,
+  etagKeyForOutline,
+  etagKeyForAst,
+  etagKeyForEdges,
+  resolveAstBudget,
+} from '../../src/shared/graphFingerprint.ts';
 
 type MockCtx = {
   effect: ReturnType<typeof vi.fn>;
@@ -1966,10 +1972,53 @@ describe('file outline route (index 13)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
     const { res, state } = makeRes();
-    // 校验值按「请求方声明的工作区 + 资源」定域；`findWorkspacePath` 被 mock 成 '/test/workspace'。
-    const etag = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'outline');
+    // 校验值按「请求方声明的工作区 + 资源 + 请求键」定域；`findWorkspacePath` 被 mock 成 '/test/workspace'。
+    // 请求键是 P3-R18-02 的第二个支点：资源维度只区分端点，节点维度才区分"同一端点的哪一次请求"。
+    const etag = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'outline',
+      etagKeyForOutline('file1'),
+    );
     await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': etag }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
     expect(state.code).toBe(304);
+    // 304 分支也必须回写校验值，否则客户端手里永远没有可回传的值（正是 P3-R18-02 的原始形状）。
+    expect(state.headers['etag']).toBe(etag);
+  });
+
+  // 同一个 revision 下，`file1` 的 outline 校验值不得让 `file2` 的 outline 回 304。
+  // 少了请求键维度，客户端拿 file1 的值问 file2 就会收到"没变"，而它手上没有 file2 的符号 ⇒
+  // file2 永远展开不出来，且没有任何错误可见。这与"校验器与被校验资源无关"是同一类缺陷的深一层。
+  it('GET /files/{nodeId}/outline rejects a validator for a different node', async () => {
+    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    const otherNode = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'outline',
+      etagKeyForOutline('file2'),
+    );
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': otherNode }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(200);
+  });
+
+  // 没有请求键的裸校验值（改动前的形状）必须不再匹配任何一条按需路由：否则"带键"与"不带键"
+  // 两条构造路径会同时存在，其中一个必然算错。
+  it('GET /files/{nodeId}/outline rejects a key-less validator', async () => {
+    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    const keyless = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'outline');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': keyless }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(200);
+    // 200 必须带上真正的校验值，客户端才有东西可回传。
+    expect(state.headers['etag']).toBeTruthy();
+    expect(state.headers['etag']).not.toBe(keyless);
   });
 
   // 反序（先校验 ETag、后解析工作区）会让校验值缺少身份维度：`?workspace=` 还没被读，
@@ -1980,7 +2029,12 @@ describe('file outline route (index 13)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
     const { res, state } = makeRes();
-    const foreign = computeGraphEtag('/test/other', graphData.metadata.timestamp, 'outline');
+    const foreign = computeGraphEtag(
+      '/test/other',
+      graphData.metadata.timestamp,
+      'outline',
+      etagKeyForOutline('file1'),
+    );
     await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': foreign }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
     expect(state.code).toBe(200);
   });
@@ -2109,9 +2163,34 @@ describe('symbol AST route (index 14)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
     const { res, state } = makeRes();
-    const etag = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'ast');
+    // 请求键含 cursor 与 budget：客户端从不发 budget，故两侧都经 `resolveAstBudget(null)` 算出
+    // `SYMBOL_AST.MAX_NODES`——这个"相等"必须算出来而不是两边各写常量（否则 host 改预算时静默分叉）。
+    const etag = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'ast',
+      etagKeyForAst('sym1', 0, resolveAstBudget(null)),
+    );
     await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': etag }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
     expect(state.code).toBe(304);
+    expect(state.headers['etag']).toBe(etag);
+  });
+
+  // 同一个 revision 下，第一页的校验值不得让第二页请求回 304：cursor 是载荷的一部分。
+  it('GET /symbols/{nodeId}/ast rejects a validator for a different page', async () => {
+    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    const firstPage = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'ast',
+      etagKeyForAst('sym1', 0, resolveAstBudget(null)),
+    );
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': firstPage }, undefined, '/api/v1/codegraph/symbols/sym1/ast?cursor=800'), res);
+    expect(state.code).toBe(200);
   });
 
   // 同一个 revision 下，`/outline` 的校验值不得让 `/ast` 回 304。
@@ -2121,9 +2200,35 @@ describe('symbol AST route (index 14)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
     const { res, state } = makeRes();
-    const wrongResource = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'outline');
+    const wrongResource = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'outline',
+      etagKeyForOutline('sym1'),
+    );
     await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': wrongResource }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
     expect(state.code).toBe(200);
+  });
+
+  // `?budget=-5` 曾原样穿过 `parsed || MAX`（它只挡 NaN 与 0），于是 `slice(cursor, cursor + budget)`
+  // 得到空页，且请求键里出现负数——一个所有负数请求共用的校验值。负预算没有合法语义，须回落。
+  it('GET /symbols/{nodeId}/ast treats a negative budget as absent', async () => {
+    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast?budget=-5'), res);
+    expect(state.code).toBe(200);
+    // 关键：回写的是"按 MAX_NODES 算出来"的校验值，而不是负数版本。
+    const clamped = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'ast',
+      etagKeyForAst('sym1', 0, resolveAstBudget(null)),
+    );
+    expect(state.headers['etag']).toBe(clamped);
+    expect(resolveAstBudget('-5')).toBe(resolveAstBudget(null));
   });
 });
 
@@ -2223,9 +2328,35 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    const etag = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'edges');
+    // 请求键含 from/scope/cursor/limit/detail：`detail` 决定这一页是聚合摘要还是原始边，
+    // 少算这一维就会用聚合页的校验值让明细请求收 304（客户端拿到的是"摘要没变"，而它要的是明细）。
+    // 无 cursor 时 host 解析成 0，无 limit 时用 `EDGES_AGGREGATION.PAGE_SIZE` 兜底。
+    const etag = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'edges',
+      etagKeyForEdges('src/main.ts', 'file', 0, EDGES_AGGREGATION.PAGE_SIZE, false),
+    );
     await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': etag }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
     expect(state.code).toBe(304);
+    expect(state.headers['etag']).toBe(etag);
+  });
+
+  // 明细请求（`detail=1`）不得被聚合页的校验值命中：两者的载荷完全不同。
+  it('GET /edges rejects a validator built for the aggregated view', async () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    const aggregated = computeGraphEtag(
+      '/test/workspace',
+      graphData.metadata.timestamp,
+      'edges',
+      etagKeyForEdges('src/main.ts', 'file', 0, EDGES_AGGREGATION.PAGE_SIZE, false),
+    );
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': aggregated }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&detail=1'), res);
+    expect(state.code).toBe(200);
   });
 
   // `/children` 与 `/edges` 曾经先校验 ETag、后解析工作区：`?workspace=` 还没被读，
@@ -2236,7 +2367,12 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    const foreign = computeGraphEtag('/test/other', graphData.metadata.timestamp, 'edges');
+    const foreign = computeGraphEtag(
+      '/test/other',
+      graphData.metadata.timestamp,
+      'edges',
+      etagKeyForEdges('src/main.ts', 'file', 0, EDGES_AGGREGATION.PAGE_SIZE, false),
+    );
     await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': foreign }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
     expect(state.code).toBe(200);
   });
