@@ -66,8 +66,13 @@ function makeCtx(spec: CtxSpec): { ctx: unknown; registered: RegisteredDef[]; we
   const webServerDisposer = vi.fn();
   const ctx: Record<string, unknown> = {
     webServer: {
-      register: (def: RegisteredDef): (() => void) => {
-        registered.push(def);
+      register: (...args: unknown[]): (() => void) => {
+        // 两种调用形态：对象 {kind,path,handler} 或三参 (method,path,handler)
+        if (typeof args[0] === 'object' && args[0] !== null) {
+          registered.push(args[0] as RegisteredDef);
+        } else if (typeof args[0] === 'string' && typeof args[1] === 'string') {
+          registered.push({ kind: 'exact', path: args[1] as string, handler: args[2] as (req: unknown, res: unknown) => void });
+        }
         return spec.disposerWorks === false ? undefined : webServerDisposer;
       },
     },
@@ -153,12 +158,19 @@ describe('registerSnapshotRoute', () => {
     expect(ask(viaSessions.registered).status).toBe(200);
     expect(wsOf(ask(viaSessions.registered))).toBe(root2);
 
-    // ③ 两者皆无 → process.cwd（对测试进程的 cwd 通常无 .cycles → 404 且 workspace=cwd）
-    const viaCwd = mk({ registry: { list: (): unknown[] => { throw new Error('registry not mounted'); } } });
-    delete (viaCwd.ctx as Record<string, unknown>).sessions;
-    const c3 = ask(viaCwd.registered);
-    expect(c3.status).toBe(404);
-    expect((JSON.parse(c3.body ?? '{}') as { workspace: string }).workspace).toBe(process.cwd());
+    // ③ 两者皆无 → process.cwd（用无 .cycles 的临时目录作 cwd → 404 且 workspace=cwd）
+    const emptyCwd = mkdtempSync(join(tmpdir(), 'anic-empty-'));
+    const origCwd = process.cwd();
+    process.chdir(emptyCwd);
+    try {
+      const viaCwd = mk({ registry: { list: (): unknown[] => { throw new Error('registry not mounted'); } } });
+      delete (viaCwd.ctx as Record<string, unknown>).sessions;
+      const c3 = ask(viaCwd.registered);
+      expect(c3.status).toBe(404);
+      expect((JSON.parse(c3.body ?? '{}') as { workspace: string }).workspace).toBe(emptyCwd);
+    } finally {
+      process.chdir(origCwd);
+    }
   });
 
   it('构建器抛错 → 500 且带 error 字段（响亮失败，不静默 200）', () => {
@@ -175,8 +187,28 @@ describe('registerSnapshotRoute', () => {
 });
 
 describe('宿主入口 apply', () => {
-  /** M1 四条路由（与 routes/index.ts 的聚合清单一致）。 */
-  const M1_ROUTES = [SNAPSHOT_ROUTE, STEP_TRACE_ROUTE, SELF_CHECK_ROUTE, SELF_INIT_ROUTE];
+  /** 全部路由（M1 四条 + M2-a 九条 + M2-b 四条 + M4 一条 + M5 四条 + M5-a 四条 + M7 四条 + M8 四条）。 */
+  const ALL_ROUTES = [
+    SNAPSHOT_ROUTE, STEP_TRACE_ROUTE, SELF_CHECK_ROUTE, SELF_INIT_ROUTE,
+    '/anic/cycle/init', '/anic/cycle/advance', '/anic/cycle/close', '/anic/cycle/state', '/anic/cycle/list',
+    '/anic/api/ledger', '/anic/api/ledger/append', '/anic/api/ledger/verify',
+    '/anic/api/stack-probe',
+    '/anic/api/seg-ledger', '/anic/api/seg-ledger/append', '/anic/api/seg-ledger/verify', '/anic/api/seg-ledger/init',
+    '/anic/review',
+    '/anic/api/trust', '/anic/api/autonomy', '/anic/api/breakers', '/anic/api/tech-debt',
+    '/anic/governance/archive', '/anic/governance/budget', '/anic/governance/sweep', '/anic/governance/prune',
+    // M7 自举闭环
+    '/anic/self/evaluate', '/anic/self/gate-check', '/anic/self/iterate', '/anic/self/status',
+    // M8 跨项目技能调用
+    '/anic/skill/list', '/anic/skill/invoke', '/anic/evaluate', '/anic/iterate',
+    // M11 技能内联 + 原生脚本
+    '/anic/skill/install', '/anic/skill/status',
+    '/anic/hitl-audit', '/anic/band-detect', '/anic/org-status', '/anic/fact-base', '/anic/plan-sync', '/anic/multi-agent-gate', '/anic/fix-loop',
+    // M11 双向自举
+    '/anic/self/dual-evaluate', '/anic/self/dual-advance', '/anic/self/dual-status',
+    // M11 真实性审计
+    '/anic/api/truth-audit',
+  ];
 
   it('有 effect：setup 经 effect 执行并带 label；effect 的返回 disposer 由宿主承接', () => {
     const root = workspaceWithCycles(true);
@@ -187,23 +219,23 @@ describe('宿主入口 apply', () => {
     });
     (ctx as Record<string, unknown>).effect = effect;
     apply(ctx);
-    expect(effect).toHaveBeenCalledTimes(1);
+    expect(effect).toHaveBeenCalledTimes(2); // routes + tools
     // label 必须点明是聚合注册（四条路由），否则卸载日志无法定位是哪一层面
     expect(effect.mock.calls[0]?.[1]).toContain('dsh-anic: routes');
     expect(effect.mock.calls[0]?.[1]).toContain('snapshot');
     // M1 全功能面：四条路由一次注册齐（少一条即功能面缺失）
-    expect(registered.map((r) => r.path).sort()).toEqual([...M1_ROUTES].sort());
+    expect(registered.map((r) => r.path).sort()).toEqual([...ALL_ROUTES].sort());
     // effect 返回的清理被宿主拿走：调用它必须**逐个**清掉全部四条注册，
     // 而不是只清第一条（聚合器 filter 掉 null 后逐个调用，见 routes/index.ts:83-85）
     (effect.mock.results[0]?.value as () => void)();
-    expect(webServerDisposer).toHaveBeenCalledTimes(M1_ROUTES.length);
+    expect(webServerDisposer).toHaveBeenCalledTimes(ALL_ROUTES.length);
   });
 
   it('无 effect：直接注册（不静默丢弃，异常宿主形态兜底）', () => {
     const root = workspaceWithCycles(true);
     const { ctx, registered } = makeCtx({ root });
     apply(ctx);
-    expect(registered).toHaveLength(M1_ROUTES.length);
-    expect(registered.map((r) => r.path).sort()).toEqual([...M1_ROUTES].sort());
+    expect(registered).toHaveLength(ALL_ROUTES.length);
+    expect(registered.map((r) => r.path).sort()).toEqual([...ALL_ROUTES].sort());
   });
 });

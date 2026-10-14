@@ -107,18 +107,27 @@ export function buildWorkflowSnapshot(cyclesDir: string, generatedAt = new Date(
   for (const n of wf.nodes) node(`wf:${n.id}`, n.type === 'gate' || n.type === 'human-gate' ? 'gate' : 'macro', n.type, n.label || n.id);
   for (const e of wf.edges) edge(`wf:${e.from}`, `wf:${e.to}`, e.type);
 
+  // O(1) cycle lookup by number (was O(n) find per cycle → O(n²) total)
+  const cycleByNum = new Map<number, { name: string; num: number }>();
+  for (const c of cycleDirs) cycleByNum.set(c.num, c);
+
   for (const c of cycleDirs) {
     node(`cycle:${c.name}`, 'cycle', 'cycle', c.name);
-    const prev = cycleDirs.find((p) => p.num === c.num - 1);
+    const prev = cycleByNum.get(c.num - 1);
     if (prev) edge(`cycle:${prev.name}`, `cycle:${c.name}`, 'cycle-seq');
   }
+
+  // O(1) node-id lookup (was O(n) some per entry → O(n*m) total)
+  const nodeIdSet = new Set<string>();
+  for (const n of nodes) nodeIdSet.add(n.id);
 
   entries.forEach((e, i) => {
     const id = `evt:${String(i)}`;
     node(id, 'event', 'gate-event', `${String(e.gate ?? '?')} ${String(e.result ?? '?')}`, { result: e.result });
     if (i > 0) edge(`evt:${String(i - 1)}`, id, 'event-seq');
     const gateId = `wf:gate-${String(e.gate ?? '').toLowerCase()}`;
-    if (nodes.some((n) => n.id === gateId)) edge(id, gateId, 'evidences');
+    if (nodeIdSet.has(gateId)) edge(id, gateId, 'evidences');
+    else nodeIdSet.add(gateId); // track newly added
   });
 
   for (const f of incidents) node(`inc:${f}`, 'aux', 'incident', f);

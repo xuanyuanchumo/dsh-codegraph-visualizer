@@ -216,7 +216,7 @@ describe('源码形状守卫（slots / disposer / 注入形态）', () => {
 
   it('宿主 inject 只含必需服务且不含可选服务（registry 走探测不进 inject）', () => {
     const indexText = readFileSync(SRC_FILES.find((f) => /src[\\/]index\.ts$/.test(f)) ?? '', 'utf8');
-    expect(indexText).toMatch(/inject\s*=\s*\['webServer',\s*'sessions'\]/);
+    expect(indexText).toMatch(/inject\s*=\s*\['tools',\s*'webServer',\s*'sessions'\]/);
     expect(indexText).not.toMatch(/inject\s*=\s*\[[^\]]*workspaceRegistry/);
   });
 });

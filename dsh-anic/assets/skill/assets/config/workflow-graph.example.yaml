@@ -1,0 +1,238 @@
+# AI-Native Iteration Cycle — Workflow Graph
+# 工作流有向图配置：定义阶段、循环、门禁的节点和边
+# 用法：将此文件复制到项目根目录作为 workflow-graph.yaml，根据项目定制
+
+nodes:
+  # === 宏观循环节点（6阶段） ===
+  - id: plan
+    type: phase
+    label: "Plan（规划）"
+    description: "理解需求、定义意图、创建规格文档"
+    artifacts:
+      - intent/intent.md
+      - intent/spec.md
+    next: design
+
+  - id: design
+    type: phase
+    label: "Design（设计）"
+    description: "架构设计、技术选型、复杂度预算声明"
+    artifacts:
+      - intent/plan.md
+    next: build
+
+  - id: build
+    type: phase
+    label: "Build（构建）"
+    description: "编码实现、单元测试、代码审查"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/任务清单.md
+      - .cycles/cycles/cycle-{N}/subplans/
+    next: test
+
+  - id: test
+    type: phase
+    label: "Test（测试）"
+    description: "集成测试、E2E测试、非功能性验证"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/test-reports/
+      - .cycles/cycles/cycle-{N}/非功能验证报告.md
+    next: deploy
+
+  - id: deploy
+    type: phase
+    label: "Deploy（部署）"
+    description: "发布准备、交付清单、生产门禁"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/交付清单.md
+    next: maintain
+
+  - id: maintain
+    type: phase
+    label: "Maintain（维护）"
+    description: "监控、事件响应、复盘、技术债务管理"
+    artifacts:
+      - .cycles/retrospectives/
+      - .cycles/incidents/
+      - .cycles/tech-debt/
+    next: plan  # 回到 Plan，形成宏观循环
+
+  # === 微观迭代节点（7步循环） ===
+  - id: micro-eval
+    type: micro-step
+    label: "评估"
+    description: "评估当前状态、识别差距、确定迭代目标"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/项目评估报告.md
+    next: micro-plan
+
+  - id: micro-plan
+    type: micro-step
+    label: "规划"
+    description: "制定当前循环的子计划"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/当前循环总规划.md
+    next: micro-task
+
+  - id: micro-task
+    type: micro-step
+    label: "拆任务"
+    description: "将计划分解为可执行的任务清单"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/任务清单.md
+    next: micro-verify
+
+  - id: micro-verify
+    type: micro-step
+    label: "验证"
+    description: "执行测试、验证实现是否符合规格"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/test-reports/
+    next: micro-fix
+
+  - id: micro-fix
+    type: micro-step
+    label: "修复"
+    description: "修复验证中发现的问题"
+    next: micro-gate
+
+  - id: micro-gate
+    type: micro-step
+    label: "门禁"
+    description: "通过收敛门禁检查，决定是否进入下一阶段"
+    next: micro-retro
+
+  - id: micro-retro
+    type: micro-step
+    label: "复盘"
+    description: "记录经验教训、更新技术债务清单"
+    artifacts:
+      - .cycles/retrospectives/retro-{N}.md
+    next: micro-eval  # 回到评估，形成微观循环
+
+  # === 门禁节点 ===
+  - id: gate-g0
+    type: gate
+    label: "G0 评估收敛门"
+    description: "评估报告完成且通过事实基座抽验"
+    check_script: "gate-check.mjs --gate G0"
+    on_pass: gate-g1
+    on_fail: micro-eval
+
+  - id: gate-g1
+    type: gate
+    label: "G1 任务收敛门"
+    description: "所有任务标记为完成"
+    check_script: "gate-check.mjs --gate G1"
+    on_pass: gate-g2
+    on_fail: micro-task
+
+  - id: gate-g2
+    type: gate
+    label: "G2 测试收敛门"
+    description: "零失败、零错误"
+    check_script: "gate-check.mjs --gate G2"
+    on_pass: gate-g3
+    on_fail: micro-fix
+
+  - id: gate-g3
+    type: gate
+    label: "G3 构建收敛门"
+    description: "构建命令成功执行"
+    check_script: "gate-check.mjs --gate G3"
+    on_pass: next-phase
+    on_fail: micro-fix
+
+  # === 人类判断门节点 ===
+  - id: human-intent
+    type: human-gate
+    label: "意图确认门"
+    description: "人类确认 AI 理解的意图正确"
+    artifacts:
+      - intent/intent.md
+    on_pass: design
+    on_fail: plan
+
+  - id: human-spec
+    type: human-gate
+    label: "规格审批门"
+    description: "人类审批规格文档"
+    artifacts:
+      - intent/spec.md
+    on_pass: build
+    on_fail: design
+
+  - id: human-plan
+    type: human-gate
+    label: "计划审批门"
+    description: "人类审批实现计划"
+    artifacts:
+      - intent/plan.md
+    on_pass: build
+    on_fail: design
+
+  - id: human-pr
+    type: human-gate
+    label: "PR 审查门"
+    description: "人类审查 Pull Request"
+    on_pass: deploy
+    on_fail: build
+
+  - id: human-release
+    type: human-gate
+    label: "发布审批门"
+    description: "人类审批生产发布"
+    artifacts:
+      - .cycles/cycles/cycle-{N}/交付清单.md
+    on_pass: deploy
+    on_fail: test
+
+edges:
+  # 宏观循环边
+  - { from: plan, to: human-intent, type: "human-gate" }
+  - { from: design, to: human-spec, type: "human-gate" }
+  - { from: design, to: human-plan, type: "human-gate" }
+  - { from: build, to: human-pr, type: "human-gate" }
+  - { from: test, to: human-release, type: "human-gate" }
+
+  # 微观循环嵌套在 Build 阶段
+  - { from: build, to: micro-eval, type: "micro-entry" }
+  - { from: micro-retro, to: gate-g0, type: "micro-exit" }
+
+  # 门禁链
+  - { from: gate-g0, to: gate-g1, type: "gate-chain", condition: "pass" }
+  - { from: gate-g1, to: gate-g2, type: "gate-chain", condition: "pass" }
+  - { from: gate-g2, to: gate-g3, type: "gate-chain", condition: "pass" }
+  - { from: gate-g3, to: test, type: "phase-transition", condition: "pass" }
+
+  # 熔断边
+  - { from: gate-g0, to: micro-eval, type: "circuit-breaker", condition: "fail" }
+  - { from: gate-g1, to: micro-task, type: "circuit-breaker", condition: "fail" }
+  - { from: gate-g2, to: micro-fix, type: "circuit-breaker", condition: "fail" }
+  - { from: gate-g3, to: micro-fix, type: "circuit-breaker", condition: "fail" }
+
+# 复杂度预算
+complexity_budget:
+  default: 100
+  per_file_threshold: 15
+  project_threshold: 500
+  band_tolerance: 0.15
+
+# 自主性映射
+autonomy_mapping:
+  L1:
+    human_gates: [human-intent, human-spec, human-plan, human-pr, human-release]
+    auto_gates: []
+    description: "所有门禁都需要人类审批"
+  L2:
+    human_gates: [human-intent, human-spec, human-release]
+    auto_gates: [gate-g0, gate-g1, gate-g2, gate-g3]
+    description: "关键决策门需要人类，收敛门自动化"
+  L3:
+    human_gates: [human-release]
+    auto_gates: [gate-g0, gate-g1, gate-g2, gate-g3, human-intent, human-spec, human-plan, human-pr]
+    description: "仅发布门需要人类，其余自动化"
+  L4:
+    human_gates: []
+    auto_gates: [gate-g0, gate-g1, gate-g2, gate-g3, human-intent, human-spec, human-plan, human-pr, human-release]
+    description: "全自动化，人类仅干预异常"

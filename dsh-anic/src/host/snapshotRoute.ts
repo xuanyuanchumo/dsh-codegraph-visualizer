@@ -35,6 +35,7 @@ export interface SnapshotCtx {
       path: string;
       handler: (req: unknown, res: unknown) => void;
     }): (() => void) | void;
+    register(method: string, path: string, handler: (req: unknown, res: unknown) => void): (() => void) | void;
   };
 }
 

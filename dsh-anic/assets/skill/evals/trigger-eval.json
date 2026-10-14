@@ -1,0 +1,22 @@
+[
+  {"query": "我想为我的 React 项目建立一个系统化的开发流程，确保每个功能都经过充分验证才发布。有什么推荐的方法？", "should_trigger": true},
+  {"query": "我们的团队刚遇到一个生产事故，同一个 bug 已经出现第三次了。怎么防止这种重复发生？", "should_trigger": true},
+  {"query": "帮我初始化一个新项目的迭代开发工作流，项目名叫 DataPipeline，用 Claude Code", "should_trigger": true},
+  {"query": "当前循环的门禁检查全部通过了，接下来该做什么？", "should_trigger": true},
+  {"query": "我们想让 AI 更自主地执行开发流程，目前每步都需要人类审批太慢了，怎么提升自主级别？", "should_trigger": true},
+  {"query": "项目评估报告显示 E7 文档同步维度 FAIL，文档和代码不同步，应该怎么处理？", "should_trigger": true},
+  {"query": "帮我看一下当前工作流的状态，有哪些循环、门禁通过情况怎样", "should_trigger": true},
+  {"query": "我们的代码复杂度超标了，src/host/routes.ts 有 135 分的复杂度评分，需要重构", "should_trigger": true},
+  {"query": "计划文档里引用了一些文件路径，但我不确定这些路径在代码库里是否真的存在", "should_trigger": true},
+  {"query": "团队想从 L2 半自动模式升级到 L3 监督自主模式，需要满足哪些条件？", "should_trigger": true},
+  {"query": "帮我写一个 React 组件，展示用户列表，支持搜索和分页", "should_trigger": false},
+  {"query": "这个 TypeScript 类型报错了：Type 'string' is not assignable to type 'number'，怎么修？", "should_trigger": false},
+  {"query": "我想用 Cytoscape.js 做一个图谱可视化，节点之间有连线，支持缩放和拖拽", "should_trigger": false},
+  {"query": "git rebase 和 git merge 有什么区别？什么时候该用哪个？", "should_trigger": false},
+  {"query": "帮我配置 webpack，让项目支持热更新和代码分割", "should_trigger": false},
+  {"query": "我们的 CI/CD pipeline 构建时间太长了，有什么优化建议？", "should_trigger": false},
+  {"query": "帮我写单元测试，测试这个 calculateTotal 函数的各种边界情况", "should_trigger": false},
+  {"query": "Docker 容器启动后立刻退出了，日志显示 permission denied，怎么排查？", "should_trigger": false},
+  {"query": "我想给项目添加 ESLint 和 Prettier 配置，确保代码风格统一", "should_trigger": false},
+  {"query": "PostgreSQL 查询太慢了，EXPLAIN ANALYZE 显示全表扫描，怎么加索引优化？", "should_trigger": false}
+]

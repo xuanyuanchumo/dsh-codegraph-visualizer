@@ -2,5 +2,35 @@
   "meta": {
     "title": "ANIC 工作流",
     "description": "以项目真实 .cycles/ 工件渲染的 AI 原生迭代循环工作流图。"
+  },
+  "panel": {
+    "refresh": "刷新",
+    "prefs": "设置",
+    "selfInit": "自举",
+    "stepTrace": "步骤追踪",
+    "diagnostics": "诊断",
+    "noData": "暂无数据",
+    "loading": "加载中…",
+    "liveSource": "实时",
+    "embeddedSource": "嵌入快照",
+    "fetchFailed": "获取失败"
+  },
+  "flows": {
+    "workflowTab": "工作流标签",
+    "stepTrace": "步骤追踪",
+    "diagnostics": "诊断",
+    "approvals": "批准",
+    "autoRefresh": "自动刷新",
+    "gateRecord": "门禁记录",
+    "budgetEnforce": "预算强制",
+    "selfInit": "自举初始化",
+    "agentsOrchestration": "智能体编排"
+  },
+  "gate": {
+    "PASS": "通过",
+    "FAIL": "失败",
+    "doubt": "存疑",
+    "pending": "待定",
+    "skip": "跳过"
   }
 }

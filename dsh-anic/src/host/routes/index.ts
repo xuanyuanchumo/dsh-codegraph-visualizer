@@ -1,84 +1,108 @@
 /**
- * 路由聚合器（一域一文件纪律的枢纽）：把 M1 全部 HTTP 面收口到一处注册。
+ * 路由聚合器（M9 结构优化后纯组合层 ~45 行）。
  *
- * 路由清单（全部 exact、全部只读或显式 POST）：
- *  GET  /anic/api/workflow-snapshot  数据热更新（snapshotRoute）
- *  GET  /anic/api/step-trace         W 四源投影数据面（stepTraceRoute）
- *  GET  /anic/api/self-check         Runtime INV Probes（selfCheckRoute）
- *  POST /anic/self/init              B 自举（selfInitRoute；flow.selfInit 门控）
+ * 六域分区（doc 14 §4）：
+ *  data      snapshot + step-trace + self-check + self-init
+ *  cycle     cycle + ledger + stack-probe + seg-ledger
+ *  review    review（条件性 LLM）
+ *  evolution trust + autonomy + breakers + tech-debt
+ *  governance archive + budget + sweep + prune
+ *  self      self-bootstrap + skill（M7+M8）
  *
- * 共享 deps：工作区解析（snapshotRoute 唯一实现）、sendJson（头语义唯一实现）、
- * flows（host/config.ts 唯一 loader 的 workspace 层 → resolveFlows）。
- * agent 卡目录：dist 相对推导（Junction 安装下即插件 assets/agents），
- * ANIC_AGENT_CARDS_DIR 可覆盖；找不到不报错——self-check P4 会如实呈现。
+ * 共享 deps 经 routeContext 提取（单一职责）；agent 卡目录 dist 相对推导。
  */
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
-import { registerSnapshotRoute, resolveWorkspaceRoots, sendJson, type SnapshotCtx } from '../snapshotRoute.ts';
+import { registerSnapshotRoute, type SnapshotCtx } from '../snapshotRoute.ts';
 import { registerStepTraceRoute } from './stepTraceRoute.ts';
 import { registerSelfCheckRoute } from './selfCheckRoute.ts';
 import { registerSelfInitRoute } from './selfInitRoute.ts';
-import { loadWorkspaceConfig } from '../config.ts';
-import { resolveFlows } from '../../shared/flows.ts';
+import { registerCycleRoute } from './cycleRoute.ts';
+import { registerLedgerRoute } from './ledgerRoute.ts';
+import { registerStackProbeRoute } from './stackProbeRoute.ts';
+import { registerSegmentedLedgerRoute } from './segmentedLedgerRoute.ts';
+import { registerReviewRoute } from './reviewRoute.ts';
+import { registerEvolutionRoute } from './evolutionRoute.ts';
+import { registerGovernanceRoute } from './governanceRoute.ts';
+import { registerSelfBootstrapRoutes } from './selfBootstrapRoute.ts';
+import { registerSkillRoutes } from './skillRoute.ts';
+import { registerSkillInstallRoute } from './skillInstallRoute.ts';
+import { registerNativeRoute } from './nativeRoute.ts';
+import { registerDualBootstrapRoute } from './dualBootstrapRoute.ts';
+import { registerTruthAuditRoute } from './truthAuditRoute.ts';
+import { buildRouteContext, type SendFn } from './routeContext.ts';
+import { loadAgentCards } from '../agents.ts';
 
-/** 统一 send 形态：第 4 参是 requestId（落到 X-ANIC-Request-Id 头；sendJson 唯一头实现）。 */
-export type SendFn = (res: unknown, status: number, body: unknown, requestId?: string) => void;
-
-function makeSend(): SendFn {
-  return (res, status, body, requestId) => {
-    sendJson(res, status, body, requestId ? { 'X-ANIC-Request-Id': requestId } : undefined);
-  };
-}
+export type { SendFn } from './routeContext.ts';
 
 export interface RegisterRoutesOptions {
-  /** 覆盖 agent 出厂卡目录（默认 dist/../assets/agents） */
   agentCardsDir?: string;
 }
 
 function defaultAgentCardsDir(): string {
-  try {
-    return fileURLToPath(new URL('../../assets/agents/', import.meta.url));
-  } catch {
-    return '';
-  }
+  try { return fileURLToPath(new URL('../../assets/agents/', import.meta.url)); } catch { return ''; }
 }
 
-/** 注册 M1 全部路由；返回聚合 disposer（逐个调用，一次清干净）。 */
 export function registerAnicRoutes(ctx: unknown, options: RegisterRoutesOptions = {}): (() => void) | null {
   const c = ctx as SnapshotCtx;
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;
 
+  const { send, getWorkspaceRoot, loadFlows } = buildRouteContext(ctx);
+  const agentCardsDir = options.agentCardsDir ?? defaultAgentCardsDir();
   const disposers: Array<(() => void) | null> = [];
 
-  disposers.push(registerSnapshotRoute(ctx));
-
-  const send = makeSend();
-
-  const getWorkspaceRoot = (): string | null => {
-    try {
-      return resolveWorkspaceRoots(c);
-    } catch {
-      return null;
-    }
-  };
-
-  const loadFlows = (): { selfInit: boolean } => {
-    try {
-      const root = getWorkspaceRoot();
-      if (!root) return { selfInit: true };
-      const cfg = loadWorkspaceConfig(join(root, '.cycles'));
-      const resolved = resolveFlows({ workspace: cfg.values.flowOverrides });
-      return { selfInit: resolved.flows['flow.selfInit']?.enabled ?? true };
-    } catch {
-      return { selfInit: true };
-    }
-  };
-
+  // ── data 域 ──
   disposers.push(
+    registerSnapshotRoute(ctx),
     registerStepTraceRoute(ctx),
-    registerSelfCheckRoute(ctx, { send, getWorkspaceRoot, agentCardsDir: options.agentCardsDir ?? defaultAgentCardsDir() }),
+    registerSelfCheckRoute(ctx, { send, getWorkspaceRoot, agentCardsDir }),
     registerSelfInitRoute(ctx, { send, getWorkspaceRoot, loadFlows }),
   );
+
+  // ── cycle 域 ──
+  disposers.push(
+    registerCycleRoute(ctx, { send, getWorkspaceRoot }),
+    registerLedgerRoute(ctx, { send, getWorkspaceRoot }),
+    registerStackProbeRoute(ctx, { send, getWorkspaceRoot }),
+    registerSegmentedLedgerRoute(c, { send, getWorkspaceRoot }),
+  );
+
+  // ── review 域（条件性 LLM）──
+  if (agentCardsDir) {
+    const { cards } = loadAgentCards(agentCardsDir);
+    const cardMap = new Map(cards.map((card) => [card.id, card]));
+    registerReviewRoute(
+      (method, path, handler) => {
+        const d = c.webServer?.register?.(method, path, handler as (req: unknown, res: unknown) => void);
+        if (typeof d === 'function') disposers.push(d);
+      },
+      { getAgentCards: () => cardMap, probeCtx: ctx },
+    );
+  }
+
+  // ── evolution 域 ──
+  disposers.push(...registerEvolutionRoute(c, send));
+
+  // ── governance 域 ──
+  disposers.push(...registerGovernanceRoute(c, send));
+
+  // ── self 域（M7 自举 + M8 跨项目 + 技能自动安装）──
+  disposers.push(...registerSelfBootstrapRoutes(c, send));
+  disposers.push(...registerSkillRoutes(c, send));
+  disposers.push(...registerSkillInstallRoute(ctx, { send, getWorkspaceRoot }));
+
+  // ── native 域（7 脚本原生等价物）──
+  if (agentCardsDir) {
+    const { cards } = loadAgentCards(agentCardsDir);
+    const cardMap = new Map(cards.map((card) => [card.id, card]));
+    disposers.push(...registerNativeRoute(ctx, { send, getWorkspaceRoot, agentCards: cardMap }));
+  }
+
+  // ── dual 域（双向自举 M11）──
+  {
+    const pluginDir = fileURLToPath(new URL('../../../', import.meta.url));
+    disposers.push(...registerDualBootstrapRoute({ ctx: c, send, getWorkspaceRoot, pluginDir }));
+    disposers.push(...registerTruthAuditRoute(c, send));
+  }
 
   const cleanups = disposers.filter((d): d is () => void => typeof d === 'function');
   if (cleanups.length === 0) return null;

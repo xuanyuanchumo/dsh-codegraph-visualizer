@@ -1,0 +1,150 @@
+{
+  "skill_name": "ai-native-iteration-cycle",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我想为我的 React 项目建立一个系统化的开发流程，确保每个功能都经过充分验证才发布。有什么推荐的方法？",
+      "expected_output": "触发 ai-native-iteration-cycle skill，介绍迭代驱动开发流程，建议从 init-workflow 开始",
+      "files": [],
+      "expectations": [
+        "响应引用了 init-workflow.mjs 作为起点",
+        "响应提到 6 阶段流程（Plan/Design/Build/Test/Deploy/Maintain）或 G0-G3 门禁",
+        "响应提到 .cycles/ 工件目录"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我们的团队刚遇到一个生产事故，同一个 bug 已经出现第三次了。怎么防止这种重复发生？",
+      "expected_output": "触发 skill，引用 R10 重复教训编码化规则，建议将错误写入 CLAUDE.md 或创建 Hook",
+      "files": [],
+      "expectations": [
+        "响应引用了重复教训编码化（R10）或 incidents/retrospectives 机制",
+        "响应给出了可落地的动作（写入 CLAUDE.md / Hook / retrospectives/）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我初始化一个新项目的迭代开发工作流，项目名叫 'DataPipeline'，用 Claude Code",
+      "expected_output": "触发 skill，运行 init-workflow.mjs 脚手架，创建目录结构和配置文件",
+      "files": [],
+      "expectations": [
+        "执行了 init-workflow.mjs 且退出码为 0",
+        "项目下出现 .cycles/config.yml（而不是 cycle-config.yml）",
+        "响应没有声称创建了不存在的文件"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "当前循环的门禁检查全部通过了，接下来该做什么？",
+      "expected_output": "触发 skill，解释门禁通过后进入下一阶段的流程，可能需要复盘或进入 Deploy",
+      "files": [],
+      "expectations": [
+        "响应提到 workflow-state advance 或阶段推进",
+        "响应提到复盘（retrospective/org-status review）或 Release 门",
+        "响应建议的下一步与 SKILL.md 的 L4 操作链顺序一致"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "我们想让 AI 更自主地执行开发流程，目前每步都需要人类审批，太慢了。怎么提升自主级别？",
+      "expected_output": "触发 skill，解释 L1-L4 自主分级，提供量化切换标准，建议从 L1→L2 的具体条件",
+      "files": [],
+      "expectations": [
+        "响应解释了 L1-L4 分级",
+        "响应给出了可度量的切换标准（而非只说'逐步放开'）",
+        "响应提到熔断条件或先修复后降级原则"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "在一个已用 init-workflow 初始化的项目里运行 node <skill>/scripts/eval-runner.mjs <project> --dimensions E3，然后运行 node <skill>/scripts/eval-runner.mjs <project> --dimensions E9，报告两次的退出码和输出差异。",
+      "expected_output": "E3 正常执行评估；E9 以非零退出并列出合法维度清单（v1.7.0 响亮失败契约）",
+      "files": [],
+      "expectations": [
+        "E3 运行时没有出现 'No test command configured'（配置发现走 .cycles/config.yml）",
+        "E9 以非零退出码结束",
+        "E9 的输出包含合法维度清单（E1..E8/Q1..Q8 字样）"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "项目 .cycles/gates/ledger.json 的某条历史记录 result 字段被人为篡改过但 hash 未更新。运行 node <skill>/scripts/multi-agent-gate.mjs <project> --gate release 并解释 gatekeeper 的判定依据。",
+      "expected_output": "gatekeeper FAIL，detail 指出账本链校验失败（HASH_MISMATCH），并明确说明验证来源是 verifyLedger 链校验而非文件存在性",
+      "files": [],
+      "expectations": [
+        "release 门判定为 FAIL（或有 agent FAIL 导致门不过）",
+        "输出包含 ledger-chain-broken 或 HASH_MISMATCH 字样",
+        "解释中提到哈希链校验（而不是只说'账本文件存在'）"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "在新 init-workflow 的项目里运行 init-cycle，把任务清单.md 填成：一行图例文字 + 两行真实任务（P0/P1，状态列全部为「完成」）。运行 node <skill>/scripts/gate-check.mjs <project> --gate G1 --record，再原样重跑一次。报告两次退出码、G1 判定文案和账本条数。",
+      "expected_output": "G1 PASS（'All 2 tasks completed'，图例不参与判定）；账本恰 1 条 G1 记录；第二次运行提示 unchanged, not re-recorded",
+      "files": [],
+      "expectations": [
+        "两次退出码均为 0",
+        "G1 判定为 PASS 且文案含 'All 2 tasks completed'（图例行未触发误判）",
+        "两次运行后账本恰有 1 条 G1 记录（--record 去重生效）",
+        "第二次运行输出含 not re-recorded 字样"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "构造一份约 120 字的纯中文 intent 文档（含「问题/用户/目标」等词与两个 ## 小节），运行 node <skill>/scripts/multi-agent-gate.mjs <project> --gate intent，报告判定与信任分。",
+      "expected_output": "intent 门 PASS；信任分为正常数值（中文按字计数后 wordCount≥50），不是 NaN",
+      "files": [],
+      "expectations": [
+        "intent 门 PASS（v1.8.0 前纯中文会被 \\s+ 切词误判为词数不足）",
+        "信任分为数字且不是 NaN",
+        "解释中提到 CJK 按字计数逻辑"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "在一个从未跑过门禁的空项目（无 .cycles/gates/ledger.json）里运行 node <skill>/scripts/gate-ledger.mjs <project> --verify，报告退出码与完整输出。",
+      "expected_output": "退出码 0（未被篡改），但输出包含 empty 注记，明确 'Valid' 只代表无篡改而非'跑过门禁'",
+      "files": [],
+      "expectations": [
+        "退出码为 0",
+        "输出含 'ledger is empty' 或同等注记（v1.8.0 前为裸 'Valid: YES'）",
+        "解释中区分了'未被篡改'与'已记录门禁结果'"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "在一个有 .cycles/cycles/cycle-1/ 工作区但没有 README 的项目里运行 node <skill>/scripts/eval-runner.mjs <project> --dimensions E7，报告退出码、项目评估报告.md 里 E7 行的状态与 stdout。",
+      "expected_output": "退出码 0；E7 行状态为 SKIP（不是 PASS），stdout 响亮列出该维度未评估",
+      "files": [],
+      "expectations": [
+        "退出码为 0（SKIP 不阻塞运行，只有 FAIL 才 exit 1）",
+        "项目评估报告.md 的 E7 行状态列是 SKIP",
+        "stdout 含 'SKIPPED (not evaluated, NOT pass)' 或同等响亮提示",
+        "解释中区分'未评估'与'评估通过'（v1.9.0 前无证据一律记 PASS）"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "项目评估报告.md 只有 E1-E8 裁决行、完全没有 Q1/Q5 行时，运行 node <skill>/scripts/gate-check.mjs <project> --gate G0 --quality，报告退出码与输出。",
+      "expected_output": "退出码非 0：门禁必须有证据，Q 行缺失或 SKIP 都不可关门",
+      "files": [],
+      "expectations": [
+        "退出码非 0",
+        "输出含 'not evaluated' 或 'without evidence' 且点名缺失的 Q 维度",
+        "解释中区分'行缺失'与'评估通过'（v1.9.0 前 match=null 被当作通过）"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "把技能副本里 SKILL.md 的 'MCP Tools (vX.Y.Z)' 改成一个与 CHANGELOG/mcp-server 不一致的版本，并在某个脚本里加一行直接读 .cycles/cycle-config.yml，然后运行 node <skill>/scripts/quick-validate.mjs <skill-copy>，报告退出码与错误项。",
+      "expected_output": "退出码 1，同时报出版本漂移与配置入口分裂两类错误",
+      "files": [],
+      "expectations": [
+        "退出码为 1（守卫是错误级：告警级守卫等于没有守卫）",
+        "输出含 'Version drift' 并列出三个锚点各自的版本",
+        "输出含 'Config entry split'（唯一豁免 scripts/lib/config.mjs）",
+        "解释中提到守卫必须能失败（锚点缺失也报错，而不是跳过）"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,36 @@
 {
   "meta": {
     "title": "ANIC Workflow",
-    "description": "AI-native iteration cycle workflow graph, rendered from the project's real .cycles/ artifacts."
+    "description": "AI-native iteration cycle workflow graph rendered from real .cycles/ artifacts."
+  },
+  "panel": {
+    "refresh": "Refresh",
+    "prefs": "Settings",
+    "selfInit": "Bootstrap",
+    "stepTrace": "Step Trace",
+    "diagnostics": "Diagnostics",
+    "noData": "No data",
+    "loading": "Loading…",
+    "liveSource": "Live",
+    "embeddedSource": "Embedded snapshot",
+    "fetchFailed": "Fetch failed"
+  },
+  "flows": {
+    "workflowTab": "Workflow Tab",
+    "stepTrace": "Step Trace",
+    "diagnostics": "Diagnostics",
+    "approvals": "Approvals",
+    "autoRefresh": "Auto Refresh",
+    "gateRecord": "Gate Record",
+    "budgetEnforce": "Budget Enforce",
+    "selfInit": "Self Init",
+    "agentsOrchestration": "Agent Orchestration"
+  },
+  "gate": {
+    "PASS": "Passed",
+    "FAIL": "Failed",
+    "doubt": "Doubtful",
+    "pending": "Pending",
+    "skip": "Skipped"
   }
 }

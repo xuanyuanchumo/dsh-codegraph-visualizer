@@ -29,12 +29,25 @@ interface SendLike {
   (res: unknown, status: number, body: unknown, requestId?: string): void;
 }
 
-/** 定位技能 scripts 目录（首个存在者胜出；全部缺失 → null） */
+/** 定位技能 scripts 目录（方案 C 混合查找：外部优先 → 内联底座 → null） */
 export function resolveSkillScriptsDir(workspaceRoot: string): string | null {
+  // 内联底座
+  const inlineDir = (() => {
+    const thisDir = typeof __dirname !== 'undefined'
+      ? __dirname
+      : join(process.cwd(), 'src', 'host', 'routes');
+    for (const up of ['../..', '../../..', '../../../..']) {
+      const p = join(thisDir, up, 'assets', 'skill', 'scripts');
+      if (existsSync(join(p, 'init-workflow.mjs'))) return p;
+    }
+    return null;
+  })();
+
   const candidates = [
     process.env.ANIC_SKILL_DIR ? join(process.env.ANIC_SKILL_DIR, 'scripts') : null,
     join(workspaceRoot, '.dsh', 'skills', 'ai-native-iteration-cycle', 'scripts'),
     join(process.cwd(), '.dsh', 'skills', 'ai-native-iteration-cycle', 'scripts'),
+    inlineDir,
   ].filter((p): p is string => p !== null);
   for (const dir of candidates) {
     if (existsSync(join(dir, 'init-workflow.mjs'))) return dir;
