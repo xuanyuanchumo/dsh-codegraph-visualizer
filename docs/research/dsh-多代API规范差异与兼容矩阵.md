@@ -1,4 +1,10 @@
-# DSH 多代 API 规范差异与兼容矩阵（cycle-83 取证，本项目对齐依据）
+# DSH 多代 API 规范差异与兼容矩阵（cycle-83 取证，cycle-92 抬窗更新）
+
+> **cycle-92 更新（本文件 §6 与 §1 第 7 条）**：用户 objective #3 要求「确保 DSH 宿主下限版本
+> 定为 dsh-v0.2.0」，故承诺窗口由 `>=0.1.7-rc.2 <0.4.0` **抬高到** `>=0.2.0-rc.2 <0.4.0`，
+> peer 范围同步去掉 `^0.1.7-rc.2`。gen1 降为「容忍但不承诺」（见 §6.4）。
+> 其余章节（§2 服务面、§3 代际判别、§4 conversation.view、§5 平台、§9/§10 契约）**未受影响**，
+> 因为它们是关于「运行时行为」的证据，与「承诺哪些版本」是两回事。
 
 > 本文只记录**在本机真实安装面上逐行核验过**的结论。每条结论都带证据锚点
 > （相对路径 + 行号 + 短引用）并标注置信度：
@@ -24,7 +30,7 @@
 | 4 | DSH **不存在桌面客户端平台**：`dsh.client.platform` 只有 `'web'` 会被加载 | CONFIRMED | 「兼容桌面端」= 兼容同一个 web 半 + 读 Electron 写入的 DOM 标记 |
 | 5 | 桌面端唯一判别 = `<html data-platform="darwin">` / `<html data-windows-titlebar>`，且必须**惰性求值** | CONFIRMED | cycle-83 新增 `PlatformProbe` |
 | 6 | `process.versions.electron` 在全部 `@deepseek-ai/**/*.js` 中**零命中** | CONFIRMED NEGATIVE | 不得用 Electron 全局判桌面 |
-| 7 | 版本门**只有一条**：`peerDependencies` 上的 `@deepseek-ai/dsh*`；`engines.dsh` 与 `dsh.manifestVersion` 是纯声明 | CONFIRMED | 本项目 peer 范围实测拒绝 `0.1.7-rc.1`，与 `engines.dsh` 承诺不一致（见 §6） |
+| 7 | 版本门**只有一条**：`peerDependencies` 上的 `@deepseek-ai/dsh*`；`engines.dsh` 与 `dsh.manifestVersion` 是纯声明 | CONFIRMED | cycle-92 起 peer 与 `engines.dsh` 下限同为 `0.2.0-rc.2`，两侧一致（见 §6） |
 | 8 | DSH 不向插件 context 暴露任何版本串（4 个 context 候选 + 3 个 env 候选全 miss） | CONFIRMED NEGATIVE | 客户端只能按**服务面**定代，宿主要么按工具面、要么降级 `unknown` |
 | 9 | `window.__DSH_BOOT__` 不携带版本 | CONFIRMED NEGATIVE | 不能从 boot 全局读版本 |
 | 10 | `ctx.commandUi` 是两代都真实存在的命令贡献面，可替代 `spotlight` | CONFIRMED | cycle-83 新增 `CommandUiIntegration` |
@@ -236,26 +242,33 @@ if (requirement.trim() === "" || !semver.satisfies(runtimeVersion, requirement, 
 
 ### 6.2 本项目 peer 范围实测（用 DSH 自带 semver，`includePrerelease: true`）
 
-范围 = `^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2`（`@deepseek-ai/dsh-llm` 与 `dsh-tools` 各一条）：
+范围 = `^0.2.0-rc.2 || ^0.3.0-rc.2`（`@deepseek-ai/dsh-llm` 与 `dsh-tools` 各一条）：
+
+> **cycle-92 裁定**：下限由 `>=0.1.7-rc.2` 抬高到 `>=0.2.0-rc.2`，peer 同步去掉 `^0.1.7-rc.2`。
+> 下表是**抬高后**的实测结果；抬高前的历史结果见 §6.5。
 
 | 探测版本 | 结果 | 说明 |
 |---|---|---|
 | `0.1.7-rc.1` | **REFUSED** | **VS Code 扩展那套 gen1 树全为 `0.1.7-rc.1`** ⇒ 本插件在其中会被 peer 门拒绝 |
-| `0.1.7-rc.2` | PASS | |
+| `0.1.7-rc.2` | **REFUSED** | cycle-92 抬窗后不再承诺 gen1 |
 | `0.2.0-rc.2` | PASS | 本机运行版本 |
 | `0.3.0-rc.2` | PASS | |
 | `0.4.0` | **REFUSED** | |
 | `1.0.0` | **REFUSED** | |
 
-`validRange('^0.1.7-rc.2')` = `>=0.1.7-rc.2 <0.2.0-0`；
-`validRange('^0.2.0-rc.2')` = `>=0.2.0-rc.2 <0.3.0-0`。
+`validRange('^0.2.0-rc.2')` = `>=0.2.0-rc.2 <0.3.0-0`；
+`validRange('^0.3.0-rc.2')` = `>=0.3.0-rc.2 <0.4.0-0`。
+
+**为什么下限是 `rc.2` 而不是 `0.2.0` 正式版**：DSH 目前只发布 `0.2.0-rc.x`，
+`^0.2.0-rc.2` 在 semver `includePrerelease` 语义下同时覆盖 `0.2.0-rc.2` 与将来的 `0.2.0` 正式版。
+写 `>=0.2.0` 会**当场拒绝本机正在运行的那个版本**。
 
 ### 6.3 兼容矩阵（本项目立场）
 
 | DSH 版本 | 代 | peer 门 | 适配器建模 | 本项目实测 |
 |---|---|---|---|---|
 | `0.1.7-rc.1` | gen1 | ❌ REFUSED | gen1 | 未安装验证（VS Code 扩展树） |
-| `0.1.7-rc.2` | gen1 | ✅ PASS | gen1 | 未安装验证 |
+| `0.1.7-rc.2` | gen1 | ❌ REFUSED | gen1（容忍，不承诺） | 未安装验证 |
 | `0.2.0-rc.2` | gen2 | ✅ PASS | gen2 | ✅ **J0 真机验证通过**（顶层第三标签渲染） |
 | `0.3.0-rc.2` | gen3 | ✅ PASS | gen3（= gen2 超集） | 未发布，不可验证 |
 | `0.4.0+` / `1.x` | 适配器归 gen3 | ❌ REFUSED | gen3 | 未发布 |
@@ -273,8 +286,21 @@ peer 门是「我承诺验证过哪些版本」。两者回答的是不同问题
 2. 扩范围意味着承诺在该版本上可用，而本机**没有任何** `0.1.7-rc.1` 真机环境可验证；
 3. DSH 的兼容声明哲学就是「声明 = 已验证」，无证据的扩范围与该哲学冲突。
 
-`engines.dsh`（`>=0.1.7-rc.2 <0.4.0`）保持与 `DSH_SUPPORTED_RANGE` 逐字相等（由测试钉死），
+`engines.dsh`（`>=0.2.0-rc.2 <0.4.0`）保持与 `DSH_SUPPORTED_RANGE` 逐字相等（由测试钉死），
 其语义是「适配器建模的窗口」，**不是**安装许可——后者只由 peer 门决定。
+
+### 6.5 cycle-92 抬窗（历史留痕）
+
+抬高前的实测（peer = `^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2`）：
+`0.1.7-rc.1` REFUSED、`0.1.7-rc.2` PASS、`0.2.0-rc.2` PASS、`0.3.0-rc.2` PASS、
+`0.4.0` REFUSED、`1.0.0` REFUSED。
+
+抬高的**唯一依据**是用户 objective #3 的明确措辞；工程上并非必需（gen1 的 `0.1.7-rc.2` 是真实可安装的
+DSH 运行时）。裁定记录：`ask_user_question` 超时未获答复（审批提示已禁用）⇒ 按 L4 自主权裁定并留痕。
+
+**代价（如实记录）**：gen1（0.1.x）宿主上本插件将被 peer 门拒绝安装。适配器代码与
+`generationOfVersion` 的 `minor === 1 → 'gen1'` 分支**刻意保留**，因为「能识别」与「被承诺」是两件事，
+把可识别宿主报成 `unknown` 会让能力探针失去保守基线依据（`src/shared/dshGeneration.ts:58-60` 已注释）。
 
 ---
 
@@ -380,7 +406,7 @@ foreach ($key in @('pluginNavigation','userQuestionPanels','sidebarRightTabs','d
 ```javascript
 // peer 范围实测（必须用 DSH 自带的 semver，本项目 node_modules 无顶层 semver）
 const semver = await import('file:///C:/Users/86156/.dsh/profiles/node_modules/@deepseek-ai/dsh/node_modules/semver/index.js');
-const range = '^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2';
+const range = '^0.2.0-rc.2 || ^0.3.0-rc.2';   // cycle-92 抬窗后的实际声明
 for (const v of ['0.1.7-rc.1','0.1.7-rc.2','0.2.0-rc.2','0.3.0-rc.2','0.4.0','1.0.0'])
   console.log(v, semver.default.satisfies(v, range, { includePrerelease: true }) ? 'PASS' : 'REFUSED');
 ```

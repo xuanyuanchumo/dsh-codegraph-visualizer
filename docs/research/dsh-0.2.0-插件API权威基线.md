@@ -113,7 +113,7 @@ const manifest: DshPackageManifest = {
 | `dsh.client.platform` | `"web"` | `dsh-client-modules/lib/index.js:714`：非 `"web"` 即视为**没有客户端半边** | ✅ 保持 `"web"` |
 | `dsh.client.inject` | 6 项（含 `dsh-better-sidebar`、`dsh-remote-web-ui` 两个第三方） | `client.js:61-75` 仅接受 `platform/inject/external/immediately`；`inject` 成为**模块图边**（`:724`） | ✅ 收敛为 3 个官方包（`dsh-client-ui-conversation`/`-renderer`/`-sidebar-right`） |
 | `dsh.hostVersion` | `">=0.1.1-rc.2 <0.4.0"` | DSH 全部 `.js` 零读取 | ✅ 删除，职责交 `engines.dsh` |
-| `engines.dsh` | **缺失** | `dsh-package-manifest` 声明的权威兼容位置（不强制） | ✅ `">=0.1.7-rc.2 <0.4.0"`（覆盖三代） |
+| `engines.dsh` | **缺失** | `dsh-package-manifest` 声明的权威兼容位置（不强制） | ✅ `">=0.2.0-rc.2 <0.4.0"`（cycle-92 抬窗，覆盖 gen2/gen3） |
 | `dsh.manifestVersion` | **缺失** | 同上（不强制） | ✅ `1` |
 | `dsh.client.entry` | `"./dist/client.js"` | `index.js:718-719` `clientExportOf(packageName, pkg.exports)` → **`exports["./client"]` 唯一权威**；`clientEntry`/`client.entry` 全库 **0 命中** | ✅ 删除 |
 | `dsh.displayName`/`dsh.description`/`dsh.category` | 有 | `dsh[?]?\.(displayName\|category\|optionalPlugins\|permissions\|hostVersion\|manifestVersion)` 全库 **0 命中** | ✅ 删除，展示文案改由 `locale/*.json` 承担 |
@@ -340,7 +340,9 @@ Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug
 
 - **单一世代事实源**：`src/shared/dshGeneration.ts` —— `DSH_GENERATION_PROBES`
   （`gen1:'0.1.7-rc.2'`、`gen2:'0.2.0-rc.2'`、`gen3:'0.3.0-rc.2'`）、`DSH_SUPPORTED_RANGE`
-  （`>=0.1.7-rc.2 <0.4.0`，与 `package.json` 的 `engines.dsh` **逐字相等**，由测试钉死）、
+  （`>=0.2.0-rc.2 <0.4.0`，与 `package.json` 的 `engines.dsh` **逐字相等**，由测试钉死）、
+  以及 `DSH_PROMISED_GENERATIONS`（`['gen2','gen3']`，被承诺）与 `DSH_LEGACY_GENERATIONS`
+  （`['gen1']`，容忍但不承诺，cycle-92 抬窗后新增，两清单**恰好划分** `DSH_GENERATIONS`）、
   `DSH_UNSUPPORTED_PROBE`、`parseDshVersion`、`generationOfVersion`。宿主与客户端探测器
   （`src/host/compat/HostVersionDetector.ts`、`src/client/compat/ClientVersionDetector.ts`）
   **都委托**它，此前的四份独立世代知识（两个 `parseVersion` 阈值 + `manifest.test.ts` 的硬编码数组
@@ -368,7 +370,7 @@ Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug
 2. **唯一可信验收 = 运行时**：槽位注册失败会在加载期抛错并被本项目 try/catch 吞掉，
    因此 **J0 必须在真实 DSH + Chrome DevTools MCP 下验证标签实际渲染**（单测无法证伪）。
 3. **多代适配走运行时探测**：DSH 明确不强制静态兼容声明，本项目能力探测路线正确；
-   `engines.dsh`（`>=0.1.7-rc.2 <0.4.0`，三代窗口）与 `dsh.manifestVersion: 1` 已补，
+   `engines.dsh`（cycle-92 抬窗后为 `>=0.2.0-rc.2 <0.4.0`，gen2/gen3 窗口）与 `dsh.manifestVersion: 1` 已补，
    `dsh.hostVersion` 已删除（DSH 运行时 0 读取）。
 4. **版本偏斜已修，且选择"删死声明"而非"补装"**：`@deepseek-ai/dsh-client-connection` 与
    `dsh-session` 在 `src/` 零导入，已从 peer + devDep **整条删除**（原先的"补装 0.2.0-rc.2"

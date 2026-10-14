@@ -27,7 +27,7 @@
 | **插件生命周期** | 基于 Cordis 框架，`ctx.effect()` 注册副作用返回 disposer，`ctx.plugin()` 挂载子插件返回 Fiber，`fiber.dispose()` 手动销毁 |
 | **better-sidebar 集成** | `registerTab()` 返回 disposer，通过 `inject=['betterSidebar']` + `import type {} from 'dsh-better-sidebar'` 触发类型合并；需 guard disposer 返回值 |
 | **ORM 选型** | **首选 Drizzle ORM**（`drizzle-orm/node-sqlite`），可直接包裹现有 `DatabaseSync` 实例，零迁移成本，35k+ stars，v1.0 RC |
-| **适配策略** | 已实现 HostVersionDetector + FeatureFlags + ApiCompatLayer 三层兼容；peerDependencies 双版本范围 `^0.1.7-rc.2 \|\| ^0.2.0-rc.2` 已就绪 |
+| **适配策略** | 已实现 HostVersionDetector + FeatureFlags + ApiCompatLayer 三层兼容；peerDependencies 范围 cycle-92 抬窗后为 `^0.2.0-rc.2 \|\| ^0.3.0-rc.2`（原三代范围 `^0.1.7-rc.2 \|\| ^0.2.0-rc.2 \|\| ^0.3.0-rc.2` 见 §7.3 历史记录） |
 
 ---
 
@@ -129,10 +129,11 @@ DSH 运行时通过 `evaluatePluginCompatibility()` 检查插件 `peerDependenci
 > **⚠️ cycle-83 更正**：`engines.dsh` 与 `dsh.manifestVersion` **是纯声明，无人读取**
 > （`dsh-package-manifest\README.md:93` 逐字「**Compatibility is declarative.**」）。
 > 真正生效的**只有** peerDependencies 这一条门。
-> 本项目现状（cycle-82 已清理死声明）：仅 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-llm`、
-> `@deepseek-ai/dsh-tools`、`react`、`react-dom` 五条，范围为
-> `^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2`（实测拒绝 `0.1.7-rc.1`、`0.4.0`、`1.0.0`）。
-> 详见 `docs/research/dsh-多代API规范差异与兼容矩阵.md` §6。
+> 本项目现状（cycle-82 清理死声明，cycle-92 抬窗）：仅 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-llm`、
+> `@deepseek-ai/dsh-tools`、`react`、`react-dom` 五条，其中两个 `dsh*` 的范围为
+> `^0.2.0-rc.2 || ^0.3.0-rc.2`（**cycle-92 依据用户 objective #3 抬窗，去掉 `^0.1.7-rc.2`**）。
+> 抬窗前实测拒绝 `0.1.7-rc.1`、`0.4.0`、`1.0.0`；抬窗后 `0.1.7-rc.2` 亦被拒绝。
+> 详见 `docs/research/dsh-多代API规范差异与兼容矩阵.md` §6.2-§6.5。
 
 ---
 
@@ -512,7 +513,7 @@ ApiCompatLayer (API 层)
 | **gen2 特性不可用于 gen1** | FeatureFlags 门控 | 调用方 `if (featureFlags.betterSidebar)` |
 | **工具名变化** | ToolNameMapping 映射 | `ApiCompatLayer.ts` 的 `GEN1/GEN2/GEN3_MAPPING` |
 | **版本无法检测** | 默认按 gen2 基线 + 扣留高风险特性 | `HostVersionDetector.ts` + `FeatureFlags.ts` 的 `UNKNOWN_FLAGS` |
-| **peerDependencies 不满足** | 三代范围 `^0.1.7-rc.2 \|\| ^0.2.0-rc.2 \|\| ^0.3.0-rc.2` | `package.json` 的 `peerDependencies` |
+| **peerDependencies 不满足** | gen2/gen3 范围 `^0.2.0-rc.2 \|\| ^0.3.0-rc.2`（cycle-92 抬窗） | `package.json` 的 `peerDependencies` |
 | **宿主版本不兼容** | `dsh plugin allow-version` 豁免 | 官方机制，用户侧操作 |
 | **网页端 vs 桌面端** | DOM 属性惰性探测（`PlatformProbe`） | `src/client/compat/PlatformProbe.ts` |
 | **服务键是否存在** | 调用时探针（`ctx.get` / 属性访问），非静态假设 | `ClientCompatLayer.hasService()` |
@@ -521,15 +522,16 @@ ApiCompatLayer (API 层)
 
 > 以下 6 条在 cycle-82/83 已全部完成或明确裁决；保留以说明决策沿革。
 
-1. ~~**peerDependencies 收窄**~~ —— **决定不收窄**：保留三代范围
-   `^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2`。
+1. ~~**peerDependencies 收窄**~~ —— **cycle-82 决定不收窄**（保留三代范围），
+   但 **cycle-92 依据用户 objective #3「宿主下限定为 dsh-v0.2.0」抬窗为
+   `^0.2.0-rc.2 || ^0.3.0-rc.2`**，gen1 降为「容忍但不承诺」。
    死声明（`dsh-client-connection`/`dsh-session`）已于 cycle-82 删除。
 
 2. **devDependencies 升级**：✅ 已完成 —— 现为 `cordis 4.0.4`、`dsh-llm 0.2.0-rc.2`、`dsh-tools 0.2.0-rc.2`。
 
 3. ~~**`dsh.hostVersion` 收窄**~~ —— 该字段**不存在**（无读取者）。真实的版本声明字段是
    `engines.dsh`（纯声明）+ `peerDependencies`（强制门），现为
-   `engines.dsh = ">=0.1.7-rc.2 <0.4.0"`（与 `DSH_SUPPORTED_RANGE` 逐字相等，由测试钉死）。
+   `engines.dsh = ">=0.2.0-rc.2 <0.4.0"`（cycle-92 抬窗后；与 `DSH_SUPPORTED_RANGE` 逐字相等，由测试钉死）。
 
 4. **FeatureFlags 调整**：✅ 已完成 —— 12 位；删除幻影 `spotlight`/`remoteWebUi`，
    新增 `commandUi`/`remoteNarrow`。

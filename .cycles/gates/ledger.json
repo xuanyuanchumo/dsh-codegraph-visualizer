@@ -467,7 +467,97 @@
       "timestamp": "2026-10-12T15:42:26.707Z",
       "previousHash": "1a07c554399080183aa11b8c2b78a0b7e0253adf9f664ef49d6c0f3c337b564a",
       "hash": "365c062326086262abaca9545cd2870a91fafc6aa658ac86bd7ac850558244ee"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-91 评估基线就绪（Q1+Q5）：主题=P3-R18-02 按需路由 ETag 闭环。只读审计定性缺陷为「校验器可达但校验值不可达」——四条按需路由（children/outline/ast/edges）都能回 304，但 200 从不带 etag ⇒ 客户端手里永远没有可回传的值，returnIfEtagMatch 是死代码。源码取证：src/host/routes/shared.ts checkEtag 只在 304 分支写 corsHeaders['etag']；HttpHelpers.ts sendJson 只写 content-type + buildCorsHeaders，从不写 etag；已有 etag 的 200 只有 /data（dataRoutes.ts 手工 computeGraphEtag + dataHeaders['etag']）；五条路由的 returnIfEtagMatch 校验侧齐全（graph/bootstrap/children/outline/ast/edges）。第二个决定性判断：资源维度不足，必须有「请求键」维度——children/outline/ast/edges 是参数化路由而缓存图只有一个槽，只按(工作区,版本,资源)定域会让 children(nodeA) 与 children(nodeB) 算出同一校验值 ⇒ 拿 A 的值问 B 收到 304，B 的子节点永远加载不出来（与 P0-R16-02 同类缺陷深一层）。范围声明 4 条：不改 /data 的逐字节校验值契约；不引入显式失效清单（校验值自身编码资源+工作区+版本+请求键，换工作区或图变了只会不匹配并收到 200）；覆盖率数字本轮不使用（cycle-86/87 已证明默认 v8 provider 函数维度双计）；非按需路由的 200 仍无 etag 留作流转项。补录说明：本条为事后补录（当时漏登记），timestamp 为补录时刻。",
+      "timestamp": "2026-10-13T03:48:22.938Z",
+      "previousHash": "365c062326086262abaca9545cd2870a91fafc6aa658ac86bd7ac850558244ee",
+      "hash": "66b0dc6742d5ddcbd9d40ebf510d758edb4f7278e35ab477387c8306f4b2c8df"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-91 任务清单清零（Q7）：T27-1..T27-24 全部完成。源码 9 个文件：src/shared/graphFingerprint.ts（etagKeyForChildren/Outline/Ast/Edges 四个请求键构造函数 + resolveAstBudget + computeGraphEtag 第 4 参 requestKey，省略时字符串形状与旧版逐字节一致）；src/host/routes/shared.ts（resourceEtag 校验值唯一构造点 + EtagDecision + etagGuard 把「算校验值」与「回传校验值」合并成一个返回值 + etagHeaders）；src/host/HttpHelpers.ts（sendJson 第 6 参 ExtraResponseHeaders，etag 必须走这里否则漏 CORS 头）；src/host/routes/dataRoutes.ts（五条路由 20 处 200 分支全部回写 etag，唯一例外 /data 空槽显式传 etagHeaders(null)）；src/client/api/index.ts（EtagSink 三字段 etag/notModified/key + createEtagSink + commitEtag 只在载荷被应用后登记 + conditionalHeaders + etagByRequestKey LRU 256 + settleConditional + clearEtagCache + 四个 fetcher 末位 sink 参数）；src/client/store/slices/expandSlice.ts 与 edgeSlice.ts（四个调用点接线 sink + 读 notModified 保留现状 + commitEtag）；src/client/store/slices/graphDataSlice.ts（4 处整图替换点 clearEtagCache）；src/client/store/graphStore.ts（disposeStore clearEtagCache）。测试资产：新建 tests/unit/etagContract.test.ts 12 用例 + tests/e2e/conditional-requests.spec.ts 3 用例 + tests/e2e/helpers.ts 录制器扩到 if-none-match 请求头与响应状态码 + scripts/dev-server.mjs 六条路由条件请求桩（etagFor + conditionalJson，两条路径都写 ETag）+ playwright.config.ts regression 白名单加入 conditional-requests。文档：docs/需求分析.md §59.31、docs/测试体系.md §2.ai、CLAUDE.md +15 条 R10（136→151 行）。补录说明：本条为事后补录（当时漏登记），timestamp 为补录时刻。",
+      "timestamp": "2026-10-13T03:48:22.938Z",
+      "previousHash": "66b0dc6742d5ddcbd9d40ebf510d758edb4f7278e35ab477387c8306f4b2c8df",
+      "hash": "8cfdb59d920b44dd3e74321f6618546be3991a72c8463f204345b34188468bcf"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-91 P3-R18-02 按需路由 ETag 闭环：验证充分性门禁通过。测试资产：新建 tests/unit/etagContract.test.ts（12 用例，源码守卫含 balancedArgs 平衡括号匹配 + all.length>=15 反证扫描器有效 + 双向反向自检）；tests/unit/graphFingerprint.test.ts +12（请求键 8 + resolveAstBudget 4）；tests/unit/routes.test.ts 200 带 etag + 请求键负例（跨节点/跨页/跨聚合视图/负数预算）+ 改写 3 条既有 304 用例；tests/unit/api.test.ts +9（EtagSink 304/200/无校验值/只提交后回传/按请求键定域/500 仍失败/304 无 etag 回落/edges 键含 scope+limit+detail）；tests/e2e/conditional-requests.spec.ts 新建 3 用例；tests/e2e/helpers.ts 录制器扩到 if-none-match 请求头 + 响应状态码。变异探针 3 条全部红→绿：A commitEtag 变 no-op ⇒ 1 failed/2 passed 报 conditional-requests.spec.ts:141；B commitEtag 前移到代际检查前 ⇒ 1 failed/2 passed 报「载荷被丢弃时不得登记校验值」；C etagKeyForOutline 退化为常量 ⇒ 2 failed/1 passed 报「m3 不得复用 m2 的校验值」。真机 CDP 验证：6 条路由 200 带 etag + 回传收 304 + 六值两两不同（同一 revision 1791862326450）；跨维度 6/6 全部 200；拦截 window.fetch 证实首次 inm=null 二次 inm=W/\\",
+      "timestamp": "2026-10-13T03:46:12.836Z",
+      "previousHash": "8cfdb59d920b44dd3e74321f6618546be3991a72c8463f204345b34188468bcf",
+      "hash": "3aafc1a880d69638096c764f112231f03d6d2d24f4669a7f834ee83f155c9d20"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-91 交付门禁通过。交付范围：P3-R18-02 按需路由 ETag 闭环 —— 校验器可达但校验值不可达（四条按需路由能回 304，但 200 从不带 etag ⇒ 客户端手里永远没有可回传的值，returnIfEtagMatch 是死代码）。新增第二个决定性判断：资源维度不足，必须有请求键维度（children/outline/ast/edges 是参数化路由而缓存图只有一个槽，只按(工作区,版本,资源)定域会让 children(nodeA) 与 children(nodeB) 算出同一校验值 ⇒ 拿 A 的值问 B 收到 304，B 的子节点永远加载不出来）。源码改动 9 个文件：src/shared/graphFingerprint.ts（4 个请求键构造函数 etagKeyForChildren/Outline/Ast/Edges + resolveAstBudget + computeGraphEtag 第 4 参 requestKey，省略时字符串形状与旧版逐字节一致）；src/host/routes/shared.ts（resourceEtag 校验值唯一构造点 + EtagDecision + etagGuard 把算校验值与回传校验值合并成一个返回值，结构上不可能只做一半 + etagHeaders）；src/host/HttpHelpers.ts（sendJson 第 6 参 ExtraResponseHeaders，etag 必须走这里否则漏 CORS 头）；src/host/routes/dataRoutes.ts（五条路由全部 200 分支回写 etag，含空态/聚合态/分页态共 20 处，唯一例外 /data 空槽显式传 etagHeaders(null)）；src/client/api/index.ts（EtagSink 三字段 etag/notModified/key + createEtagSink + commitEtag 只在载荷被应用后登记 + conditionalHeaders + etagByRequestKey LRU 256 + settleConditional + clearEtagCache + 四个 fetcher 末位 sink 参数）；src/client/store/slices/expandSlice.ts / edgeSlice.ts（四个调用点接线 sink + 读 notModified 保留现状 + commitEtag）；src/client/store/slices/graphDataSlice.ts（4 处整图替换点 clearEtagCache）；src/client/store/graphStore.ts（disposeStore clearEtagCache）。测试资产：新建 tests/unit/etagContract.test.ts（12 用例）+ tests/e2e/conditional-requests.spec.ts（3 用例）+ tests/e2e/helpers.ts 录制器扩到 if-none-match 与响应状态码 + scripts/dev-server.mjs 六条路由条件请求桩（etagFor + conditionalJson，两条路径都写 ETag）+ playwright.config.ts regression 白名单。门禁全绿：typecheck exit 0；lint Found 0 warnings and 0 errors（247 files 103 rules 12 threads）；test Test Files 195 passed (195) / Tests 5343 passed (5343)（cycle-90 194/5305 ⇒ +1 文件 +38 用例）；build exit 0；perf-gate 全 PASS（client 2.46MB/3MB、host 208KB/512KB、test count 5343/4463）；hygiene 单独跑 exit 0；E2E smoke 57 passed、visual 8 passed、regression conditional-requests 3 passed。同口径体积：dist/client.js 2583157（+8046/+0.31%）、dist/index.js 213150（+6130/+2.96%）、dist/client/index.css 167449（零变化）、dist/client/index.esm.js 2388780、layoutWorker.js 1528568（不变）。制品：.cycles/cycles/cycle-91/ 八件套全部落盘（项目评估报告 10560 B、当前循环总规划、任务清单、审计日志、当前循环页面状态、非功能验证报告、交付清单、test-reports/测试报告）。文档：docs/需求分析.md §59.31、docs/测试体系.md §2.ai、CLAUDE.md +15 条 R10（136→151 行）。诚实披露 6 条未验证遗留：未测量缓存收益；E2E 用例 1 的面板不被清空是前向守卫无法被现有代码变异翻红；覆盖率数字本轮未使用；非按需路由的 200 仍无 etag；未做真实跨源 access-control-expose-headers 可达验证；performance.spec.ts:78 的 J38 断言仍无鉴别力。",
+      "timestamp": "2026-10-13T03:46:57.371Z",
+      "previousHash": "3aafc1a880d69638096c764f112231f03d6d2d24f4669a7f834ee83f155c9d20",
+      "hash": "a99ac6bd179bc4ed60fc70e5fa515f411ea39c6aa281ffe92f02e3528be21eba"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-92 (8 dimension rows)",
+      "timestamp": "2026-10-14T05:54:00.217Z",
+      "previousHash": "a99ac6bd179bc4ed60fc70e5fa515f411ea39c6aa281ffe92f02e3528be21eba",
+      "hash": "6790e9a1641212f8a3470d83cbdd566557c236c1815d288ca151f045ad0e3b4a"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "All 10 tasks completed",
+      "timestamp": "2026-10-14T05:54:00.229Z",
+      "previousHash": "6790e9a1641212f8a3470d83cbdd566557c236c1815d288ca151f045ad0e3b4a",
+      "hash": "35e35e2251573c51ec58d7fe6db1cac31c13265de09dd28dd0d70e7088679a2f"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "FAIL",
+      "detail": "Test report summary not recognized: 测试报告.md has no 通过/失败 rows (expected the §2 汇总 table)",
+      "timestamp": "2026-10-14T05:54:00.240Z",
+      "previousHash": "35e35e2251573c51ec58d7fe6db1cac31c13265de09dd28dd0d70e7088679a2f",
+      "hash": "c6245f0e1a678c1980d4c9bccdcff314faf650c91cd25ec1501cc8da3942b146"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "Build passed: pnpm run build",
+      "timestamp": "2026-10-14T05:54:15.254Z",
+      "previousHash": "c6245f0e1a678c1980d4c9bccdcff314faf650c91cd25ec1501cc8da3942b146",
+      "hash": "2a5da369ec016fc8ebea06e49a3551d47d8be847ac315c493ea73e0b027babf8"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-92 (16 dimension rows)",
+      "timestamp": "2026-10-14T05:54:45.256Z",
+      "previousHash": "2a5da369ec016fc8ebea06e49a3551d47d8be847ac315c493ea73e0b027babf8",
+      "hash": "afe25d53b690cc3ce94a241e269855167b04669914070de3822af4941693a6c6"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "Zero failures, zero errors (测试报告.md)",
+      "timestamp": "2026-10-14T05:54:45.272Z",
+      "previousHash": "afe25d53b690cc3ce94a241e269855167b04669914070de3822af4941693a6c6",
+      "hash": "ca54218e3d7db2d3b2a598876d2a62363cb10d1fcbe53f2e8e35b1622b60a35d"
     }
   ],
-  "chainHead": "365c062326086262abaca9545cd2870a91fafc6aa658ac86bd7ac850558244ee"
+  "chainHead": "ca54218e3d7db2d3b2a598876d2a62363cb10d1fcbe53f2e8e35b1622b60a35d"
 }

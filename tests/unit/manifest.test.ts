@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
 import {
   DSH_GENERATION_PROBES,
+  DSH_LEGACY_GENERATIONS,
+  DSH_PROMISED_GENERATIONS,
   DSH_SUPPORTED_RANGE,
   DSH_UNSUPPORTED_PROBE,
 } from '../../src/shared/dshGeneration.ts';
@@ -19,6 +21,7 @@ import {
 interface PluginManifest {
   scripts?: Record<string, string>;
   engines?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
   files?: string[];
   exports?: Record<string, unknown>;
   icon?: string;
@@ -52,8 +55,13 @@ const ICON_MEDIA_TYPES: Record<string, string> = {
  * Host generations this package claims to support through the adapter layer. The list is
  * imported from the shared generation model rather than restated here, so this file cannot
  * drift away from the thresholds the host/client detectors actually apply.
+ *
+ * cycle-92：这里刻意用 **DSH_PROMISED_GENERATIONS**（gen2/gen3）而不是全部被建模的代际。
+ * 分类器仍然认得 gen1（DSH_LEGACY_GENERATIONS），但 engines.dsh 不再覆盖它——「能识别」
+ * 与「被承诺」是两件事，混用会让这条守卫在抬高下限后仍然绿。
  */
-const DSH_GENERATIONS = Object.values(DSH_GENERATION_PROBES);
+const DSH_PROMISED = [...DSH_PROMISED_GENERATIONS];
+const DSH_LEGACY = [...DSH_LEGACY_GENERATIONS];
 
 /**
  * Minimal evaluator for the single range shape this package declares (`>=A <B`).
@@ -96,16 +104,48 @@ describe('dsh plugin manifest', () => {
     expect(pkg.dsh?.manifestVersion).toBe(1);
   });
 
-  it('declares engines.dsh covering every supported host generation and nothing beyond it', () => {
+  it('declares engines.dsh covering every promised host generation and nothing beyond it', () => {
     const range = pkg.engines?.dsh;
     expect(typeof range).toBe('string');
     // Exact equality, not just coverage: the value must equal the range the generation model
     // publishes, otherwise the two halves of "which hosts do we support" can disagree.
     expect(range).toBe(DSH_SUPPORTED_RANGE);
-    for (const generation of DSH_GENERATIONS) {
-      expect(coversVersion(range as string, generation), `${range} should cover ${generation}`).toBe(true);
+    for (const generation of DSH_PROMISED) {
+      const probe = DSH_GENERATION_PROBES[generation as keyof typeof DSH_GENERATION_PROBES];
+      expect(coversVersion(range as string, probe), `${range} should cover ${generation} (${probe})`).toBe(true);
     }
     expect(coversVersion(range as string, DSH_UNSUPPORTED_PROBE)).toBe(false);
+  });
+
+  it('excludes every legacy generation from the declared window', () => {
+    // 抬高下限的机器守卫：gen1 的代表版本必须落在窗口**外**。若有人把
+    // DSH_SUPPORTED_RANGE 改回 >=0.1.7-rc.2，这条立刻变红。
+    const range = pkg.engines?.dsh as string;
+    expect(DSH_LEGACY.length).toBeGreaterThan(0);
+    for (const generation of DSH_LEGACY) {
+      expect(
+        coversVersion(range, DSH_GENERATION_PROBES[generation as keyof typeof DSH_GENERATION_PROBES]),
+        `${range} must NOT cover legacy ${generation}`,
+      ).toBe(false);
+    }
+    // 两个清单必须恰好划分被建模的代际集合，且不相交。
+    const modelled = Object.keys(DSH_GENERATION_PROBES).sort();
+    expect([...DSH_PROMISED, ...DSH_LEGACY].sort()).toEqual(modelled);
+  });
+
+  it('narrows peerDependencies on @deepseek-ai/dsh* to the same floor as engines.dsh', () => {
+    // peer 门才是唯一被强制执行的兼容门（dsh-app-boot/README.md:52），engines.dsh 无人读取。
+    // 因此「下限抬高」必须同时落在 peer 上，否则声明与实门不一致。
+    const peers = (pkg as { peerDependencies?: Record<string, string> }).peerDependencies ?? {};
+    for (const key of ['@deepseek-ai/dsh-llm', '@deepseek-ai/dsh-tools']) {
+      const peer = peers[key];
+      expect(typeof peer, `${key} must be a peer dependency`).toBe('string');
+      expect(peer, `${key} must still accept the 0.2 line`).toContain('^0.2.0-rc.2');
+      expect(peer, `${key} must still accept the 0.3 line`).toContain('^0.3.0-rc.2');
+      expect(peer, `${key} must drop the 0.1 line`).not.toContain('0.1.');
+    }
+    const lowerBound = (pkg.engines?.dsh as string).split(' ')[0]!.slice(2);
+    expect(lowerBound).toBe('0.2.0-rc.2');
   });
 
   it('declares the client half as a web-platform module', () => {

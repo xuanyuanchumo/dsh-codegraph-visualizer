@@ -5,6 +5,8 @@ import { dirname, join, resolve } from 'node:path';
 import {
   DSH_GENERATION_PROBES,
   DSH_GENERATIONS,
+  DSH_LEGACY_GENERATIONS,
+  DSH_PROMISED_GENERATIONS,
   DSH_SUPPORTED_RANGE,
   DSH_UNSUPPORTED_PROBE,
   generationOfVersion,
@@ -25,6 +27,33 @@ import { createHostCapabilityProbe } from '../../src/host/compat/HostCapabilityP
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const ALL_GENERATIONS: DshGeneration[] = ['gen1', 'gen2', 'gen3', 'unknown'];
+
+/**
+ * 求值 `>=A <B` 形态的窗口是否覆盖某版本。仅支持本项目声明的那一种形态。
+ * 与 `tests/unit/manifest.test.ts` 的同名助手保持独立实现——两边都断言同一件事，
+ * 复制一份比互相 import 更能暴露「其中一边被改坏」。
+ */
+function compareWithinRange(range: string, version: string): boolean {
+  const parse = (v: string): [number[], string] => {
+    const [core = '0', pre = ''] = v.split('-', 2);
+    return [core.split('.').map(Number), pre];
+  };
+  const cmp = (a: string, b: string): number => {
+    const [aCore, aPre] = parse(a);
+    const [bCore, bPre] = parse(b);
+    for (let i = 0; i < 3; i += 1) {
+      const diff = (aCore[i] ?? 0) - (bCore[i] ?? 0);
+      if (diff !== 0) return diff < 0 ? -1 : 1;
+    }
+    if (aPre === bPre) return 0;
+    if (aPre === '') return 1;
+    if (bPre === '') return -1;
+    return aPre < bPre ? -1 : 1;
+  };
+  return range.split(/\s+/).filter(Boolean).every((part) => (
+    part.startsWith('>=') ? cmp(version, part.slice(2)) >= 0 : cmp(version, part.slice(1)) < 0
+  ));
+}
 
 function hostCtx(overrides: Record<string, unknown> = {}) {
   return { tools: { get: vi.fn(() => undefined) }, ...overrides } as any;
@@ -90,9 +119,41 @@ describe('generation model is the single source of truth', () => {
   it('agrees with the manifest window declared in package.json', () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')) as {
       engines?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
     };
     expect(pkg.engines?.dsh).toBe(DSH_SUPPORTED_RANGE);
     expect(DSH_UNSUPPORTED_PROBE).toBe('0.4.0');
+    // cycle-92 裁定：宿主下限抬高到 0.2.0-rc.2，peer 门同步去掉 0.1.7 线。
+    // 三处（engines.dsh / peerDependencies / DSH_SUPPORTED_RANGE）必须同时收紧，
+    // 否则会出现「声明支持 gen1、peer 门却拒绝它」这种自相矛盾的安装体验。
+    expect(pkg.engines?.dsh).not.toContain('0.1.');
+    for (const key of ['@deepseek-ai/dsh-llm', '@deepseek-ai/dsh-tools']) {
+      expect(pkg.peerDependencies?.[key], `${key} peer range must drop the 0.1 line`).not.toContain('0.1.');
+      expect(pkg.peerDependencies?.[key]).toContain('^0.2.0-rc.2');
+    }
+  });
+
+  it('partitions every modelled generation into exactly one of promised / legacy', () => {
+    // 分类器仍然认得 gen1，但承诺窗口只覆盖 gen2+gen3。两清单必须恰好划分全集，
+    // 且互不相交——否则「某代算不算被支持」会有两个答案。
+    const promised = [...DSH_PROMISED_GENERATIONS] as DshGeneration[];
+    const legacy = [...DSH_LEGACY_GENERATIONS] as DshGeneration[];
+    expect([...promised, ...legacy].sort()).toEqual([...DSH_GENERATIONS].sort());
+    expect(promised.filter((g) => legacy.includes(g))).toEqual([]);
+    expect(promised).toContain('gen2');
+    expect(promised).toContain('gen3');
+    expect(legacy).toEqual(['gen1']);
+  });
+
+  it('keeps the promised window and the legacy tolerance in the declared range', () => {
+    // 下限必须恰好落在第一个被承诺代际的代表版本上，且**不**覆盖遗留代际。
+    // 这条断言是「抬高下限」这件事本身的机器守卫：把 DSH_SUPPORTED_RANGE 改回
+    // >=0.1.7-rc.2 会让它立刻变红。
+    const lowerBound = DSH_SUPPORTED_RANGE.split(' ')[0]!.slice(2);
+    expect(lowerBound).toBe(DSH_GENERATION_PROBES.gen2);
+    expect(parseDshVersion(lowerBound).generation).toBe('gen2');
+    expect(parseDshVersion(DSH_GENERATION_PROBES.gen1).generation).toBe('gen1');
+    expect(compareWithinRange(DSH_SUPPORTED_RANGE, DSH_GENERATION_PROBES.gen1)).toBe(false);
   });
 
   it('parses every generation probe back to the generation it represents', () => {

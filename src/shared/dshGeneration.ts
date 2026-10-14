@@ -39,16 +39,42 @@ export const DSH_GENERATION_PROBES: Record<DshKnownGeneration, string> = {
   gen3: '0.3.0-rc.2',
 };
 
+/**
+ * **被承诺支持**的代际：即 {@link DSH_SUPPORTED_RANGE} 实际覆盖的代际。
+ *
+ * cycle-92 裁定（objective #3）：宿主下限由 0.1.7-rc.2 **抬高到 0.2.0-rc.2**。
+ * 依据是上游把 dsh-v0.2.0 定为当前公开的插件基线，且本项目 peer 门实测只在
+ * 0.2.0-rc.2 上完成过真机验证（J0 旅程）。
+ *
+ * 注意「被建模」与「被承诺」是两件事，见 {@link DSH_GENERATIONS} 与
+ * {@link DSH_LEGACY_GENERATIONS} 的分工。
+ */
+export const DSH_PROMISED_GENERATIONS = ['gen2', 'gen3'] as const;
+
+/**
+ * **被容忍但不承诺**的代际：适配器仍然能正确分类并按保守能力集运行，但不在
+ * `engines.dsh` / `peerDependencies` 的承诺窗口内，也不作为验收对象。
+ *
+ * 保留这一档而不是删除 gen1 代码，是因为分类器必须能如实回答「我正跑在一个
+ * 0.1.x 宿主上」——把一个可识别的宿主报告成 `unknown` 会让能力探针失去
+ * 保守基线的依据。删掉它反而会制造出「本插件以为自己在 gen2」这类静默降级。
+ */
+export const DSH_LEGACY_GENERATIONS = ['gen1'] as const;
+
 /** 受支持的宿主窗口，在 `package.json` 中以 `engines.dsh` 声明。 */
-export const DSH_SUPPORTED_RANGE = '>=0.1.7-rc.2 <0.4.0';
+export const DSH_SUPPORTED_RANGE = '>=0.2.0-rc.2 <0.4.0';
 
 /**
  * {@link DSH_SUPPORTED_RANGE} 的排他上界，供漂移断言使用。
  *
  * 注意这里与真实的强制门存在语义差：`dsh-app-boot` 只比对 `peerDependencies` 上的
  * `@deepseek-ai/dsh*`（`dsh-app-boot/README.md:52` 逐字说明「这些检查用 peer 声明，
- * 不用 `engines.dsh`」），而本插件的 peer 范围实测拒绝 0.4.0 与 1.0.0，同时拒绝
- * gen1 的 `0.1.7-rc.1`。因此本常量描述的是**本插件的适配器模型边界**，不是安装门。
+ * 不用 `engines.dsh`」），而本插件的 peer 范围实测拒绝 0.4.0 与 1.0.0。因此本常量
+ * 描述的是**本插件的适配器模型边界**，不是安装门。
+ *
+ * cycle-92 起 peer 范围同步去掉了 `^0.1.7-rc.2`，于是 0.1.7-rc.1 与 0.1.7-rc.2
+ * 都被 peer 门拒绝——与 {@link DSH_LEGACY_GENERATIONS} 的「容忍但不承诺」一致：
+ * 分类器认得它们，安装门不放行它们。
  */
 export const DSH_UNSUPPORTED_PROBE = '0.4.0';
 
@@ -64,6 +90,9 @@ export function isDshGeneration(value: unknown): value is DshGeneration {
  * gen1 = 0.1.x，gen2 = 0.2.x，gen3 = 0.3.x 及其之后的所有线（0.4.x、1.x……）。后续线
  * 刻意落进 gen3：gen3 被建模为 gen2 的前向兼容超集，于是尚未发布的 0.4.x 宿主会拿到
  * 最新适配器，而不是退化成 `unknown`；只有低于受支持下界的宿主才保持未分类。
+ *
+ * gen1 自 cycle-92 起是 {@link DSH_LEGACY_GENERATIONS}：**仍被分类**（分类器不撒谎），
+ * 但已不在 {@link DSH_SUPPORTED_RANGE} 内，故不再被承诺。
  */
 export function generationOfVersion(major: number, minor: number): DshGeneration {
   if (major >= 1) return 'gen3';
