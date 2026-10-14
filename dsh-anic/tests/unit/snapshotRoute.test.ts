@@ -1,0 +1,191 @@
+/**
+ * snapshotRoute + 宿主入口 apply 单元测试。
+ *
+ * 契约锚点（全部转录自父工程与 DSH 宿主语义，见文件头注释）：
+ *   - 路由注册形如 { kind:'exact', path, handler }，经 ctx.effect 承接 disposer
+ *     （disposer 不丢弃 = 九条红线；宿主 effect 返回值即清理）；
+ *   - 工作区解析链 registry → sessions.header.cwd → process.cwd()，逐请求重解析；
+ *   - 200 响应带 no-store + CORS + X-ANIC-Snapshot-Digest；无 .cycles → 404（不是 500）；
+ *   - 无 webServer → 返回 null（插件主体不受影响，多代宿主安全降级）；
+ *   - apply()：有 effect 走 effect（label 'dsh-anic: snapshot route'），无 effect 直接注册。
+ */
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { registerSnapshotRoute, SNAPSHOT_ROUTE } from '../../src/host/snapshotRoute.ts';
+import { apply } from '../../src/index.ts';
+
+const CLEANUPS: string[] = [];
+function workspaceWithCycles(hasCycles: boolean): string {
+  const root = mkdtempSync(join(tmpdir(), 'anic-ws-'));
+  if (hasCycles) {
+    const cycles = join(root, '.cycles');
+    mkdirSync(cycles, { recursive: true });
+    writeFileSync(join(cycles, 'config.yml'), 'autonomy_level: L2\n');
+  }
+  CLEANUPS.push(root);
+  return root;
+}
+afterEach((): void => {
+  while (CLEANUPS.length > 0) {
+    const dir = CLEANUPS.pop();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+interface CapturedResponse { status: number | null; headers: Record<string, string> | null; body: string | null }
+function makeRes(): { res: unknown; captured: CapturedResponse } {
+  const captured: CapturedResponse = { status: null, headers: null, body: null };
+  const res = {
+    writeHead: (status: number, headers: Record<string, string>): void => { captured.status = status; captured.headers = headers; },
+    end: (data?: string): void => { captured.body = data ?? null; },
+  };
+  return { res, captured };
+}
+
+interface RegisteredDef { kind: string; path: string; handler: (req: unknown, res: unknown) => void }
+interface CtxSpec {
+  root?: string;
+  registryThrows?: boolean;
+  withSessions?: boolean;
+  disposerWorks?: boolean;
+}
+function makeCtx(spec: CtxSpec): { ctx: unknown; registered: RegisteredDef[]; webServerDisposer: () => void } {
+  const registered: RegisteredDef[] = [];
+  const webServerDisposer = vi.fn();
+  const ctx: Record<string, unknown> = {
+    webServer: {
+      register: (def: RegisteredDef): (() => void) => {
+        registered.push(def);
+        return spec.disposerWorks === false ? undefined : webServerDisposer;
+      },
+    },
+  };
+  if (spec.root !== undefined) {
+    if (spec.registryThrows) {
+      ctx.workspaceRegistry = { list: (): unknown[] => { throw new Error('registry not mounted'); } };
+    } else {
+      ctx.workspaceRegistry = { list: (): { path?: string }[] => [{ path: spec.root }] };
+    }
+    if (spec.withSessions) ctx.sessions = { list: (): { header?: { cwd?: string } }[] => [{ header: { cwd: 'D:\\must-not-be-used' } }] };
+  }
+  return { ctx, registered, webServerDisposer };
+}
+
+describe('registerSnapshotRoute', () => {
+  it('注册 exact 路由并返回 webServer 的 disposer（disposer 不丢弃）', () => {
+    const { ctx, registered, webServerDisposer } = makeCtx({ root: workspaceWithCycles(true) });
+    const disposer = registerSnapshotRoute(ctx);
+    expect(registered).toHaveLength(1);
+    expect(registered[0]?.kind).toBe('exact');
+    expect(registered[0]?.path).toBe(SNAPSHOT_ROUTE);
+    expect(disposer).toBe(webServerDisposer);
+  });
+
+  it('无 webServer 时返回 null（跳过而非崩溃）', () => {
+    expect(registerSnapshotRoute({})).toBeNull();
+    expect(registerSnapshotRoute({ webServer: {} })).toBeNull();
+  });
+
+  it('200：no-store + CORS + 16 位内容指纹 + 快照计数', () => {
+    const root = workspaceWithCycles(true);
+    const { ctx, registered } = makeCtx({ root });
+    registerSnapshotRoute(ctx);
+    const { res, captured } = makeRes();
+    registered[0]?.handler({}, res);
+    expect(captured.status).toBe(200);
+    expect(captured.headers?.['Cache-Control']).toBe('no-store');
+    expect(captured.headers?.['Access-Control-Allow-Origin']).toBe('*');
+    expect(captured.headers?.['X-ANIC-Snapshot-Digest']).toMatch(/^[0-9a-f]{16}$/);
+    const body = JSON.parse(captured.body ?? '{}') as { counts: { nodes: number }; autonomy: string };
+    expect(body.counts.nodes).toBeGreaterThan(0);
+    expect(body.autonomy).toBe('L2');
+  });
+
+  it('工作区无 .cycles → 404（未 init 项目是可用状态，不是错误）', () => {
+    const root = workspaceWithCycles(false);
+    const { ctx, registered } = makeCtx({ root });
+    registerSnapshotRoute(ctx);
+    const { res, captured } = makeRes();
+    registered[0]?.handler({}, res);
+    expect(captured.status).toBe(404);
+    expect(String((JSON.parse(captured.body ?? '{}') as { error: string }).error)).toContain('no .cycles');
+  });
+
+  it('解析链：registry 优先于 sessions；registry 抛错落 sessions；两者皆无落 process.cwd', () => {
+    const root = workspaceWithCycles(true);
+    const mk = (over: { registry?: unknown; sessions?: unknown }): { ctx: unknown; registered: RegisteredDef[] } => {
+      const base = makeCtx({ root });
+      if ('registry' in over) (base.ctx as Record<string, unknown>).workspaceRegistry = over.registry;
+      if ('sessions' in over) (base.ctx as Record<string, unknown>).sessions = over.sessions;
+      registerSnapshotRoute(base.ctx);
+      return base;
+    };
+    const ask = (registered: RegisteredDef[]): CapturedResponse => {
+      const { res, captured } = makeRes();
+      registered[0]?.handler({}, res);
+      return captured;
+    };
+    const wsOf = (c: CapturedResponse): string => decodeURIComponent(String(c.headers?.['X-ANIC-Workspace']));
+
+    // ① 优先级：registry 与 sessions 同在 → registry 赢（sessions 指向必不可能有效的路径作哨兵）
+    const prio = mk({ sessions: { list: (): { header?: { cwd?: string } }[] => [{ header: { cwd: 'D:\\must-not-be-used' } }] } });
+    expect(ask(prio.registered).status).toBe(200);
+    expect(wsOf(ask(prio.registered))).toBe(root);
+
+    // ② registry 抛错 → sessions 兜底（根换成 sessions 提供的另一个有效工作区）
+    const root2 = workspaceWithCycles(true);
+    const viaSessions = mk({
+      registry: { list: (): unknown[] => { throw new Error('registry not mounted'); } },
+      sessions: { list: (): { header?: { cwd?: string } }[] => [{ header: { cwd: root2 } }] },
+    });
+    expect(ask(viaSessions.registered).status).toBe(200);
+    expect(wsOf(ask(viaSessions.registered))).toBe(root2);
+
+    // ③ 两者皆无 → process.cwd（对测试进程的 cwd 通常无 .cycles → 404 且 workspace=cwd）
+    const viaCwd = mk({ registry: { list: (): unknown[] => { throw new Error('registry not mounted'); } } });
+    delete (viaCwd.ctx as Record<string, unknown>).sessions;
+    const c3 = ask(viaCwd.registered);
+    expect(c3.status).toBe(404);
+    expect((JSON.parse(c3.body ?? '{}') as { workspace: string }).workspace).toBe(process.cwd());
+  });
+
+  it('构建器抛错 → 500 且带 error 字段（响亮失败，不静默 200）', () => {
+    const root = workspaceWithCycles(true);
+    // workflow-graph.yaml 是目录 → readFileSync EISDIR（existsSync 通过而读取抛错）
+    mkdirSync(join(root, '.cycles', 'workflow-graph.yaml'));
+    const { ctx, registered } = makeCtx({ root });
+    registerSnapshotRoute(ctx);
+    const { res, captured } = makeRes();
+    registered[0]?.handler({}, res);
+    expect(captured.status).toBe(500);
+    expect(String((JSON.parse(captured.body ?? '{}') as { error: string }).error)).toMatch(/EISDIR|EPERM|operation/i);
+  });
+});
+
+describe('宿主入口 apply', () => {
+  it('有 effect：setup 经 effect 执行并带 label；effect 的返回 disposer 由宿主承接', () => {
+    const root = workspaceWithCycles(true);
+    const { ctx, registered, webServerDisposer } = makeCtx({ root });
+    const effect = vi.fn((fn: () => unknown, label?: string): unknown => {
+      const routeDisposer = fn() as unknown;
+      return (): void => { if (typeof routeDisposer === 'function') (routeDisposer as () => void)(); };
+    });
+    (ctx as Record<string, unknown>).effect = effect;
+    apply(ctx);
+    expect(effect).toHaveBeenCalledTimes(1);
+    expect(effect.mock.calls[0]?.[1]).toBe('dsh-anic: snapshot route');
+    expect(registered).toHaveLength(1);
+    // effect 返回的清理被宿主拿走：调用它应联动 webServer disposer
+    (effect.mock.results[0]?.value as () => void)();
+    expect(webServerDisposer).toHaveBeenCalledTimes(1);
+  });
+
+  it('无 effect：直接注册（不静默丢弃，异常宿主形态兜底）', () => {
+    const root = workspaceWithCycles(true);
+    const { ctx, registered } = makeCtx({ root });
+    apply(ctx);
+    expect(registered).toHaveLength(1);
+  });
+});
