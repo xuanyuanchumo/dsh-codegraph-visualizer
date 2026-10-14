@@ -24,6 +24,7 @@
 | [03-客户端API参考.md](./03-客户端API参考.md) | 客户端怎么注册标签页？store 有哪些字段？hooks / i18n / CSS 怎么用？ | 改 `src/client/**` 时 |
 | [04-架构设计.md](./04-架构设计.md) | 分层怎么切的？数据怎么流的？为什么这么决策？ | 做结构性改动、评审设计时 |
 | [05-DSH官方规范检索证据.md](./05-DSH官方规范检索证据.md) | 我们对 DSH 契约的每条断言，官方依据（带来源 URL）在哪？ | 引用宿主契约、抬版本窗、判断某个服务是否真实存在时 |
+| [06-dsh-anic插件开发规范.md](./06-dsh-anic插件开发规范.md) | dsh-anic 独立工程的开发规范：六域分区路由、模块架构、适配器、测试金字塔 | 改 `dsh-anic/src/**` 时 |
 
 ## 与既有文档的关系（避免重复，各司其职）
 
@@ -70,10 +71,16 @@ grep -c "register.*Route(" src/host/routes.ts
 grep -c "defineTool(" src/tools.ts
 # 5) 错误码数量（应为 27）
 grep -c "^  [A-Z_]*:" src/shared/constants.ts
+# 6) dsh-anic 独立性（G-IND）：源码不得 import 父项目 src/
+grep -r "from.*\.\./\.\./src/" dsh-anic/src/ || echo "G-IND OK"
+# 7) dsh-anic 路由数量（18 个路由文件）
+ls dsh-anic/src/host/routes/*.ts | wc -l
+# 8) dsh-anic 测试金字塔
+cd dsh-anic && pnpm run typecheck && pnpm run test && pnpm run build
 ```
 
 ## 版本
 
-- 适用插件版本：`dsh-codegraph-visualizer@0.2.0`
+- 适用插件版本：`dsh-codegraph-visualizer@0.2.0` + `dsh-anic@0.3.0`
 - 适用 DSH 宿主：`>=0.2.0-rc.2 <0.4.0`（见 [01-插件开发规范.md](./01-插件开发规范.md) §2）
-- 文档族版本：`1.0.0`（cycle-92 首次落地）
+- 文档族版本：`1.1.0`（cycle-93 新增 06-dsh-anic 插件开发规范）
