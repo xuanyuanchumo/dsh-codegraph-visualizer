@@ -6,7 +6,7 @@
  * for graceful degradation on hosts without the tools slot.
  */
 
-import { resolveWorkspaceRoots } from './snapshotRoute.ts';
+import { resolveWorkspaceRoots, type SnapshotCtx } from './snapshotRoute.ts';
 import { resolveSkillScriptsDir, invokeSkillScript, validateWorkspace, isAllowedScript } from './skillInvoker.ts';
 
 interface ToolRegistration {
@@ -41,7 +41,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
 
   const getRoot = (): string | null => {
     try {
-      return resolveWorkspaceRoots(c as any);
+      return resolveWorkspaceRoots(c as SnapshotCtx);
     } catch {
       return null;
     }
