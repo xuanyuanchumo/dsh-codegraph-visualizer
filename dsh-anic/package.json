@@ -6,6 +6,7 @@
   "type": "module",
   "license": "MIT",
   "icon": "./icon.svg",
+  "main": "./dist/host.js",
   "engines": {
     "node": ">=22.19",
     "dsh": ">=0.2.0-rc.2 <0.4.0"
@@ -21,9 +22,12 @@
   },
   "dsh": {
     "manifestVersion": 1,
+    "bundle": { "patch": "./cordis.patch.yml" },
     "client": {
       "platform": "web",
-      "inject": []
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
     }
   },
   "scripts": {
