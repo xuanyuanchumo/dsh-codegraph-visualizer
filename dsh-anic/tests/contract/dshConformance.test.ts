@@ -142,15 +142,34 @@ describe('源码形状守卫（slots / disposer / 注入形态）', () => {
     expect(text).toMatch(/name:\s*'conversation\.view'/);
   });
 
-  it('路由 disposer 不丢弃：snapshotRoute 返回 webServer disposer，宿主入口经 effect 承接', () => {
+  it('路由 disposer 不丢弃：每条路由返回 webServer disposer，宿主入口经 effect 承接聚合器', () => {
     const route = SRC_FILES.find((f) => f.endsWith('snapshotRoute.ts'));
-    const index = SRC_FILES.find((f) => f.endsWith(join('src', 'index.ts')) || /src[\\/]index\.ts$/.test(f));
+    const index = SRC_FILES.find((f) => /src[\\/]index\.ts$/.test(f));
+    const aggregator = SRC_FILES.find((f) => f.endsWith(join('routes', 'index.ts')) || /routes[\\/]index\.ts$/.test(f));
     expect(route).toBeDefined();
     expect(index).toBeDefined();
+    expect(aggregator).toBeDefined();
+
     const routeText = readFileSync(route ?? '', 'utf8');
     expect(routeText).toMatch(/typeof disposer === 'function'\s*\?\s*disposer/);
+
+    // M1：宿主入口经 effect 承接的是**聚合器**（四条路由一次注册、一次清干净），
+    // 而不是单条 snapshotRoute。断言聚合器名而非"任意函数"，否则把聚合器整个删掉
+    // 改成只注册一条也会绿。
     const indexText = readFileSync(index ?? '', 'utf8');
-    expect(indexText).toMatch(/effect\(\s*\(\)\s*=>\s*registerSnapshotRoute/);
+    expect(indexText).toMatch(/effect\(\s*\(\)\s*=>\s*registerAnicRoutes/);
+
+    // 聚合器必须逐个承接子路由 disposer 并逐个清理：filter(typeof === 'function')
+    // 后 for-of 调用，是"少清一条"的唯一防线。
+    const aggText = readFileSync(aggregator ?? '', 'utf8');
+    expect(aggText).toMatch(/typeof d === 'function'/);
+    expect(aggText).toMatch(/for \(const d of cleanups\) d\(\)/);
+    // 四条路由必须都在聚合器里被注册（少一条 = 功能面静默缺失）
+    for (const fn of ['registerSnapshotRoute', 'registerStepTraceRoute', 'registerSelfCheckRoute', 'registerSelfInitRoute']) {
+      expect(aggText, '聚合器缺少 ' + fn).toContain(fn);
+    }
+    // 反向自检：不存在的注册函数名不得命中
+    expect(aggText).not.toContain('registerNonexistentRoute');
   });
 
   it('遥测 + kill-switch 双通道在场（J0 可验证性与热卸载）', () => {
@@ -161,10 +180,37 @@ describe('源码形状守卫（slots / disposer / 注入形态）', () => {
     expect(text).toMatch(/localStorage\.getItem/);
   });
 
-  it('src/ 零 console.*（日志纪律：宿主面无 scoped logger 前一律静默，观测定向走遥测）', () => {
+  it('console.* 只允许出现在 logger.ts 的唯一 sink（调用方一律走 Logger 接口）', () => {
     expect(CONSOLE_SAMPLE).toMatch(/console\.(log|warn|error|info|debug)\(/);
+
+    // M1 演进说明：原断言是"src/ 全域零 console.*"，那是 logger 落地**之前**的形态。
+    // docs/anic/11 §L 的 M1 切片引入 scoped logger 后，console 引用被**刻意集中**
+    // 到 host/logger.ts 的 consoleSink 一处（注释：「console 引用集中在本文件，
+    // 调用方只拿 Logger 接口」）。因此正确的守卫形状不是"零 console"，
+    // 而是"console 只准出现在这一个文件里"——后者比前者更强：它同时禁止了
+    // 新调用点绕过 Logger 直接打日志。
+    const SANCTIONED = SRC_FILES.filter((f) => f.endsWith(join('host', 'logger.ts')));
+    expect(SANCTIONED, '必须且只能有一个 logger 实现文件').toHaveLength(1);
+
+    const offenders: string[] = [];
     for (const f of SRC_FILES) {
-      expect(readFileSync(f, 'utf8'), f).not.toMatch(/console\.(log|warn|error|info|debug)\(/);
+      const text = readFileSync(f, 'utf8');
+      if (!/console\.(log|warn|error|info|debug)\(/.test(text)) continue;
+      if (f === SANCTIONED[0]) continue;
+      offenders.push(f);
+    }
+    expect(offenders, 'console.* 必须集中到 host/logger.ts:\n' + offenders.join('\n')).toEqual([]);
+
+    // 防空转 + 反向自检：被豁免的文件里必须**真的**有 console 引用，
+    // 否则这条豁免会随重构变成"豁免了一个空文件"，而 offenders 永远为空。
+    const sinkText = readFileSync(SANCTIONED[0] ?? '', 'utf8');
+    const consoleHits = sinkText.match(/console\.(log|warn|error|info|debug)\(/g) ?? [];
+    expect(consoleHits.length, 'logger.ts 的 consoleSink 必须真的调用 console').toBeGreaterThanOrEqual(3);
+
+    // 调用方纪律：路由/客户端代码必须经 createScoped，不得直接引用 consoleSink
+    const callers = SRC_FILES.filter((f) => !f.endsWith(join('host', 'logger.ts')));
+    for (const f of callers) {
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/consoleSink/);
     }
   });
 

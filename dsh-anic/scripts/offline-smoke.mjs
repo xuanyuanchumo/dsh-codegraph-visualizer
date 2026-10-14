@@ -151,9 +151,30 @@ const redCount = (() => {
 })();
 check('FAIL 节点红圈标记（数据驱动）', redCount === expectedFailed, `red=${redCount} expected=${expectedFailed} (circles=${redRings.n})`);
 
+// M1 工具栏演进：原断言是 `buttons === 1`（M0 单按钮形态）。M1 全功能面把工具栏
+// 扩到三个动作（刷新 / 偏好抽屉 / 自举），所以`总按钮数===1`是**过期契约**，
+// 但它原本想守的东西必须保留并加强：
+//   ① 刷新按钮存在且**唯一**（两个刷新按钮 = 重复注册或渲染路径跑了两遍）；
+//   ② 三个 M1 动作各自存在（少一个 = 功能面静默缺失，这与`总数===1`是两回事）。
 const buttons = countType(tree, 'button').n;
 const svgs = countType(tree, 'svg').n;
-check('工具栏含 data-anic-refresh 刷新按钮', buttons === 1 && hasProp(tree, 'data-anic-refresh', 'true'), `buttons=${buttons}`);
+const countProp = (prop, value) => {
+  let n = 0;
+  (function walk(node, depth = 0) {
+    if (node === null || node === undefined || typeof node !== 'object' || depth > 20) return;
+    if (Array.isArray(node)) { for (const item of node) walk(item, depth + 1); return; }
+    if (typeof node.type === 'function') return walk(node.type(node.props ?? {}), depth + 1);
+    if (node.type === 'button' && node.props?.[prop] === value) n += 1;
+    const children = node.children ?? [];
+    for (const c of Array.isArray(children) ? children : [children]) walk(c, depth + 1);
+  })(tree);
+  return n;
+};
+const refreshButtons = countProp('data-anic-refresh', 'true');
+const prefsButtons = countProp('data-anic-prefs-toggle', 'true');
+const selfInitButtons = countProp('data-anic-self-init', 'true');
+check('刷新按钮存在且唯一（重复注册/双渲染路径会翻倍）', refreshButtons === 1 && hasProp(tree, 'data-anic-refresh', 'true'), `refresh=${refreshButtons}`);
+check('M1 工具栏三动作齐备（刷新/偏好/自举）', prefsButtons === 1 && selfInitButtons === 1 && buttons === 3, `buttons=${buttons} prefs=${prefsButtons} selfInit=${selfInitButtons}`);
 check('svg 根存在（renderGraph 纯渲染路径）', svgs === 1, `svgs=${svgs}`);
 
 t.unregister();
