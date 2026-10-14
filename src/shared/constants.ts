@@ -160,8 +160,41 @@ export const VIEWPORT = {
   THUMBNAIL_MAX_SCALE: 0.3,
 } as const;
 
+/**
+ * 虚拟视口（视口外节点不渲染）的开关阈值与视口外扩边距。
+ *
+ * ## SCROLL_THRESHOLD 必须低于聚类上限（cycle-93 的联合校准）
+ *
+ * 这个阈值单独看很合理，但它和 `CLUSTER` / `DYNAMIC_CLUSTER` 是**一对**约束：
+ * 虚拟视口只在**显示层**节点数超过阈值时启用（唯一消费点
+ * `src/client/hooks/useGraphRenderer.ts:341-349`），而显示层在 `code` 视图下由
+ * `computeProgressiveClusters` 产出、通常就是「一级目录聚类」的个数
+ * （`progressiveCluster.ts:448-503`：depth 0 时每个目录一个聚类节点）。
+ *
+ * 历史值 2500 是错的：一级目录数几乎不可能超过 2500，于是**默认视图下这个特性
+ * 永远不启用**（与 cycle-88「ViewLayer 第三个成员可读不可达」同族——代码在、
+ * 测试绿、功能死）。两个常量在 git 历史上从未联合校准过：
+ * `VIRTUAL_VIEWPORT` 是 2000 → 5000 → 2500 独立演进，`MAX_VISIBLE_NODES` 由另一次
+ * 提交引入。
+ *
+ * 取 500 的理由：
+ *   - 必须**小于**最小动态上限 `DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_SMALL`(800)
+ *     与 `CLUSTER.MAX_VISIBLE_NODES`(1500)：凡是会被 `enforceNodeLimit` 折叠的视图，
+ *     显示层永远到不了 2500；
+ *   - 500 是本仓库既有的「大图」分界线（`LAYOUT.LARGE_NODE_THRESHOLD`、
+ *     `WORKER_NODE_THRESHOLD` 都是 500），三处口径一致。
+ *
+ * 需要说清的一点：`enforceNodeLimit` 只折叠**聚类节点**，对大量普通节点
+ * （例如几千个一级目录、或分层视图的 layer0）并不构成硬上限——所以「阈值低于上限」
+ * 只是必要条件。真正被 J35 依赖的是**分层视图**这条无上限路径
+ * （`graphDataSlice.ts:65-101` / `viewModeTransition.ts:108-122` 直写，
+ * 层定义见 `diagram/index.ts:63-114`）。
+ *
+ * 两条约束由 `tests/unit/virtualScrollReachability.test.ts` 钉住：任何一方被改动
+ * 到使阈值不可达，该测试立刻变红。
+ */
 export const VIRTUAL_VIEWPORT = {
-  SCROLL_THRESHOLD: 2500,
+  SCROLL_THRESHOLD: 500,
   PADDING: 100,
 } as const;
 

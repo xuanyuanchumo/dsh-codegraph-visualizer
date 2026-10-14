@@ -23,6 +23,7 @@ import {
   HISTORY_ITEM,
   PANELS,
   PANEL,
+  ANALYSIS_PANEL,
 } from './selectors.ts';
 
 /** 读 store 里某个字段的当前值。 */
@@ -80,7 +81,7 @@ test.describe('J18: Rules Engine (FR-34)', () => {
     await setupPluginPage(page);
     await clickToolItem(page, TOOL_ITEM.rules);
     await expect(page.locator(TOOL_ITEM.rules)).toHaveClass(/cg-active/);
-    await expect(page.locator('.cg-rule-panel')).toBeVisible();
+    await expect(page.locator(ANALYSIS_PANEL.rule)).toBeVisible();
   });
 });
 
@@ -90,7 +91,7 @@ test.describe('v0.2.0 Feature: Hotspot Analysis (FR-35)', () => {
     await setupPluginPageInBehavioralLayer(page);
     await clickToolItem(page, TOOL_ITEM.hotspot);
     await expect(page.locator(TOOL_ITEM.hotspot)).toHaveClass(/cg-active/);
-    await expect(page.locator('.cg-hotspot-panel')).toBeVisible();
+    await expect(page.locator(ANALYSIS_PANEL.hotspot)).toBeVisible();
   });
 });
 
@@ -100,7 +101,7 @@ test.describe('v0.2.0 Feature: God Module (FR-36)', () => {
     await setupPluginPageInBehavioralLayer(page);
     await clickToolItem(page, TOOL_ITEM.godModule);
     await expect(page.locator(TOOL_ITEM.godModule)).toHaveClass(/cg-active/);
-    await expect(page.locator('.cg-godmodule-panel')).toBeVisible();
+    await expect(page.locator(ANALYSIS_PANEL.godModule)).toBeVisible();
   });
 });
 

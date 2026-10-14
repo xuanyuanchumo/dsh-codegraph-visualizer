@@ -50,6 +50,8 @@ export const PANEL = {
   collapsedFab: '.cg-collapse-fab',
   collapsedClass: 'cg-collapsed',
   activeClass: 'cg-active',
+  /** 面板自行调整尺寸模式的类名（宿主托管集成模式下会被去掉，见 `useGraphDerivedValues.ts:71`）。 */
+  resizableClass: 'cg-resizable',
 } as const;
 
 /** 工具栏三个视图/布局下拉的触发器。 */
@@ -172,7 +174,16 @@ export const PANELS = {
   overlayBar: '.cg-overlay-bar',
 } as const;
 
-/** 分析面板根：`variant` 见 `AnalysisPanelShell` 调用方。 */
+/**
+ * 分析面板根：`variant` 见 `AnalysisPanelShell` 调用方。
+ *
+ * 注意两类面板**不是**同一种构造：
+ * - 大部分面板由 `AnalysisPanelShell.tsx:23` 的 `cg-${variant}-panel` 模板拼出
+ *   （7 个调用点：core-function / cycle / deadcode / godmodule / hotspot / impact / runtime）；
+ * - `rule` 是独立组件（`RuleConfigPanel.tsx:32` 直接写字面量 `cg-rule-panel`），
+ *   它**不属于**那个模板族，所以 `.cg-rule-panel` 必须在这里显式登记，
+ *   否则契约守卫的动态豁免会把它当成模板产物放行（cycle-93 修的就是这个洞）。
+ */
 export const ANALYSIS_PANEL = {
   shell: '.cg-analysis-panel',
   close: '.cg-analysis-panel .cg-close-btn',
@@ -182,6 +193,10 @@ export const ANALYSIS_PANEL = {
   hotspot: '.cg-hotspot-panel',
   godModule: '.cg-godmodule-panel',
   deadCode: '.cg-deadcode-panel',
+  /** 规则配置面板（独立组件，非 AnalysisPanelShell 族）。 */
+  rule: '.cg-rule-panel',
+  /** 运行时面板根：由 `AnalysisPanelShell` 模板拼出，CSS 在 `runtime-panel.css:14`。 */
+  runtime: '.cg-runtime-panel',
 } as const;
 
 /** 微观视图（CFG / 流程图 / 时序图）。 */

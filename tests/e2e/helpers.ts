@@ -332,7 +332,7 @@ export async function assertToggleBehavior(
   btnSelector: string,
   opts?: { activeClass?: string; timeout?: number },
 ): Promise<void> {
-  const activeClass = opts?.activeClass ?? 'cg-active';
+  const activeClass = opts?.activeClass ?? PANEL.activeClass;
   const timeout = opts?.timeout ?? 5000;
   const btn = page.locator(btnSelector);
   await btn.click();
@@ -453,7 +453,7 @@ export async function getIntegrationMode(page: Page): Promise<string | null> {
 /** 面板是否处于「可自行调整尺寸」模式（即带 `cg-resizable`）。 */
 export async function isPanelResizable(page: Page): Promise<boolean> {
   const cls = await page.locator(PANEL.root).getAttribute('class');
-  return (cls ?? '').split(/\s+/).includes('cg-resizable');
+  return (cls ?? '').split(/\s+/).includes(PANEL.resizableClass);
 }
 
 // ---------------------------------------------------------------------------
@@ -714,8 +714,8 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
   //       因此把「面板几何 + 图容器矩形 + zoom/pan/全部节点坐标」合成**一个签名**，
   //       要求它连续 SETTLE_MS 不变才放行；任何一次 resize/fit 都会重置计时。
   await page.waitForFunction(
-    (settle) => {
-      const panel = document.querySelector('.cg-graph-panel');
+    (settle, panelSel, containerSel) => {
+      const panel = document.querySelector(panelSel);
       if (!panel) return false;
 
       const panelTop = panel.getBoundingClientRect().top + window.scrollY;
@@ -728,7 +728,7 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
       const cy = (window as any).__cytoscape;
       if (!cy || cy.nodes().length === 0) return false;
 
-      const container = document.querySelector('.cg-graph-container');
+      const container = document.querySelector(containerSel);
       const cr = container ? container.getBoundingClientRect() : null;
       const pr = panel.getBoundingClientRect();
       const sig =
@@ -748,7 +748,9 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
       return performance.now() - (w.__cgVisSigSin ?? 0) >= settle;
     },
     SETTLE_MS,
-    { timeout, polling: 100 }
+    { timeout, polling: 100 },
+    PANEL.root,
+    PANEL.graphContainer
   );
 
   // 2) 字体就绪：文字未落定时截图会拍到 fallback 字形。
@@ -759,10 +761,10 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
 
   // 3) 字体就绪后再确认一次签名未变（字体若触发了 resize/fit，上面那轮就白等了）
   await page.waitForFunction(
-    (settle) => {
+    (settle, containerSel) => {
       const cy = (window as any).__cytoscape;
       if (!cy) return false;
-      const container = document.querySelector('.cg-graph-container');
+      const container = document.querySelector(containerSel);
       const cr = container ? container.getBoundingClientRect() : null;
       const sig =
         `c${cr ? `${Math.round(cr.width)}x${Math.round(cr.height)}` : 'none'}` +
@@ -779,7 +781,8 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
       return performance.now() - (w.__cgVisSigAfterFontsSin ?? 0) >= settle;
     },
     SETTLE_MS,
-    { timeout, polling: 100 }
+    { timeout, polling: 100 },
+    PANEL.graphContainer
   );
 }
 

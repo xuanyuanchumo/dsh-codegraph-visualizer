@@ -166,14 +166,14 @@ test('visual screenshots with assertions', async ({ page }) => {
 
   await selectLayout(page, 'dagre');
   await openDropdown(page, TRIGGERS.layout, DROPDOWN_CONTENT.layout);
-  await expect(page.locator('.cg-layout-option-dagre')).toHaveClass(/cg-active/, { timeout: 10000 });
+  await expect(page.locator(OPTION.layout('dagre'))).toHaveClass(/cg-active/, { timeout: 10000 });
   await page.keyboard.press('Escape');
   await waitForVisualStable(page);
   await expectSnapshot(page, 'e2e-02-dagre.png');
 
   await selectLayout(page, 'circle');
   await openDropdown(page, TRIGGERS.layout, DROPDOWN_CONTENT.layout);
-  await expect(page.locator('.cg-layout-option-circle')).toHaveClass(/cg-active/, { timeout: 10000 });
+  await expect(page.locator(OPTION.layout('circle'))).toHaveClass(/cg-active/, { timeout: 10000 });
   await page.keyboard.press('Escape');
   await waitForVisualStable(page);
   await expectSnapshot(page, 'e2e-03-circle.png');
@@ -259,7 +259,7 @@ test('J39 hierarchy dropdown screenshot', async ({ page }) => {
   await setupPluginPage(page);
   await waitForGraphReady(page);
   await openDropdown(page, TRIGGERS.level, DROPDOWN_CONTENT.level);
-  await expect(page.locator('.cg-level-option-0')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(OPTION.level(0))).toBeVisible({ timeout: 10000 });
   await waitForVisualStable(page);
   await expectSnapshot(page, 'e2e-12-level-dropdown.png');
 });
@@ -269,7 +269,7 @@ test('more dropdown screenshot', async ({ page }) => {
   await setupPluginPage(page);
   await waitForGraphReady(page);
   await openDropdown(page, TRIGGERS.more);
-  await expect(page.locator('.cg-more-theme')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(OPTION.more('theme'))).toBeVisible({ timeout: 10000 });
   await waitForVisualStable(page);
   await expectSnapshot(page, 'e2e-13-more-dropdown.png');
 });

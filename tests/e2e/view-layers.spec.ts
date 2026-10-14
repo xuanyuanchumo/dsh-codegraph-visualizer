@@ -41,13 +41,13 @@ test.describe('J39: View Mode Layered Navigation (FR-14)', () => {
 
   test('Layer 0 概览应显示聚类节点', async ({ page }) => {
     await setupPluginPage(page);
-    const nodes = page.locator('.cg-graph-container canvas, .cg-graph-container svg');
+    const nodes = page.locator(`${PANEL.graphContainer} canvas, ${PANEL.graphContainer} svg`);
     await expect(nodes).toBeVisible({ timeout: 5000 });
   });
 
   test('展开聚类应显示内部节点（Layer 1）', async ({ page }) => {
     await setupPluginPage(page);
-    const clusterNodes = page.locator('.cg-graph-container canvas, .cg-graph-container svg');
+    const clusterNodes = page.locator(`${PANEL.graphContainer} canvas, ${PANEL.graphContainer} svg`);
     await expect(clusterNodes).toBeVisible({ timeout: 5000 });
   });
 

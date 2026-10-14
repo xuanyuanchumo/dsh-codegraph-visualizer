@@ -1,17 +1,18 @@
 // E2E tests for J2: 图谱浏览与导航
 import { test, expect } from '@playwright/test';
 import { setupPluginPage } from './helpers.ts';
+import { PANEL } from './selectors.ts';
 
 test.describe('J2: 图谱浏览与导航', () => {
   test('should display graph container', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
   });
 
   test('should support zoom interaction', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     const box = await graphContainer.boundingBox();
     expect(box).not.toBeNull();
     if (box) {
@@ -23,7 +24,7 @@ test.describe('J2: 图谱浏览与导航', () => {
 
   test('should support pan interaction', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     const box = await graphContainer.boundingBox();
     if (box) {
       await page.mouse.move(box.x + 50, box.y + 50);
@@ -37,12 +38,12 @@ test.describe('J2: 图谱浏览与导航', () => {
   test('should handle large number of nodes gracefully', async ({ page }) => {
     await setupPluginPage(page);
     // The dev harness loads 12 mock nodes; verify no crash.
-    await expect(page.locator('.cg-graph-panel')).toBeVisible();
+    await expect(page.locator(PANEL.root)).toBeVisible();
   });
 
   test('should display node count', async ({ page }) => {
     await setupPluginPage(page);
-    const nodeCount = page.locator('.cg-node-count');
+    const nodeCount = page.locator(PANEL.nodeCount);
     await expect(nodeCount).toBeVisible();
     const text = await nodeCount.textContent();
     expect(text).toMatch(/nodes|n\b/i);

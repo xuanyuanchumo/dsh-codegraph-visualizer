@@ -23,7 +23,7 @@ import {
   selectNodeStrict,
   TIMEOUTS,
 } from './helpers.ts';
-import { SEARCH, TRIGGERS, TOOL_ITEM, ANALYSIS_PANEL, PANELS, CY_CLASS } from './selectors.ts';
+import { SEARCH, TRIGGERS, TOOL_ITEM, ANALYSIS_PANEL, PANELS, PANEL, CY_CLASS } from './selectors.ts';
 
 test.describe('J3: 符号搜索与定位', () => {
   test('should open search with search button', async ({ page }) => {
@@ -38,7 +38,7 @@ test.describe('J3: 符号搜索与定位', () => {
     await clickSearchButton(page);
     await page.locator(SEARCH.input).type('function');
     await page.waitForTimeout(300);
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
   });
 
   test('should close search with close button', async ({ page }) => {
@@ -70,8 +70,8 @@ test.describe('J4: 调用链追踪', () => {
     await expect(page.locator(TOOL_ITEM.chain)).toHaveClass(/cg-active/, { timeout: TIMEOUTS.ACTION });
     await closeDropdown(page, TRIGGERS.tools);
 
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
-    await expect(page.locator('.cg-error-overlay')).not.toBeVisible();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
+    await expect(page.locator(PANEL.overlay)).not.toBeVisible();
     await clickToolItem(page, TOOL_ITEM.chain);
   });
 
@@ -101,7 +101,7 @@ test.describe('J4: 调用链追踪', () => {
 
     const nodeCount = await getCyNodeCount(page);
     expect(nodeCount).toBeGreaterThanOrEqual(0);
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
     await clickToolItem(page, TOOL_ITEM.chain);
   });
 
@@ -115,7 +115,7 @@ test.describe('J4: 调用链追踪', () => {
     await expect(page.locator(TOOL_ITEM.cycles)).toHaveClass(/cg-active/, { timeout: TIMEOUTS.ACTION });
     await closeDropdown(page, TRIGGERS.tools);
 
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
     await clickToolItem(page, TOOL_ITEM.chain);
     await clickToolItem(page, TOOL_ITEM.cycles);
   });
@@ -151,7 +151,7 @@ test.describe('J5: 依赖拓扑分析', () => {
     await openDropdown(page, TRIGGERS.tools);
     await expect(page.locator(TOOL_ITEM.cycles)).toHaveClass(/cg-active/, { timeout: TIMEOUTS.ACTION });
     await closeDropdown(page, TRIGGERS.tools);
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
   });
 
   test('should toggle off cycle detection cleanly', async ({ page }) => {
@@ -165,7 +165,7 @@ test.describe('J5: 依赖拓扑分析', () => {
     await openDropdown(page, TRIGGERS.tools);
     await expect(page.locator(TOOL_ITEM.cycles)).not.toHaveClass(/cg-active/, { timeout: TIMEOUTS.VISIBLE_SHORT });
     await closeDropdown(page, TRIGGERS.tools);
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
   });
 
   test('should handle graph with dependencies without crash', async ({ page }) => {
@@ -177,7 +177,7 @@ test.describe('J5: 依赖拓扑分析', () => {
     await openDropdown(page, TRIGGERS.tools);
     await expect(page.locator(TOOL_ITEM.cycles)).toHaveClass(/cg-active/, { timeout: TIMEOUTS.ACTION });
     await closeDropdown(page, TRIGGERS.tools);
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
   });
 });
 
@@ -204,7 +204,7 @@ test.describe('J15: 路径查找', () => {
     await clickToolItem(page, TOOL_ITEM.pathFind);
     await page.locator(PANELS.pathStartInput).type('a', { delay: 50 });
     await page.waitForTimeout(300);
-    await expect(page.locator('.cg-graph-container')).toBeAttached();
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
   });
 
   test('should close path find panel via close button', async ({ page }) => {
@@ -212,7 +212,7 @@ test.describe('J15: 路径查找', () => {
     await clickToolItem(page, TOOL_ITEM.pathFind);
     const pathBar = page.locator(PANELS.pathBar);
     await expect(pathBar).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
-    await page.locator(`${PANELS.pathBar} .cg-close-btn`).click();
+    await page.locator(`${PANELS.pathBar} ${PANELS.closeBtn}`).click();
     await expect(pathBar).not.toBeVisible();
   });
 

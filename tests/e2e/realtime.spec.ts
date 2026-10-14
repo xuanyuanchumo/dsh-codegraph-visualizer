@@ -9,11 +9,12 @@ import {
   fetchGraphApi,
   TIMEOUTS,
 } from './helpers.ts';
+import { PANEL } from './selectors.ts';
 
 test.describe('J9: 实时更新验证', () => {
   test('should display graph container after load', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
   });
 
@@ -22,19 +23,19 @@ test.describe('J9: 实时更新验证', () => {
     for (let i = 0; i < 5; i++) {
       await page.waitForTimeout(100);
     }
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
   });
 
   test('should not show loading overlay after initial load', async ({ page }) => {
     await setupPluginPage(page);
-    const loadingOverlay = page.locator('.cg-loading-overlay');
+    const loadingOverlay = page.locator(PANEL.loadingOverlay);
     await expect(loadingOverlay).not.toBeVisible({ timeout: 5000 });
   });
 
   test('should not show error overlay on load', async ({ page }) => {
     await setupPluginPage(page);
-    const errorOverlay = page.locator('.cg-error-overlay');
+    const errorOverlay = page.locator(PANEL.overlay);
     await expect(errorOverlay).not.toBeVisible();
   });
 
@@ -67,7 +68,7 @@ test.describe('J9: 实时更新验证', () => {
       },
     ).catch(() => null);
     expect(result).toBeNull();
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
   });
 
@@ -77,7 +78,7 @@ test.describe('J9: 实时更新验证', () => {
       await triggerFileChange(page, '.');
       await page.waitForTimeout(200);
     }
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
   });
 
@@ -85,7 +86,7 @@ test.describe('J9: 实时更新验证', () => {
     await setupPluginPage(page);
     await triggerFileChange(page, '.').catch(() => {});
     await page.waitForTimeout(500);
-    const errorOverlay = page.locator('.cg-error-overlay');
+    const errorOverlay = page.locator(PANEL.overlay);
     await expect(errorOverlay).not.toBeVisible();
   });
 
@@ -97,7 +98,7 @@ test.describe('J9: 实时更新验证', () => {
     }
     await Promise.all(promises);
     await page.waitForTimeout(500);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
   });
 });

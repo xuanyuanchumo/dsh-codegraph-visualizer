@@ -3,50 +3,125 @@ import { setupPluginPage, panGraph, getVisibleNodeCount, getCyNodeCount, openDro
 import { PANEL, TRIGGERS, DROPDOWN_CONTENT, OPTION } from './selectors.ts';
 
 test.describe('J35: 虚拟滚动', () => {
-  test('should render graph container for large graphs', async ({ page }) => {
+  /**
+   * ## 这组用例在 cycle-93 之前是什么
+   *
+   * 六条断言全是「容器可见」/「计数 >= 0」，**空图与满图都通过**，零鉴别力。
+   * 更根本的问题是：这个特性当时**根本不可达**——阈值 2500 高于 code 视图显示层的
+   * 硬上限 1500（`CLUSTER.MAX_VISIBLE_NODES`），所以「虚拟滚动是否真的开启」
+   * 无论怎么断言都不会为真，只能退化成"容器还在"。
+   * 见 `tests/unit/virtualScrollReachability.test.ts` 的源码级契约。
+   *
+   * ## 现在断言什么
+   *
+   * 1. 注入 3000 个函数节点后切到 `callgraph` 分层视图：这条路**无聚类上限**
+   *    （`graphDataSlice.ts:65-101` 直写 layer0，层定义见 `diagram/index.ts:69-73`），
+   *    所以显示层能真的越过阈值；
+   * 2. 容器上出现 `data-cg-virtual-scroll="on"`——这是该特性**唯一**在 DOM 上的
+   *    可观测痕迹（`CytoscapeRenderer.ts:233-238` 写、`:240-243` 删）；
+   * 3. 关掉它（切回小图）后标记必须消失：只有一条"开启"断言时，
+   *    一个永远写标记的实现同样能过。
+   *
+   * 为什么必须走分层视图：`code` 视图的显示层是**一级目录聚类**，
+   * 节点再多也可能只有几十个可见节点（3000 节点/3000 目录才等于 3000），
+   * 拿它做可达性断言是在赌数据形状，而不是在断言产品行为。
+   */
+  const BIG_NODE_COUNT = 3000;
+
+  /** 注入一张「每个函数都是入度为零的根」的大图，并切到无上限的 callgraph 分层视图。 */
+  async function injectLargeGraphAndSwitchToCallgraph(page: import('@playwright/test').Page): Promise<void> {
+    await page.evaluate((count: number) => {
+      const store = (window as any).__graphStore;
+      if (!store) throw new Error('__graphStore missing — dev-server must set localStorage.__cg_debug=1');
+      const nodes = [];
+      for (let i = 0; i < count; i++) {
+        nodes.push({
+          id: `big${i}`,
+          label: `fn${i}`,
+          type: 'function',
+          filePath: `src/mod${i}/file${i}.ts`,
+          lineNumber: 1,
+          properties: {},
+        });
+      }
+      // 入度为零 ⇒ CallGraphAssembler.enrichNode 置 isEntry=true ⇒ 全部落在 layer0
+      // （`diagram/index.ts:70`：isEntry===true || depth<=1）。
+      store.getState().setGraphData(nodes, [], 'e2e-virtual-scroll');
+      store.getState().setViewMode('callgraph');
+    }, BIG_NODE_COUNT);
+  }
+
+  test('should enable virtual scroll once the display layer passes the threshold', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator(PANEL.graphContainer);
-    await expect(graphContainer).toBeVisible();
+    await injectLargeGraphAndSwitchToCallgraph(page);
+
+    // 前置条件先钉住：显示层真的越过了阈值，否则下面的断言会因为"图太小"而失败，
+    // 让人误以为是虚拟滚动坏了。
+    const displayCount = await page.evaluate(() => (window as any).__graphStore.getState().nodes.length);
+    expect(displayCount, '分层视图的显示层没有超过阈值，本用例无法验证虚拟滚动').toBeGreaterThan(
+      VIRTUAL_SCROLL_THRESHOLD
+    );
+
+    await expect(page.locator(PANEL.graphContainer)).toHaveAttribute('data-cg-virtual-scroll', 'on', {
+      timeout: 10000,
+    });
   });
 
-  test('should not crash with empty graph data', async ({ page }) => {
+  test('should turn virtual scroll back off for a small graph (reverse check)', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator(PANEL.root);
-    await expect(graphPanel).toBeVisible();
+    await injectLargeGraphAndSwitchToCallgraph(page);
+    await expect(page.locator(PANEL.graphContainer)).toHaveAttribute('data-cg-virtual-scroll', 'on', {
+      timeout: 10000,
+    });
+
+    // 切回小图：标记必须消失。没有这一条，"永远写标记"的实现也能通过上面那条。
+    await page.evaluate(() => {
+      const store = (window as any).__graphStore;
+      store.getState().setViewMode('code');
+      store.getState().setGraphData(
+        [
+          {
+            id: 'small1',
+            label: 'only',
+            type: 'function',
+            filePath: 'src/a.ts',
+            lineNumber: 1,
+            properties: {},
+          },
+        ],
+        [],
+        'e2e-virtual-scroll-small'
+      );
+    });
+    await expect(page.locator(PANEL.graphContainer)).not.toHaveAttribute('data-cg-virtual-scroll', 'on', {
+      timeout: 10000,
+    });
   });
 
-  test('should maintain graph container during pan', async ({ page }) => {
+  test('should keep the graph container alive while panning a virtualised large graph', async ({ page }) => {
     await setupPluginPage(page);
-    await panGraph(page, 100, 50);
-    const graphContainer = page.locator(PANEL.graphContainer);
-    await expect(graphContainer).toBeVisible();
-  });
+    await injectLargeGraphAndSwitchToCallgraph(page);
+    await expect(page.locator(PANEL.graphContainer)).toHaveAttribute('data-cg-virtual-scroll', 'on', {
+      timeout: 10000,
+    });
 
-  test('should maintain non-negative visible node count during pan', async ({ page }) => {
-    await setupPluginPage(page);
-    await panGraph(page, 200, 100);
-    const visibleCount = await getVisibleNodeCount(page);
-    expect(visibleCount).toBeGreaterThanOrEqual(0);
-  });
-
-  test('should not show error overlay during pan', async ({ page }) => {
-    await setupPluginPage(page);
-    await panGraph(page, 150, 75);
-    const errorOverlay = page.locator(PANEL.overlay);
-    await expect(errorOverlay).not.toBeVisible();
-  });
-
-  test('should handle rapid pan without crash', async ({ page }) => {
-    await setupPluginPage(page);
     for (let i = 0; i < 5; i++) {
       await panGraph(page, 50 * i, 30 * i);
     }
-    const graphContainer = page.locator(PANEL.graphContainer);
-    await expect(graphContainer).toBeAttached();
-    const nodeCount = await getCyNodeCount(page);
-    expect(nodeCount).toBeGreaterThanOrEqual(0);
+
+    await expect(page.locator(PANEL.graphContainer)).toBeAttached();
+    await expect(page.locator(PANEL.overlay)).not.toBeVisible();
+    // 注意：这里**不**断言「可见节点数 < 总数」。首屏 fit 之后全部节点都落在视口内，
+    // 可见数就等于总数——那个断言看起来很有力，实际是在赌 fit 的取景结果。
+    // 虚拟滚动"真的在裁剪"由 `VirtualViewportController` 自己的单测负责
+    // （`tests/unit/VirtualViewportController.test.ts:242-249` 断言监听与 display 写入）。
+    const visibleCount = await getVisibleNodeCount(page);
+    expect(visibleCount).toBeGreaterThan(0);
   });
 });
+
+/** 与 `src/shared/constants.ts` 的 VIRTUAL_VIEWPORT.SCROLL_THRESHOLD 对齐。 */
+const VIRTUAL_SCROLL_THRESHOLD = 500;
 
 test.describe('J36: 增量布局', () => {
   test('should support layout switching without full re-render', async ({ page }) => {

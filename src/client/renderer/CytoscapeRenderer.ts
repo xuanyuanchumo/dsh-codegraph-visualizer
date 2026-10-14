@@ -218,12 +218,28 @@ export class CytoscapeRenderer implements IRenderer {
     this.layoutCtrl?.applyWorkerLayout(positions);
   }
 
+  /**
+   * 开启虚拟视口（视口外的节点不渲染）。
+   *
+   * 这里额外往容器上写一个 `data-cg-virtual-scroll` 标记，原因是这个特性在 DOM 上
+   * **完全不可观测**：它只改 cytoscape 内部的 `display` 状态，元素还在、canvas 还在，
+   * 任何「元素可见」类断言在开启与未开启时结果相同。cycle-93 之前 E2E 的 J35
+   * 因此只能断言「容器可见」，零鉴别力。
+   *
+   * 标记沿用本仓库既有的 `data-cg-*` 集成标记约定（`useGraphDerivedValues.ts:71` 的
+   * `data-cg-integration`）。写成「只有真的启用成功才标记」，避免
+   * `virtualViewportCtrl` 为 null 时留下一个骗人的标记。
+   */
   enableVirtualScroll(): void {
     this.virtualViewportCtrl?.enable();
+    if (this.virtualViewportCtrl?.isEnabled()) {
+      this.options.container?.setAttribute?.('data-cg-virtual-scroll', 'on');
+    }
   }
 
   disableVirtualScroll(): void {
     this.virtualViewportCtrl?.disable();
+    this.options.container?.removeAttribute?.('data-cg-virtual-scroll');
   }
 
   isVirtualScrollEnabled(): boolean {

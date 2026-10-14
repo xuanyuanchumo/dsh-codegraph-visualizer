@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { setupPluginPage } from './helpers.ts';
+import { PANEL, TRIGGERS } from './selectors.ts';
 
 test.describe('J19: 版本对比', () => {
   test('should have diff endpoint available', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator('.cg-graph-panel');
+    const graphPanel = page.locator(PANEL.root);
     await expect(graphPanel).toBeVisible();
   });
 
@@ -26,7 +27,7 @@ test.describe('J19: 版本对比', () => {
 test.describe('J20: DSH Agent 图谱查询', () => {
   test('should respond to codegraph:symbol-select event', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator('.cg-graph-panel');
+    const graphPanel = page.locator(PANEL.root);
     await expect(graphPanel).toBeVisible();
   });
 
@@ -56,7 +57,7 @@ test.describe('J21: MCP Server 接入', () => {
 test.describe('J22: CI/CD 架构报告', () => {
   test('should export graph as JSON for CI pipelines', async ({ page }) => {
     await setupPluginPage(page);
-    const exportBtn = page.locator('.cg-export-btn');
+    const exportBtn = page.locator(TRIGGERS.export);
     await expect(exportBtn).toBeVisible();
   });
 });

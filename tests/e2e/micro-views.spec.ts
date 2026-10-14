@@ -122,7 +122,7 @@ test.describe('J45: 核心函数微观探索', () => {
     await setupPluginPage(page);
     // 面板开关在「工具」下拉内，未展开时不在 DOM 中。
     await openDropdown(page, TRIGGERS.tools);
-    await expect(page.locator('.cg-corefunction-btn')).toBeVisible();
+    await expect(page.locator(TOOL_ITEM.coreFunction)).toBeVisible();
   });
 
   test('核心函数面板默认不应显示', async ({ page }) => {

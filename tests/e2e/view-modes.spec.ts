@@ -14,7 +14,7 @@ import {
   selectViewMode,
   TIMEOUTS,
 } from './helpers.ts';
-import { CY_CLASS, TRIGGERS, ANALYSIS_PANEL, TOOL_ITEM, OPTION } from './selectors.ts';
+import { CY_CLASS, TRIGGERS, ANALYSIS_PANEL, TOOL_ITEM, OPTION, PANEL } from './selectors.ts';
 
 test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
   test('should pan graph without losing nodes', async ({ page }) => {
@@ -87,7 +87,7 @@ test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
       await page.waitForTimeout(500);
     }
 
-    const collapseFab = page.locator('.cg-collapse-fab');
+    const collapseFab = page.locator(PANEL.collapsedFab);
     await expect(collapseFab).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
     await collapseFab.click();
     await page.waitForTimeout(300);
@@ -137,7 +137,7 @@ test.describe('J23: 影响分析', () => {
 
   test('should highlight upstream nodes when impact is enabled', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeVisible();
   });
 });
@@ -164,6 +164,6 @@ test.describe('J24: 继承层次图', () => {
     // 下拉内应能选到 4 个层级。
     await page.locator(TRIGGERS.level).click();
     await expect(page.locator(OPTION.level(0))).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
-    await expect(page.locator('.cg-level-option-3')).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+    await expect(page.locator(OPTION.level(3))).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
   });
 });
