@@ -557,7 +557,16 @@
       "timestamp": "2026-10-14T05:54:45.272Z",
       "previousHash": "afe25d53b690cc3ce94a241e269855167b04669914070de3822af4941693a6c6",
       "hash": "ca54218e3d7db2d3b2a598876d2a62363cb10d1fcbe53f2e8e35b1622b60a35d"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "All 11 tasks completed",
+      "timestamp": "2026-10-14T06:07:42.016Z",
+      "previousHash": "ca54218e3d7db2d3b2a598876d2a62363cb10d1fcbe53f2e8e35b1622b60a35d",
+      "hash": "6f6c5c090542003dc1754f1c90349a90e2cf59ecb79dc3c214691e454354aacb"
     }
   ],
-  "chainHead": "ca54218e3d7db2d3b2a598876d2a62363cb10d1fcbe53f2e8e35b1622b60a35d"
+  "chainHead": "6f6c5c090542003dc1754f1c90349a90e2cf59ecb79dc3c214691e454354aacb"
 }
