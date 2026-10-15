@@ -9,6 +9,8 @@
  * anic_skill 的 script 枚举在运行时取自 listSkillScripts()（单一事实源），
  * 由 tests/unit/skillToolNative.test.ts 钉死（白名单 ⇄ 内联底座集合恰好相等）。
  */
+import { join } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
 import type { ToolRegistration, ToolsSlot } from './toolsSlot.ts';
 import {
   resolveSkillScriptsDir,
@@ -19,6 +21,14 @@ import {
   autoInstallSkill,
   isSkillInstalled,
 } from './skillInvoker.ts';
+import {
+  loadFlowTracker,
+  startFlow,
+  finishFlow,
+  recentFlows,
+  flowStats,
+  type FlowTrackerState,
+} from './runtime/flowTracker.ts';
 
 export function registerSkillGatewayTools(
   tools: ToolsSlot,
@@ -99,8 +109,21 @@ export function registerSkillGatewayTools(
       }
       const extraArgs = Array.isArray(args.args) ? (args.args as unknown[]).map(String) : [];
       const timeout = typeof args.timeout === 'number' && args.timeout > 0 ? args.timeout : 60000;
+
+      // M10-a：每流程状态跟踪——为每次调用创建独立 FlowRecord，
+      // 持久化到 {workspace}/.cycles/flow-tracker.json，供 anic_status 查询和大模型自举审计。
+      const cyclesDir = join(ws, '.cycles');
+      if (!existsSync(cyclesDir)) mkdirSync(cyclesDir, { recursive: true });
+      let trackerState = loadFlowTracker(cyclesDir);
+      const { state: startedState, flowId } = startFlow(cyclesDir, trackerState, script, ws, extraArgs);
+      trackerState = startedState;
+
       const result = invokeSkillScript(scriptsDir, script, extraArgs, ws, timeout);
+
+      trackerState = finishFlow(cyclesDir, trackerState, flowId, result);
+
       return {
+        flowId,
         script: result.script,
         exitCode: result.exitCode,
         timedOut: result.timedOut,

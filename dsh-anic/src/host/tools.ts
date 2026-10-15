@@ -10,6 +10,9 @@ import { resolveWorkspaceRoots, type SnapshotCtx } from './snapshotRoute.ts';
 import { registerSkillGatewayTools } from './toolsSkillGateway.ts';
 import type { ToolsSlot } from './toolsSlot.ts';
 import { resolveSkillScriptsDir, invokeSkillScript, validateWorkspace } from './skillInvoker.ts';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { loadFlowTracker, recentFlows, flowStats } from './runtime/flowTracker.ts';
 
 interface HostContext {
   tools?: ToolsSlot;
@@ -197,19 +200,34 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     },
   }) ?? null);
 
-  // Tool: anic_status — get full org status panorama (native, no skill dependency)
+  // Tool: anic_status — get full org status panorama + recent flow tracker records
   disposers.push(tools.register({
     name: 'anic_status',
-    description: 'Get full org status panorama (cycles + ledger + trust + autonomy + band + flows) for a project',
+    description: 'Get full org status panorama (cycles + ledger + trust + autonomy + band + flows) for a project, plus recent skill invocation flow records',
     inputSchema: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
+        flowLimit: { type: 'number', description: 'Max recent flow records to return (default 10, max 50)' },
       },
     },
     handler: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
-      return { statusUrl: `/anic/org-status?workspace=${encodeURIComponent(root)}` };
+      const flowLimit = Math.min(Math.max(typeof args.flowLimit === 'number' ? args.flowLimit : 10, 1), 50);
+      // M10-a：附加 FlowTracker 最近记录与统计，供大模型和开发人员查阅管理
+      const cyclesDir = join(root, '.cycles');
+      let flows: unknown[] = [];
+      let stats: Record<string, unknown> = {};
+      if (existsSync(cyclesDir)) {
+        const trackerState = loadFlowTracker(cyclesDir);
+        flows = recentFlows(trackerState, flowLimit);
+        stats = flowStats(trackerState);
+      }
+      return {
+        statusUrl: `/anic/org-status?workspace=${encodeURIComponent(root)}`,
+        flows,
+        flowStats: stats,
+      };
     },
   }) ?? null);
 

@@ -33,3 +33,4 @@
 - truthAudit T4 工具计数扫描整个工具域（`src/host/tools*.ts` glob），不硬编码 tools.ts 单文件——工具拆分后单文件计数漏报
 - `anic_install` 不得先 validateWorkspace（要求目录已存在）——安装就是 bootstrap 新目录的动作，只做 `..` 形状校验，mkdir 交给 autoInstallSkill
 - smoke 读 dist/ 且 vitest T3（≤250 行）会拦拆分前的超长文件——工具域新文件放 toolsSkillGateway.ts，槽位形状在 toolsSlot.ts
+- FlowTracker 每流程状态跟踪：anic_skill handler 在 invokeSkillScript 前后调用 startFlow/finishFlow，持久化到 {workspace}/.cycles/flow-tracker.json；flowStats 中 `stats[f.script]` 在 noUncheckedIndexedAccess 下需用 let s 本地变量收窄（直接 `stats[f.script].total++` 会 TS2532）

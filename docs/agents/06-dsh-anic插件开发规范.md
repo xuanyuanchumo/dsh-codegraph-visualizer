@@ -134,9 +134,9 @@ export function createNodeAdapters(): Adapters; // 生产用；测试注入 mock
 | `anic_snapshot` | 生成快照 | （宿主原生） | tools.ts |
 | `anic_self_check` | 自检 | （宿主原生） | tools.ts |
 | `anic_hitl` | 人工介入审计 | （宿主原生） | tools.ts |
-| `anic_status` | 状态查询 | （宿主原生） | tools.ts |
+| `anic_status` | 状态查询 + FlowTracker 最近记录与统计（flowLimit 参数） | （宿主原生） | tools.ts |
 | `anic_install` | 技能安装到工作区（真执行 autoInstallSkill，可 bootstrap 尚不存在的目录） | — | toolsSkillGateway.ts |
-| `anic_skill` | **全白名单通用网关**：任意 15 脚本原生调用（script+workspace+args+timeout） | 15/15 | toolsSkillGateway.ts |
+| `anic_skill` | **全白名单通用网关**：任意 15 脚本原生调用（script+workspace+args+timeout）+ FlowTracker 每流程状态跟踪 | 15/15 | toolsSkillGateway.ts |
 
 ### 5.0 覆盖性契约（用户需求：所有功能业务脚本必须能 DSH 原生调用）
 
@@ -159,12 +159,21 @@ node <scriptPath> <workspace> ...args
 
 `resolveSkillScriptsDir(workspace)`（同文件，唯一定义——selfInitRoute 的本地副本已删）候选链：`ANIC_SKILL_DIR` env → `workspace/.dsh` → `workspace/../.dsh` → `process.cwd()/.dsh` → 插件内联底座；所有外部候选必须通过哨兵检查（`init-workflow.mjs` 存在）。
 
+### 5.2 FlowTracker 每流程状态跟踪（M10-a）
+
+每次 `anic_skill` 调用创建一个独立 `FlowRecord`，跟踪 `INVOKING → RUNNING → DONE/FAILED/TIMEOUT`，持久化到 `{workspace}/.cycles/flow-tracker.json` 供审计。
+
+- **实现**：`src/host/runtime/flowTracker.ts`（158 行）—— `startFlow` / `finishFlow` / `recentFlows` / `activeFlows` / `flowStats`，MAX_FLOWS=200 滚动淘汰，stdout ≤8000 / stderr ≤4000 截断，原子写入。
+- **接入**：`anic_skill` handler 在 `invokeSkillScript` 前后调用 `startFlow` / `finishFlow`，返回 `flowId`；`anic_status` 增加 `flowLimit` 参数 + `flows` + `flowStats` 返回。
+- **测试**：`tests/unit/flowTracker.test.ts` 15 例——生命周期 / 查询 / 滚动淘汰 / 截断 / 持久化健壮性 / flowId 唯一性。
+- **设计意图**：大模型自举时可查询 `anic_status` 获取最近调用历史与成功率统计，开发人员可查阅 `.cycles/flow-tracker.json` 审计。
+
 ## 6. 测试金字塔
 
 | 层 | 命令 | 范围 | 当前状态 |
 |---|---|---|---|
 | L1 validate | `pnpm run lint` | DSH 规范符合性门（`validate-dsh.mjs`） | 12/12 ✅ |
-| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 165/165 ✅ |
+| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 185/185 ✅ |
 | L3 smoke | `pnpm run test:smoke` | stub 宿主机制冒烟 | 19/19 ✅ |
 | L4 j0-probe | `pnpm run j0` | 真实宿主 J0 六步协议探针 | 按需运行 |
 | L5 替代性 e2e | vitest（`skillReplaceE2E`） | 插件内联技能 → 全新工作区完整自举 | 7/7 ✅ |
@@ -183,7 +192,9 @@ dsh-anic/tests/unit/
   truthAudit.test.ts       # 真值审计
   skillInvokerContract.test.ts  # 技能调用器契约（唯一定义 + 真实使用方）
   skillReplaceE2E.test.ts  # 技能替代能力端到端（安装→脚手架→状态，P1 回归锚点）
-  ...（共 13 个套件）
+  skillToolNative.test.ts  # DSH 原生工具调用面（白名单⇄底座 + stub spawn 全链）
+  flowTracker.test.ts      # FlowTracker 每流程状态跟踪（生命周期/查询/淘汰/截断/持久化）
+  ...（共 15 个套件）
 ```
 
 ## 7. 独立性守卫（G-IND）
