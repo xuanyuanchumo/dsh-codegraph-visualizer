@@ -40,6 +40,7 @@
     "test:web": "playwright test --project=regression",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
+    "test:performance": "playwright test --project=performance",
     "perf-gate": "node scripts/perf-gate.mjs",
     "lint": "oxlint src/",
     "lint:fix": "oxlint src/ --fix",
