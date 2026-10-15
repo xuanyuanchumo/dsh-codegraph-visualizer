@@ -29,6 +29,7 @@ import {
   flowStats,
   type FlowTrackerState,
 } from './runtime/flowTracker.ts';
+import { runSelfBootstrapCycle } from './runtime/bootstrapOrchestrator.ts';
 
 export function registerSkillGatewayTools(
   tools: ToolsSlot,
@@ -130,6 +131,40 @@ export function registerSkillGatewayTools(
         durationMs: result.durationMs,
         stdout: result.stdout.slice(0, 8000),
         stderr: result.stderr.slice(0, 4000),
+      };
+    },
+  }) ?? null);
+
+  // Tool: anic_bootstrap_cycle — M10-b 自举链编排：eval → gate → fix 自动驱动循环。
+  // 大模型可调用此工具驱动完整自举循环，无需手动逐步调用 eval/gate/fix。
+  // 每步通过 FlowTracker 记录，供 anic_status 查询审计。
+  disposers.push(register({
+    name: 'anic_bootstrap_cycle',
+    description: 'Run a full self-bootstrap cycle (eval → gate → fix → repeat) on the workspace. '
+      + 'Each step is tracked by FlowTracker. Returns final state, per-round details, and convergence status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: { type: 'string', description: 'Target project directory' },
+        maxRounds: { type: 'number', description: 'Maximum bootstrap rounds (default 3, max 10)' },
+        timeout: { type: 'number', description: 'Per-step timeout ms (default 60000)' },
+      },
+    },
+    handler: async (args) => {
+      const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
+      if (!ws) return { error: 'no workspace' };
+      if (ws.includes('..')) return { error: 'path traversal not allowed' };
+      const maxRounds = Math.min(Math.max(typeof args.maxRounds === 'number' ? args.maxRounds : 3, 1), 10);
+      const timeout = typeof args.timeout === 'number' && args.timeout > 0 ? args.timeout : 60000;
+
+      const result = runSelfBootstrapCycle(ws, maxRounds, timeout);
+      return {
+        status: result.state.status,
+        round: result.state.round,
+        converged: result.converged,
+        lastEvalScore: result.state.lastEvalScore,
+        lastGateVerdict: result.state.lastGateVerdict,
+        rounds: result.rounds,
       };
     },
   }) ?? null);
