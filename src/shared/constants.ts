@@ -194,7 +194,7 @@ export const VIEWPORT = {
  * 到使阈值不可达，该测试立刻变红。
  */
 export const VIRTUAL_VIEWPORT = {
-  SCROLL_THRESHOLD: 500,
+  SCROLL_THRESHOLD: 5000,
   PADDING: 100,
 } as const;
 

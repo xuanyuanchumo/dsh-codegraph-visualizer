@@ -12,6 +12,7 @@
 import { join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { ToolRegistration, ToolsSlot } from './toolsSlot.ts';
+import { safeHandler } from './toolsSlot.ts';
 import {
   resolveSkillScriptsDir,
   invokeSkillScript,
@@ -51,7 +52,7 @@ export function registerSkillGatewayTools(
         workspace: { type: 'string', description: 'Target project directory' },
       },
     },
-    handler: async (args) => {
+    handler: safeHandler(async (args) => {
       const root = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!root) return { error: 'no workspace' };
       // 只做形状校验（拒绝路径遍历），不要求目录已存在——安装本身就是
@@ -67,7 +68,7 @@ export function registerSkillGatewayTools(
         skillInstalled: isSkillInstalled(root),
         installUrl: `/anic/skill/install?workspace=${encodeURIComponent(root)}`,
       };
-    },
+    }),
   }) ?? null);
 
   // Tool: anic_skill — 全部 15 个白名单业务脚本的原生 DSH 调用网关。
@@ -97,7 +98,7 @@ export function registerSkillGatewayTools(
       },
       required: ['script'],
     },
-    handler: async (args) => {
+    handler: safeHandler(async (args) => {
       const script = String(args.script ?? '');
       if (!isAllowedScript(script)) {
         return { error: `script not whitelisted: ${script}`, allowed: listSkillScripts() };
@@ -133,7 +134,7 @@ export function registerSkillGatewayTools(
         stdout: result.stdout.slice(0, 8000),
         stderr: result.stderr.slice(0, 4000),
       };
-    },
+    }),
   }) ?? null);
 
   // Tool: anic_bootstrap_cycle — M10-b 自举链编排：eval → gate → fix 自动驱动循环。
@@ -151,7 +152,7 @@ export function registerSkillGatewayTools(
         timeout: { type: 'number', description: 'Per-step timeout ms (default 60000)' },
       },
     },
-    handler: async (args) => {
+    handler: safeHandler(async (args) => {
       const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!ws) return { error: 'no workspace' };
       if (ws.includes('..')) return { error: 'path traversal not allowed' };
@@ -167,7 +168,7 @@ export function registerSkillGatewayTools(
         lastGateVerdict: result.state.lastGateVerdict,
         rounds: result.rounds,
       };
-    },
+    }),
   }) ?? null);
 
   // Tool: anic_bootstrap_analyze — M10-c 模块引擎接入：编排器 + 引擎深度分析。
@@ -184,7 +185,7 @@ export function registerSkillGatewayTools(
         timeout: { type: 'number', description: 'Per-step timeout ms (default 60000)' },
       },
     },
-    handler: async (args) => {
+    handler: safeHandler(async (args) => {
       const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!ws) return { error: 'no workspace' };
       if (ws.includes('..')) return { error: 'path traversal not allowed' };
@@ -208,7 +209,7 @@ export function registerSkillGatewayTools(
           riskScore: insights.riskScore,
         },
       };
-    },
+    }),
   }) ?? null);
 
   return disposers;
