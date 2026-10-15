@@ -7,6 +7,7 @@
 import { createElement, type ReactElement } from 'react';
 import type { WorkflowEdge, WorkflowNode } from '../../workflowGraphData.ts';
 import { gateFillOf, FAIL_PULSE_STYLE } from './gateColors.ts';
+import type { StepTraceJson } from '../stepTrace/renderStepTrace.ts';
 
 // ── 类型色 ──────────────────────────────────────────────────
 
@@ -136,8 +137,6 @@ export function renderGraph(
 }
 
 // ── 辅助 ────────────────────────────────────────────────────
-
-import type { StepTraceJson } from '../stepTrace/renderStepTrace.ts';
 
 /** M3：从 step-trace 构建 verdicts map（nodeId → verdict） */
 export function buildVerdicts(trace: StepTraceJson | null): Map<string, string> | undefined {

@@ -4,6 +4,7 @@
  * GET /anic/fact-base · GET /anic/plan-sync · POST /anic/multi-agent-gate · POST /anic/fix-loop
  */
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { createScoped, newRequestId } from '../logger.ts';
 import { runHitlAudit } from '../governance/hitlAudit.ts';
 import { runBandDetection, loadBandHistory } from '../evolution/bandDetector.ts';
@@ -95,11 +96,10 @@ export function registerNativeRoute(
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
-    // 简化：使用内置验证函数（检查 .cycles/gates/ledger.json 存在性）
+    // 验证函数：检查 .cycles/gates/ledger.json 存在性
     const verifyFn = () => {
-      const ledgerExists = (() => {
-        try { return true; } catch { return false; }
-      })();
+      const ledgerPath = join(root, '.cycles', 'gates', 'ledger.json');
+      const ledgerExists = existsSync(ledgerPath);
       return { passed: ledgerExists, report: ledgerExists ? 'all checks passed' : 'ledger missing' };
     };
     const result = runFixLoop(root, verifyFn);

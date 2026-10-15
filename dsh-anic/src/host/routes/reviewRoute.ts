@@ -87,7 +87,11 @@ export function registerReviewRoute(
       verdict = heuristicReview(request);
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json', 'X-ANIC-Review-Tier': verdict.tier });
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-ANIC-Review-Tier': verdict.tier,
+    });
     res.end(JSON.stringify(verdict));
   });
 }

@@ -40,7 +40,9 @@ export function registerSkillRoutes(
       const script = body?.script;
       const args: string[] = Array.isArray(body?.args) ? body.args : [];
       const workspace = body?.workspace ?? resolveWorkspaceRoots(ctx);
-      const timeout = body?.timeout ?? 30000;
+      const timeout = typeof body?.timeout === 'number' && body.timeout > 0
+        ? Math.min(body.timeout, 120000)
+        : 30000;
 
       if (!script || !isAllowedScript(script)) {
         send(res, 400, { error: `Unknown script: ${script}. Allowed: ${listSkillScripts().join(', ')}` });

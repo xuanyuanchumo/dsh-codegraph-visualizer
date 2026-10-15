@@ -4,7 +4,7 @@
  * 纪律：只移动目录到 .cycles/archive/，永不删除（INV: 账本不可变）。
  */
 
-import { existsSync, renameSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, renameSync, statSync, readdirSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface ArchiveOptions {
@@ -57,7 +57,6 @@ export function archiveOldCycles(cyclesDir: string, opts: ArchiveOptions = {}): 
     const dst = join(archiveDir, e.name);
     try {
       if (!existsSync(archiveDir)) {
-        const { mkdirSync } = require('node:fs');
         mkdirSync(archiveDir, { recursive: true });
       }
       if (!existsSync(dst)) {
