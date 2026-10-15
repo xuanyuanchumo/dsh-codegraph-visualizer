@@ -204,3 +204,37 @@
 | 2 | 插件启用状态 | 读 switch `aria-checked` | `checked`（启用），无「异常」标签 |
 | 3 | 控制台错误 | `list_console_messages types=['error','warn']` | 零 error/warning |
 | 4 | 轨迹面板 | 读 `[role=tab]` 列表 + 轨迹时间线 | 3 标签（对话/轨迹/代码图谱）；轨迹显示 pwsh git add/commit 工具调用记录 |
+
+## 13. 第九轮：P0-P3 全面修复验证（2026-10-15）
+
+| 套件 | 命令 | 结果 | 耗时 | 备注 |
+|---|---|---|---|---|
+| dsh-anic typecheck | `node scripts/typecheck.mjs` | ✅ exit 0 | ~5s | i18n.ts 新增 + reviewRoute try/catch |
+| dsh-anic vitest | `npx vitest run` | ✅ 235/235 (20 files) | 4.9s | 全量回归无破坏 |
+| dsh-anic smoke | `node scripts/offline-smoke.mjs` | ✅ 19/19 | 0.1s | stub 宿主冒烟 |
+| dsh-anic validate | `node scripts/validate-dsh.mjs` | ✅ 12/12 | 0.4s | DSH 规范符合性门 |
+| dsh-anic build | `pnpm run build` | ✅ exit 0 | 54ms | tsdown host 170.09 kB + client |
+
+### 13.1 P0-P3 修复清单
+
+| 级别 | 修复 | 文件 | commit |
+|---|---|---|---|
+| P0-1 | require()→ESM import | archiver.ts | 8d4c771 |
+| P1-1 | verifyFn 恒 true→existsSync | nativeRoute.ts | 8d4c771 |
+| P1-2 | CORS 头 | reviewRoute.ts | 8d4c771 |
+| P1-4 | safeHandler 兜底 + reviewRoute try/catch 500 | toolsSlot.ts/toolsSkillGateway.ts/reviewRoute.ts | 3b2de1f + 13255c9 |
+| P1-6/P1-7 | any→RouteReq + parseBody 共享辅助 | routeContext.ts + 4 routes | 41df4e8 |
+| P2-1 | timeout typeof+Math.min | skillRoute.ts | 8d4c771 |
+| P2-2 | 输入校验 band/score/cycleNumber | evolutionRoute.ts/nativeRoute.ts/cycleRoute.ts | 8ec298c |
+| P2-4 | i18n t() | i18n.ts/presentation.ts/reviewRoute.ts/locale | 0ac0857 |
+| P2-5 | 20 导出函数补 JSDoc | 18 routes + 2 tools | 0ac0857 |
+| P3-2 | 16 未使用 req→_req | 5 routes | 0ac0857 |
+| P3-3 | import 移至顶部 | renderGraph.ts | 8d4c771 |
+
+### 13.2 门禁汇总（G2）
+
+| 项 | 数值 |
+|---|---|
+| 通过 | 266（235 vitest + 19 smoke + 12 validate） |
+| 失败 | 0 |
+| 错误 | 0 |
