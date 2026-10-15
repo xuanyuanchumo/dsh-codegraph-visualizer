@@ -123,7 +123,7 @@ export function createNodeAdapters(): Adapters; // 生产用；测试注入 mock
 
 ## 5. 工具注册（工具域：`tools.ts` + `toolsSkillGateway.ts`）
 
-注册 **11 个** DSH 工具供其他会话/agent 调用。技能调用域工具（anic_install + anic_skill + anic_bootstrap_cycle）拆分至 `src/host/toolsSkillGateway.ts`（T3 ≤250 行模块化纪律），槽位形状契约在 `src/host/toolsSlot.ts`。
+注册 **12 个** DSH 工具供其他会话/agent 调用。技能调用域工具（anic_install + anic_skill + anic_bootstrap_cycle + anic_bootstrap_analyze）拆分至 `src/host/toolsSkillGateway.ts`（T3 ≤250 行模块化纪律），槽位形状契约在 `src/host/toolsSlot.ts`。
 
 | 工具 | 功能 | 底层技能脚本 | 文件 |
 |---|---|---|---|

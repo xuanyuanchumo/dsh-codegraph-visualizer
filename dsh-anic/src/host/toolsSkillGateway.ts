@@ -30,6 +30,7 @@ import {
   type FlowTrackerState,
 } from './runtime/flowTracker.ts';
 import { runSelfBootstrapCycle } from './runtime/bootstrapOrchestrator.ts';
+import { runBootstrapWithEngines } from './runtime/bootstrapEngineIntegration.ts';
 
 export function registerSkillGatewayTools(
   tools: ToolsSlot,
@@ -165,6 +166,47 @@ export function registerSkillGatewayTools(
         lastEvalScore: result.state.lastEvalScore,
         lastGateVerdict: result.state.lastGateVerdict,
         rounds: result.rounds,
+      };
+    },
+  }) ?? null);
+
+  // Tool: anic_bootstrap_analyze — M10-c 模块引擎接入：编排器 + 引擎深度分析。
+  // 大模型可调用此工具获取 tech-debt + HITL 审计 + fact-base 验证 + 风险评分。
+  disposers.push(register({
+    name: 'anic_bootstrap_analyze',
+    description: 'Run a full self-bootstrap cycle with module engine analysis (tech-debt + HITL + fact-base + risk score). '
+      + 'Returns cycle results plus engine insights for developer review.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: { type: 'string', description: 'Target project directory' },
+        maxRounds: { type: 'number', description: 'Maximum bootstrap rounds (default 3, max 10)' },
+        timeout: { type: 'number', description: 'Per-step timeout ms (default 60000)' },
+      },
+    },
+    handler: async (args) => {
+      const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
+      if (!ws) return { error: 'no workspace' };
+      if (ws.includes('..')) return { error: 'path traversal not allowed' };
+      const maxRounds = Math.min(Math.max(typeof args.maxRounds === 'number' ? args.maxRounds : 3, 1), 10);
+      const timeout = typeof args.timeout === 'number' && args.timeout > 0 ? args.timeout : 60000;
+
+      const { cycle, insights } = runBootstrapWithEngines(ws, maxRounds, timeout);
+      return {
+        cycle: {
+          status: cycle.state.status,
+          round: cycle.state.round,
+          converged: cycle.converged,
+          rounds: cycle.rounds,
+        },
+        insights: {
+          techDebtCount: insights.techDebt.length,
+          techDebtFiles: insights.techDebtFiles,
+          hitlAllPassed: insights.hitlAllPassed,
+          hitlChecks: insights.hitlChecks,
+          factBase: insights.factBase,
+          riskScore: insights.riskScore,
+        },
       };
     },
   }) ?? null);
