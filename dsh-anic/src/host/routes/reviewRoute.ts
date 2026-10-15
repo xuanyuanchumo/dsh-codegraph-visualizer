@@ -35,6 +35,7 @@ export function registerReviewRoute(
   },
 ): void {
   register('POST', REVIEW_ROUTE, async (req, res) => {
+    try {
     // 读 body
     let bodyText = '';
     for await (const chunk of req) {
@@ -94,5 +95,9 @@ export function registerReviewRoute(
       'X-ANIC-Review-Tier': verdict.tier,
     });
     res.end(JSON.stringify(verdict));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'INTERNAL', message: err instanceof Error ? err.message : String(err) }));
+    }
   });
 }
