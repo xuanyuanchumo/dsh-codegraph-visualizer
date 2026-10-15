@@ -17,6 +17,8 @@ import {
   statusPresentCall,
   terminalResult,
 } from './presentation.ts';
+import { makeToolOutput } from './toolsSlot.ts';
+import { registerPointerTools } from './toolsPointerGateway.ts';
 
 interface HostContext {
   tools?: ToolsSlot;
@@ -50,6 +52,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
   disposers.push(tools.register({
     name: 'anic_evaluate',
     description: 'Evaluate a project using the ai-native-iteration-cycle skill (eval-runner)',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -80,6 +83,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
   disposers.push(tools.register({
     name: 'anic_iterate',
     description: 'Run one iteration cycle (eval + gate-check) on a project',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -107,6 +111,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
   disposers.push(tools.register({
     name: 'anic_gate_check',
     description: 'Run gate checks (gate-check --gate all --quality --record) on a project',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -134,6 +139,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
   disposers.push(tools.register({
     name: 'anic_bootstrap',
     description: 'Self-bootstrap: evaluate dsh-anic itself using the skill (produces tech-debt proposals, does NOT self-modify code)',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -157,62 +163,14 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     },
   }) ?? null);
 
-  // Tool: anic_snapshot — get workflow snapshot
-  disposers.push(tools.register({
-    name: 'anic_snapshot',
-    description: 'Get the workflow snapshot (nodes, edges, cycles, ledger) for a project',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspace: { type: 'string', description: 'Target project directory' },
-      },
-    },
-    handler: async (args) => {
-      // Delegate to the snapshot route's core logic
-      const root = (args.workspace as string) ?? getRoot() ?? '';
-      const check = validateWorkspace(root);
-      if (!check.ok) return { error: check.error };
-      // The snapshot route handles this; for tools we return a pointer
-      return { snapshotUrl: `/anic/api/workflow-snapshot?workspace=${encodeURIComponent(root)}` };
-    },
-  }) ?? null);
-
-  // Tool: anic_self_check — runtime INV probes
-  disposers.push(tools.register({
-    name: 'anic_self_check',
-    description: 'Run runtime invariant probes (INV-13/18/21/25/26) on a project',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspace: { type: 'string', description: 'Target project directory' },
-      },
-    },
-    handler: async (args) => {
-      const root = (args.workspace as string) ?? getRoot() ?? '';
-      return { selfCheckUrl: `/anic/api/self-check?workspace=${encodeURIComponent(root)}` };
-    },
-  }) ?? null);
-
-  // Tool: anic_hitl — run HITL audit (native, no skill dependency)
-  disposers.push(tools.register({
-    name: 'anic_hitl',
-    description: 'Run HITL audit (H1 sensitive files / H2 gitignore / H3 destructive / H4 ledger integrity) on a project',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspace: { type: 'string', description: 'Target project directory' },
-      },
-    },
-    handler: async (args) => {
-      const root = (args.workspace as string) ?? getRoot() ?? '';
-      return { hitlUrl: `/anic/hitl-audit?workspace=${encodeURIComponent(root)}` };
-    },
-  }) ?? null);
+  // 指针型工具（anic_snapshot/anic_self_check/anic_hitl）拆分至 toolsPointerGateway.ts
+  disposers.push(...registerPointerTools(tools.register!, getRoot));
 
   // Tool: anic_status — get full org status panorama + recent flow tracker records
   disposers.push(tools.register({
     name: 'anic_status',
     description: 'Get full org status panorama (cycles + ledger + trust + autonomy + band + flows) for a project, plus recent skill invocation flow records',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {

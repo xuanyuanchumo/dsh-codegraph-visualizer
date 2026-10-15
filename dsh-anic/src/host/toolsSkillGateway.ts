@@ -12,7 +12,7 @@
 import { join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { ToolRegistration, ToolsSlot } from './toolsSlot.ts';
-import { safeHandler } from './toolsSlot.ts';
+import { safeHandler, makeToolOutput } from './toolsSlot.ts';
 import {
   resolveSkillScriptsDir,
   invokeSkillScript,
@@ -55,6 +55,7 @@ export function registerSkillGatewayTools(
   disposers.push(register({
     name: 'anic_install',
     description: 'Install or update the ai-native-iteration-cycle skill from the plugin bundle into the workspace .dsh/skills/ (idempotent by version)',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,6 +92,7 @@ export function registerSkillGatewayTools(
     name: 'anic_skill',
     description: 'Natively invoke any whitelisted ai-native-iteration-cycle skill script '
       + `(${listSkillScripts().join(', ')}). Project dir is passed as the first positional arg per script convention.`,
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -157,6 +159,7 @@ export function registerSkillGatewayTools(
     name: 'anic_bootstrap_cycle',
     description: 'Run a full self-bootstrap cycle (eval → gate → fix → repeat) on the workspace. '
       + 'Each step is tracked by FlowTracker. Returns final state, per-round details, and convergence status.',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
@@ -192,6 +195,7 @@ export function registerSkillGatewayTools(
     name: 'anic_bootstrap_analyze',
     description: 'Run a full self-bootstrap cycle with module engine analysis (tech-debt + HITL + fact-base + risk score). '
       + 'Returns cycle results plus engine insights for developer review.',
+    output: makeToolOutput(),
     inputSchema: {
       type: 'object',
       properties: {
