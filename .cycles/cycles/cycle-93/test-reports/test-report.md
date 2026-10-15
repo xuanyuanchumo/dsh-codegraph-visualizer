@@ -170,3 +170,37 @@
 
 > 说明：第 5 项在真机上直接复现了本轮修复的效果——**同一个 3000 节点注入在修复前不可能出现该标记**（阈值 2500 且 code 视图上限 1500）。
 > 第 7 项同时排除了「插件在真机里只能看空态」的可能：换成已建索引的工作区后图谱真实渲染。
+
+## 12. 第八轮：M10-d/e 测试结果（2026-10-15）
+
+| 套件 | 命令 | 结果 | 耗时 | 备注 |
+|---|---|---|---|---|
+| dsh-anic typecheck | `node scripts/typecheck.mjs` | ✅ exit 0 | ~5s | tsconfig.client + tsconfig.host |
+| dsh-anic vitest | `npx vitest run` | ✅ 235/235 (20 files) | 5.66s | 含新增 presentCallContract 19 例 + continuousLearning 12 例 |
+| dsh-anic smoke | `pnpm run test:smoke` | ✅ 19/19 | 0.1s | stub 宿主机制冒烟 |
+| dsh-anic validate | `pnpm run lint` | ✅ 12/12 | 0.4s | DSH 规范符合性门 |
+| dsh-anic build | `pnpm run build` | ✅ exit 0 | 55ms | tsdown host 166.79 kB + client |
+
+### 12.1 新增测试套件明细
+
+| 套件 | 例数 | 覆盖内容 |
+|---|---|---|
+| presentCallContract.test.ts | 19 | terminalCall/terminalResult/genericCall/genericResult 形状 + 7 工具专用呈现函数 + 纯函数幂等性 + 安全降级 |
+| continuousLearning.test.ts | 12 | 空状态/healthy/degraded/slow/expensive/insufficient/排序/全局成功率/lastInvoked/格式化 |
+
+### 12.2 门禁汇总（G2）
+
+| 项 | 数值 |
+|---|---|
+| 通过 | 266（235 vitest + 19 smoke + 12 validate） |
+| 失败 | 0 |
+| 错误 | 0 |
+
+### 12.3 Chrome DevTools 验证（objective #7）
+
+| # | 验证项 | 方法 | 实测结果 |
+|---|---|---|---|
+| 1 | 插件面板加载 | 点击「插件」按钮 → wait_for "ANIC" | 8 官方 + 8 已安装；ANIC 工作流（uid=23_28）描述「以项目真实 .cycles/ 工件渲染的 AI 原生迭代循环工作流图」 |
+| 2 | 插件启用状态 | 读 switch `aria-checked` | `checked`（启用），无「异常」标签 |
+| 3 | 控制台错误 | `list_console_messages types=['error','warn']` | 零 error/warning |
+| 4 | 轨迹面板 | 读 `[role=tab]` 列表 + 轨迹时间线 | 3 标签（对话/轨迹/代码图谱）；轨迹显示 pwsh git add/commit 工具调用记录 |
