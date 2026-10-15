@@ -230,6 +230,7 @@
 | P2-5 | 20 导出函数补 JSDoc | 18 routes + 2 tools | 0ac0857 |
 | P3-2 | 16 未使用 req→_req | 5 routes | 0ac0857 |
 | P3-3 | import 移至顶部 | renderGraph.ts | 8d4c771 |
+| **P0-new** | **webServer.register API 签名修复（3-arg→single-object）** | **16 调用点 + cordis.patch.yml** | **71de9d5** |
 
 ### 13.2 门禁汇总（G2）
 
@@ -238,3 +239,29 @@
 | 通过 | 266（235 vitest + 19 smoke + 12 validate） |
 | 失败 | 0 |
 | 错误 | 0 |
+
+## 14. P0 webServer.register API 修复验证（commit 71de9d5）
+
+### 14.1 根因
+
+DSH `webServer.register(route)` 接受**单个对象** `{kind, path, handler}`，dsh-anic 误用 **3-arg** `register('POST', path, handler)` → `route='POST'` (string) → `route.path=undefined` → `webserver: duplicate undefined route "undefined"` 错误 → **全部 HTTP 路由失效**。
+
+`kind` 是路径匹配策略（`'exact'|'prefix'`），非 HTTP 方法。
+
+### 14.2 修复
+
+- 16 个 `register` 调用点改为 `{kind:'exact', path, handler}` 对象形式
+- `cordis.patch.yml` 加 `insert` entry 使 Loader entries 包含 dsh-anic client 半部
+
+### 14.3 真实 DSH 环境验证
+
+| 验证项 | 结果 |
+|---|---|
+| DSH 日志 | ✅ 零 error/warning（此前有 'duplicate undefined route' + '1 entry did not activate'） |
+| GET /anic/cycle/list | ✅ `{cycles:[], nextCycleNumber:1}` |
+| POST /anic/cycle/init | ✅ 创建 cycle-1 成功 |
+| GET /anic/cycle/state | ✅ 22 节点工作流图（6 phases + 7 micro + 4 gates + 5 human） |
+| GET /anic/api/ledger | ✅ `{total:0, entries:[]}` |
+| GET /anic/api/stack-probe | ✅ 返回 config 数据 |
+| ANIC tab 出现 | ✅ **IMP-1 闭环** — tab "ANIC" selectable 在 DSH 对话视图 |
+| ANIC tab 内容 | ✅ 147 nodes / 180 edges + 刷新/开关/自举 + 全部 cycle 列表 + 不变量检查 |
