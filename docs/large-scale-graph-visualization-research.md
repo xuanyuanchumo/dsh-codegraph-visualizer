@@ -16,7 +16,7 @@
 | 布局算法 | fCoSE / Dagre / Grid（降级策略） | Grid 降级阈值 5000 节点 |
 | 状态管理 | Zustand | — |
 | 聚类 | 增量/渐进式目录聚类 | MAX_VISIBLE_NODES = 2000 |
-| 虚拟视口 | QuadTree + VirtualViewportController | 触发阈值 2000 节点 |
+| 虚拟视口 | QuadTree + VirtualViewportController | 触发阈值 500 节点（cycle-93 修正，见 `src/shared/constants.ts` 的 `VIRTUAL_VIEWPORT` 注释） |
 | Worker 布局 | Web Worker（layoutWorker.js） | 阈值 500 节点 |
 | LOD | 三档样式表（minimal/compact/full） | 样式切换 O(N×S) 性能陷阱 |
 
@@ -407,7 +407,7 @@ Level 3: 符号级（展开文件，原始节点）
 | 启用 `hideEdgesOnViewport` + `hideLabelsOnViewport` | 交互帧率提升 |
 | fCoSE `quality: 'draft'` + 减少迭代 | 大规模布局加速 |
 | 修复 LOD class 切换 | LOD 切换毫秒级 |
-| 调整 VIRTUAL_VIEWPORT.SCROLL_THRESHOLD → 5000 | 更早启用虚拟视口 |
+| ~~调整 VIRTUAL_VIEWPORT.SCROLL_THRESHOLD → 5000~~ | **已作废（cycle-93）**：该建议方向相反且不可达。原值 2500 高于聚类上限 1500，默认视图下永不触发；现值为 **500** |
 | 调整 CLUSTER.MAX_VISIBLE_NODES → 5000 | 允许更多可见节点 |
 
 ### 阶段 2：10,000 → 50,000 节点（2-4 周）
