@@ -34,16 +34,16 @@ export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) 
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;
   const { send, getWorkspaceRoot } = deps;
 
-  const d1 = c.webServer.register('POST', '/anic/cycle/init', (req: unknown, res: unknown) => {
+  const d1 = c.webServer.register({ kind: 'exact', path: '/anic/cycle/init', handler: (req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
     const { projectName } = body<{ projectName?: string }>(req);
     const info = initCycle(cyclesDir, projectName);
     send(res, 200, { ok: true, ...info });
-  });
+  }});
 
-  const d2 = c.webServer.register('POST', '/anic/cycle/advance', (req: unknown, res: unknown) => {
+  const d2 = c.webServer.register({ kind: 'exact', path: '/anic/cycle/advance', handler: (req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
@@ -51,9 +51,9 @@ export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) 
     if (!cycleNumber || !nodeId || !Number.isInteger(cycleNumber) || cycleNumber < 1) { send(res, 400, { error: 'cycleNumber (positive integer) and nodeId required' }); return; }
     const result = advanceCycle(cyclesDir, cycleNumber, nodeId, record);
     send(res, result.ok ? 200 : 409, result);
-  });
+  }});
 
-  const d3 = c.webServer.register('POST', '/anic/cycle/close', (req: unknown, res: unknown) => {
+  const d3 = c.webServer.register({ kind: 'exact', path: '/anic/cycle/close', handler: (req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
@@ -61,9 +61,9 @@ export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) 
     if (!cycleNumber || !Number.isInteger(cycleNumber) || cycleNumber < 1) { send(res, 400, { error: 'cycleNumber (positive integer) required' }); return; }
     const result = closeCycle(cyclesDir, cycleNumber);
     send(res, result.ok ? 200 : 409, result);
-  });
+  }});
 
-  const d4 = c.webServer.register('GET', '/anic/cycle/state', (_req: unknown, res: unknown) => {
+  const d4 = c.webServer.register({ kind: 'exact', path: '/anic/cycle/state', handler: (_req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
@@ -72,16 +72,16 @@ export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) 
     let state = loadState(cyclesDir);
     if (Object.keys(state).length === 0) state = initState(graph);
     send(res, 200, { nodes: graph.nodes, edges: graph.edges, state });
-  });
+  }});
 
-  const d5 = c.webServer.register('GET', '/anic/cycle/list', (_req: unknown, res: unknown) => {
+  const d5 = c.webServer.register({ kind: 'exact', path: '/anic/cycle/list', handler: (_req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
     const cycles = listCycles(cyclesDir);
     const next = nextCycleNumber(cyclesDir);
     send(res, 200, { cycles, nextCycleNumber: next });
-  });
+  }});
 
   const disposers = [d1, d2, d3, d4, d5].filter((d): d is () => void => typeof d === 'function');
   return disposers.length > 0 ? () => { for (const d of disposers) d(); } : null;

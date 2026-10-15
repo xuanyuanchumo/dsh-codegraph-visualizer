@@ -73,7 +73,7 @@ export function registerAnicRoutes(ctx: unknown, options: RegisterRoutesOptions 
     const cardMap = new Map(cards.map((card) => [card.id, card]));
     registerReviewRoute(
       (method, path, handler) => {
-        const d = c.webServer?.register?.(method, path, handler as (req: unknown, res: unknown) => void);
+        const d = c.webServer?.register?.({ kind: 'exact', path, handler: handler as (req: unknown, res: unknown) => void });
         if (typeof d === 'function') disposers.push(d);
       },
       { getAgentCards: () => cardMap, probeCtx: ctx },

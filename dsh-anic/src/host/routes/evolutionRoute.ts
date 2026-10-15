@@ -32,7 +32,7 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
 
   const disposers: Array<(() => void) | null> = [];
   const reg = (path: string, method: string, handler: (req: RouteReq, res: unknown) => void): void => {
-    const d = ws.register(method, path, handler as (req: unknown, res: unknown) => void);
+    const d = ws.register({ kind: 'exact', path, handler: handler as (req: unknown, res: unknown) => void });
     disposers.push(typeof d === 'function' ? d : null);
   };
 

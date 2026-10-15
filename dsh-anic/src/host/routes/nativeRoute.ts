@@ -24,12 +24,12 @@ export function registerNativeRoute(
   ctx: unknown,
   deps: { send: SendFn; getWorkspaceRoot: () => string | null; agentCards: Map<string, AgentCard> },
 ): Array<(() => void) | null> {
-  const ws = (ctx as { webServer?: { register: (method: string, path: string, handler: (req: unknown, res: unknown) => void) => (() => void) | void } }).webServer;
+  const ws = (ctx as { webServer?: { register: (opts: { kind: 'exact' | 'prefix'; path: string; handler: (req: unknown, res: unknown) => void }) => (() => void) | void } }).webServer;
   if (!ws || typeof ws.register !== 'function') return [];
   const disposers: Array<(() => void) | null> = [];
 
   const reg = (method: string, path: string, handler: (req: unknown, res: unknown) => void) => {
-    const d = ws.register(method, path, handler);
+    const d = ws.register({ kind: 'exact', path, handler });
     disposers.push(typeof d === 'function' ? d : null);
   };
 

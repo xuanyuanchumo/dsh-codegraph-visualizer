@@ -19,12 +19,12 @@ export function registerStackProbeRoute(ctx: unknown, deps: RouteDeps): (() => v
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;
   const { send, getWorkspaceRoot } = deps;
 
-  const d = c.webServer.register('GET', '/anic/api/stack-probe', (_req: unknown, res: unknown) => {
+  const d = c.webServer.register({ kind: 'exact', path: '/anic/api/stack-probe', handler: (_req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const result = probeStack(root);
     send(res, 200, { ...result, configYaml: configToYaml(result.config) });
-  });
+  }});
 
   return typeof d === 'function' ? d : null;
 }

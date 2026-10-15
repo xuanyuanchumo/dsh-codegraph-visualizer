@@ -43,7 +43,7 @@ export function registerLedgerRoute(ctx: unknown, deps: RouteDeps): (() => void)
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;
   const { send, getWorkspaceRoot } = deps;
 
-  const d1 = c.webServer.register('GET', '/anic/api/ledger', (req: unknown, res: unknown) => {
+  const d1 = c.webServer.register({ kind: 'exact', path: '/anic/api/ledger', handler: (req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
@@ -52,9 +52,9 @@ export function registerLedgerRoute(ctx: unknown, deps: RouteDeps): (() => void)
     const off = q.offset ? parseInt(q.offset, 10) : 0;
     const lim = q.limit ? parseInt(q.limit, 10) : entries.length;
     send(res, 200, { total: entries.length, entries: entries.slice(off, off + lim) });
-  });
+  }});
 
-  const d2 = c.webServer.register('POST', '/anic/api/ledger/append', (req: unknown, res: unknown) => {
+  const d2 = c.webServer.register({ kind: 'exact', path: '/anic/api/ledger/append', handler: (req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
@@ -68,15 +68,15 @@ export function registerLedgerRoute(ctx: unknown, deps: RouteDeps): (() => void)
     }
     const entry = appendEntry(cyclesDir, { gate, gateName: gateName ?? gate, result, detail: detail ?? '' });
     send(res, 200, { ok: true, entry });
-  });
+  }});
 
-  const d3 = c.webServer.register('GET', '/anic/api/ledger/verify', (_req: unknown, res: unknown) => {
+  const d3 = c.webServer.register({ kind: 'exact', path: '/anic/api/ledger/verify', handler: (_req: unknown, res: unknown) => {
     const root = getWorkspaceRoot();
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
     const result = verifyLedger(cyclesDir);
     send(res, 200, result);
-  });
+  }});
 
   const disposers = [d1, d2, d3].filter((d): d is () => void => typeof d === 'function');
   return disposers.length > 0 ? () => { for (const d of disposers) d(); } : null;
