@@ -123,25 +123,43 @@ export function createNodeAdapters(): Adapters; // 生产用；测试注入 mock
 
 ## 5. 工具注册（`dsh-anic/src/host/tools.ts`）
 
-注册 6 个 DSH 工具供其他会话/agent 调用：
+注册 9 个 DSH 工具供其他会话/agent 调用：
 
-| 工具 | 功能 |
-|---|---|
-| `anic_evaluate` | 评估当前周期 |
-| `anic_iterate` | 推进一个迭代步 |
-| `anic_gate_check` | 门禁检查（G0-G3） |
-| `anic_bootstrap` | 自举初始化 |
-| `anic_snapshot` | 生成快照 |
-| `anic_self_check` | 自检 |
+| 工具 | 功能 | 底层技能脚本 |
+|---|---|---|
+| `anic_evaluate` | 评估当前周期 | eval-runner |
+| `anic_iterate` | 推进一个迭代步 | eval-runner + gate-check |
+| `anic_gate_check` | 门禁检查（G0-G3） | gate-check |
+| `anic_bootstrap` | 自举初始化（评估插件自身） | eval-runner + gate-check |
+| `anic_snapshot` | 生成快照 | （宿主原生） |
+| `anic_self_check` | 自检 | （宿主原生） |
+| `anic_hitl` | 人工介入审计 | （宿主原生） |
+| `anic_install` | 技能安装到工作区 | autoInstallSkill |
+| `anic_status` | 状态查询 | （宿主原生） |
+
+未走工具的其余脚本经 HTTP 网关 `POST /anic/skill/invoke`（白名单 15 脚本 + workspace 校验，`src/host/routes/skillRoute.ts`）。
+
+### 5.1 技能脚本调用约定（P1 教训）
+
+`invokeSkillScript(scriptsDir, script, args, workspace, timeoutMs)`（`src/host/skillInvoker.ts`）内部：
+
+```
+node <scriptPath> <workspace> ...args
+```
+
+**项目目录是第一个位置参数**（全部 15 个技能脚本约定 `args._[0]`，转录自 mcp-server.mjs:35 的参考调用形态）。绝不能追加 `--project-dir <ws>` —— 脚本不认识该旗标，会把它当位置参数收进 `args._[0]`，解析出 `<scriptsDir>/--project-dir` 幽灵目录（此缺陷曾长期潜伏，因为单元测试只测状态机、从不真正 spawn 脚本；现由 `tests/unit/skillReplaceE2E.test.ts` 端到端钉死：脚手架产物必须落在 workspace，调用目录不得出现 `--project-dir` 残留）。
+
+`resolveSkillScriptsDir(workspace)`（同文件，唯一定义——selfInitRoute 的本地副本已删）候选链：`ANIC_SKILL_DIR` env → `workspace/.dsh` → `workspace/../.dsh` → `process.cwd()/.dsh` → 插件内联底座；所有外部候选必须通过哨兵检查（`init-workflow.mjs` 存在）。
 
 ## 6. 测试金字塔
 
 | 层 | 命令 | 范围 | 当前状态 |
 |---|---|---|---|
 | L1 validate | `pnpm run lint` | DSH 规范符合性门（`validate-dsh.mjs`） | 12/12 ✅ |
-| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 36/36 ✅ |
+| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 165/165 ✅ |
 | L3 smoke | `pnpm run test:smoke` | stub 宿主机制冒烟 | 19/19 ✅ |
 | L4 j0-probe | `pnpm run j0` | 真实宿主 J0 六步协议探针 | 按需运行 |
+| L5 替代性 e2e | vitest（`skillReplaceE2E`） | 插件内联技能 → 全新工作区完整自举 | 7/7 ✅ |
 
 ### 6.1 测试文件清单
 
@@ -155,7 +173,9 @@ dsh-anic/tests/unit/
   segmentedLedger.test.ts  # 分段账本
   selfBootstrap.test.ts    # 自举闭环
   truthAudit.test.ts       # 真值审计
-  ...（共 8 个 M9 新增套件）
+  skillInvokerContract.test.ts  # 技能调用器契约（唯一定义 + 真实使用方）
+  skillReplaceE2E.test.ts  # 技能替代能力端到端（安装→脚手架→状态，P1 回归锚点）
+  ...（共 13 个套件）
 ```
 
 ## 7. 独立性守卫（G-IND）

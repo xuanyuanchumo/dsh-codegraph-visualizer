@@ -29,3 +29,4 @@
 - 嵌入快照与路由快照共用唯一构建器——改 snapshotCore 要同步两处
 - 测试读 `dist/` 对 `src/` 变更惰性——先 build 再跑 smoke
 - 独立性守卫 G-IND：dsh-anic 源码不得 import 父项目 src/——只许借 node_modules
+- `invokeSkillScript` 项目目录是第一个位置参数（`node <script> <workspace> ...args`）——绝不能传 `--project-dir` 旗标，15 个脚本只认 args._[0]；替代性 e2e（skillReplaceE2E）钉死此约定

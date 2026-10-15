@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createScoped, newRequestId } from '../logger.ts';
+import { resolveSkillScriptsDir } from '../skillInvoker.ts';
 
 const log = createScoped('anic:route:self-init');
 export const SELF_INIT_ROUTE = '/anic/self/init';
@@ -27,32 +28,6 @@ export interface SelfInitCtx {
 
 interface SendLike {
   (res: unknown, status: number, body: unknown, requestId?: string): void;
-}
-
-/** 定位技能 scripts 目录（方案 C 混合查找：外部优先 → 内联底座 → null） */
-export function resolveSkillScriptsDir(workspaceRoot: string): string | null {
-  // 内联底座
-  const inlineDir = (() => {
-    const thisDir = typeof __dirname !== 'undefined'
-      ? __dirname
-      : join(process.cwd(), 'src', 'host', 'routes');
-    for (const up of ['../..', '../../..', '../../../..']) {
-      const p = join(thisDir, up, 'assets', 'skill', 'scripts');
-      if (existsSync(join(p, 'init-workflow.mjs'))) return p;
-    }
-    return null;
-  })();
-
-  const candidates = [
-    process.env.ANIC_SKILL_DIR ? join(process.env.ANIC_SKILL_DIR, 'scripts') : null,
-    join(workspaceRoot, '.dsh', 'skills', 'ai-native-iteration-cycle', 'scripts'),
-    join(process.cwd(), '.dsh', 'skills', 'ai-native-iteration-cycle', 'scripts'),
-    inlineDir,
-  ].filter((p): p is string => p !== null);
-  for (const dir of candidates) {
-    if (existsSync(join(dir, 'init-workflow.mjs'))) return dir;
-  }
-  return null;
 }
 
 export function registerSelfInitRoute(ctx: unknown, deps: { send: SendLike; getWorkspaceRoot: () => string | null; loadFlows: () => { selfInit: boolean } }): (() => void) | null {
@@ -83,13 +58,25 @@ export function registerSelfInitRoute(ctx: unknown, deps: { send: SendLike; getW
         deps.send(res, 409, { error: { code: 'ANIC_ROUTE_SELF_INIT_ALREADY', message: `.cycles/config.yml already exists at this workspace — self-init is refuse-to-rerun (idempotent by design)` } }, requestId);
         return;
       }
+      // --name 透传（init-workflow.mjs:66 的 N-6 修复要求项目名落盘 config.yml）；
+      // 缺省时保持脚本默认 "my-project"，与裸脚本调用行为一致。
+      const rawBody = (req as { body?: unknown }).body;
+      let bodyJson: Record<string, unknown> = {};
+      if (typeof rawBody === 'string') {
+        try { bodyJson = JSON.parse(rawBody) as Record<string, unknown>; } catch { /* 非 JSON body → 缺省名 */ }
+      } else if (rawBody && typeof rawBody === 'object') {
+        bodyJson = rawBody as Record<string, unknown>;
+      }
+      const nameArg = typeof bodyJson.name === 'string' && bodyJson.name.trim() !== ''
+        ? ['--name', bodyJson.name.trim()]
+        : [];
       const scriptsDir = resolveSkillScriptsDir(root);
       if (!scriptsDir) {
         deps.send(res, 404, { error: { code: 'ANIC_ROUTE_SELF_INIT_SKILL_MISSING', message: 'skill scripts not found (tried ANIC_SKILL_DIR / workspace .dsh / repo .dsh)' } }, requestId);
         return;
       }
       const started = Date.now();
-      const result = spawnSync(process.execPath, [join(scriptsDir, 'init-workflow.mjs'), root], {
+      const result = spawnSync(process.execPath, [join(scriptsDir, 'init-workflow.mjs'), root, ...nameArg], {
         cwd: root,
         encoding: 'utf-8',
         timeout: 60_000,
