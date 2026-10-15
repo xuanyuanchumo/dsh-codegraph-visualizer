@@ -164,7 +164,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
   }) ?? null);
 
   // 指针型工具（anic_snapshot/anic_self_check/anic_hitl）拆分至 toolsPointerGateway.ts
-  disposers.push(...registerPointerTools(tools.register!, getRoot));
+  disposers.push(...registerPointerTools((tool) => tools.register!(tool), getRoot));
 
   // Tool: anic_status — get full org status panorama + recent flow tracker records
   disposers.push(tools.register({
@@ -198,7 +198,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
 
   // 技能调用域工具（anic_install + anic_skill 通用网关）拆分至 toolsSkillGateway.ts
   // （T3 ≤250 行模块化纪律）；disposer 一并纳入本聚合器的清理面。
-  disposers.push(...registerSkillGatewayTools(tools, { getRoot, register: tools.register }));
+  disposers.push(...registerSkillGatewayTools(tools, { getRoot, register: (tool) => tools.register!(tool) }));
 
   const cleanups = disposers.filter((d): d is () => void => typeof d === 'function');
   if (cleanups.length === 0) return null;
