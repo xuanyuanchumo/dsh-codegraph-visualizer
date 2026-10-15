@@ -35,7 +35,7 @@ test.describe('J2: 图谱浏览与导航', () => {
     await expect(graphContainer).toBeAttached();
   });
 
-  test('should handle large number of nodes gracefully', async ({ page }) => {
+  test('should handle mock node set without crash', async ({ page }) => {
     await setupPluginPage(page);
     // The dev harness loads 12 mock nodes; verify no crash.
     await expect(page.locator(PANEL.root)).toBeVisible();

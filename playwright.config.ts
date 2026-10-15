@@ -50,7 +50,7 @@ export default defineConfig({
     {
       name: 'regression',
       use: { browserName: 'chromium' },
-      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|large-repo|conversation-remote-web-ui|on-demand-loading|conditional-requests)\.spec\.ts$/,
+      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|graph-browsing|conversation-remote-web-ui|on-demand-loading|conditional-requests)\.spec\.ts$/,
     },
     // 独立集：视觉快照（手动触发）
     {
