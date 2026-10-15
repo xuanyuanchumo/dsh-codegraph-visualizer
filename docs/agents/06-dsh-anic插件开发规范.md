@@ -173,7 +173,7 @@ node <scriptPath> <workspace> ...args
 | 层 | 命令 | 范围 | 当前状态 |
 |---|---|---|---|
 | L1 validate | `pnpm run lint` | DSH 规范符合性门（`validate-dsh.mjs`） | 12/12 ✅ |
-| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 185/185 ✅ |
+| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 188/188 ✅ |
 | L3 smoke | `pnpm run test:smoke` | stub 宿主机制冒烟 | 19/19 ✅ |
 | L4 j0-probe | `pnpm run j0` | 真实宿主 J0 六步协议探针 | 按需运行 |
 | L5 替代性 e2e | vitest（`skillReplaceE2E`） | 插件内联技能 → 全新工作区完整自举 | 7/7 ✅ |
@@ -194,7 +194,8 @@ dsh-anic/tests/unit/
   skillReplaceE2E.test.ts  # 技能替代能力端到端（安装→脚手架→状态，P1 回归锚点）
   skillToolNative.test.ts  # DSH 原生工具调用面（白名单⇄底座 + stub spawn 全链）
   flowTracker.test.ts      # FlowTracker 每流程状态跟踪（生命周期/查询/淘汰/截断/持久化）
-  ...（共 15 个套件）
+  flowTrackerIntegration.test.ts # FlowTracker 端到端（anic_skill→flow-tracker.json→anic_status）
+  ...（共 16 个套件）
 ```
 
 ## 7. 独立性守卫（G-IND）
