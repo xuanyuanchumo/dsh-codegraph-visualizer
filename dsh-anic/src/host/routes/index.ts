@@ -42,6 +42,7 @@ function defaultAgentCardsDir(): string {
   try { return fileURLToPath(new URL('../../assets/agents/', import.meta.url)); } catch { return ''; }
 }
 
+/** 注册全部 ANIC 路由（六域分区聚合）。 */
 export function registerAnicRoutes(ctx: unknown, options: RegisterRoutesOptions = {}): (() => void) | null {
   const c = ctx as SnapshotCtx;
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;

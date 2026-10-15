@@ -37,6 +37,7 @@ function query(req: unknown): Record<string, string> {
   return q;
 }
 
+/** 注册账本路由（列表/追加/验证）。 */
 export function registerLedgerRoute(ctx: unknown, deps: RouteDeps): (() => void) | null {
   const c = ctx as SnapshotCtx;
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;

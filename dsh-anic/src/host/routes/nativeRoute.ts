@@ -19,6 +19,7 @@ const log = createScoped('anic:route:native');
 
 interface SendFn { (res: unknown, status: number, body: unknown, requestId?: string): void; }
 
+/** 注册原生实现路由（7 脚本原生等价物）。 */
 export function registerNativeRoute(
   ctx: unknown,
   deps: { send: SendFn; getWorkspaceRoot: () => string | null; agentCards: Map<string, AgentCard> },
@@ -33,7 +34,7 @@ export function registerNativeRoute(
   };
 
   // POST /anic/hitl-audit
-  reg('POST', '/anic/hitl-audit', (req, res) => {
+  reg('POST', '/anic/hitl-audit', (_req, res) => {
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
@@ -54,7 +55,7 @@ export function registerNativeRoute(
   });
 
   // GET /anic/org-status
-  reg('GET', '/anic/org-status', (req, res) => {
+  reg('GET', '/anic/org-status', (_req, res) => {
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
@@ -63,7 +64,7 @@ export function registerNativeRoute(
   });
 
   // GET /anic/fact-base
-  reg('GET', '/anic/fact-base', (req, res) => {
+  reg('GET', '/anic/fact-base', (_req, res) => {
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
@@ -72,7 +73,7 @@ export function registerNativeRoute(
   });
 
   // GET /anic/plan-sync
-  reg('GET', '/anic/plan-sync', (req, res) => {
+  reg('GET', '/anic/plan-sync', (_req, res) => {
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
@@ -81,7 +82,7 @@ export function registerNativeRoute(
   });
 
   // POST /anic/multi-agent-gate { gate?: string, evidence?: {content,id}[] }
-  reg('POST', '/anic/multi-agent-gate', (req, res) => {
+  reg('POST', '/anic/multi-agent-gate', (_req, res) => {
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
@@ -92,7 +93,7 @@ export function registerNativeRoute(
   });
 
   // POST /anic/fix-loop { verifyCommand?: string }
-  reg('POST', '/anic/fix-loop', (req, res) => {
+  reg('POST', '/anic/fix-loop', (_req, res) => {
     const rid = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);

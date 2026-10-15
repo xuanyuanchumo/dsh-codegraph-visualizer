@@ -8,6 +8,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { probeLlm, runLlmReview, heuristicReview, type ReviewRequest, type ReviewVerdict } from '../llm/reviewEngine.ts';
 import type { AgentCard } from '../agents.ts';
+import { t } from '../i18n.ts';
 
 const REVIEW_ROUTE = '/anic/review';
 
@@ -44,12 +45,12 @@ export function registerReviewRoute(
       body = JSON.parse(bodyText);
     } catch {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'INVALID_JSON', message: '请求体不是合法 JSON' }));
+      res.end(JSON.stringify({ error: 'INVALID_JSON', message: t('review.badJson') }));
       return;
     }
     if (!isReviewBody(body) || typeof body.gate !== 'string' || typeof body.role !== 'string') {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'INVALID_REQUEST', message: '缺少 gate/role 字段' }));
+      res.end(JSON.stringify({ error: 'INVALID_REQUEST', message: t('review.missingFields') }));
       return;
     }
     const gate = body.gate;
@@ -68,7 +69,7 @@ export function registerReviewRoute(
     const card = cards.get(cardId);
     if (card === undefined) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'AGENT_NOT_FOUND', message: `未找到 agent 卡 ${cardId}` }));
+      res.end(JSON.stringify({ error: 'AGENT_NOT_FOUND', message: t('review.cardNotFound', { cardId }) }));
       return;
     }
 

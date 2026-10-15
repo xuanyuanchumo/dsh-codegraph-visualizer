@@ -25,6 +25,7 @@ interface RouteDeps {
   pluginDir: string;
 }
 
+/** 注册双向自举路由（dual-evaluate/dual-advance/dual-status）。 */
 export function registerDualBootstrapRoute(deps: RouteDeps): Array<(() => void) | null> {
   const disposers: Array<(() => void) | null> = [];
   const ws = deps.ctx.webServer;
@@ -36,7 +37,7 @@ export function registerDualBootstrapRoute(deps: RouteDeps): Array<(() => void) 
     void method;
   };
 
-  reg('POST', '/anic/self/dual-evaluate', (req, res) => {
+  reg('POST', '/anic/self/dual-evaluate', (_req, res) => {
     const requestId = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) { deps.send(res, 404, { error: { code: 'ANIC_ROUTE_NO_WORKSPACE', message: 'no workspace' } }, requestId); return; }
@@ -46,7 +47,7 @@ export function registerDualBootstrapRoute(deps: RouteDeps): Array<(() => void) 
     deps.send(res, 200, { plugin: pluginEval, skill: skillEval }, requestId);
   });
 
-  reg('POST', '/anic/self/dual-advance', (req, res) => {
+  reg('POST', '/anic/self/dual-advance', (_req, res) => {
     const requestId = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) { deps.send(res, 404, { error: { code: 'ANIC_ROUTE_NO_WORKSPACE', message: 'no workspace' } }, requestId); return; }
@@ -61,7 +62,7 @@ export function registerDualBootstrapRoute(deps: RouteDeps): Array<(() => void) 
     deps.send(res, 200, { newState, evaluated: target, evalScore, gateVerdict }, requestId);
   });
 
-  reg('GET', '/anic/self/dual-status', (req, res) => {
+  reg('GET', '/anic/self/dual-status', (_req, res) => {
     const requestId = newRequestId();
     const root = deps.getWorkspaceRoot();
     if (!root) { deps.send(res, 404, { error: { code: 'ANIC_ROUTE_NO_WORKSPACE', message: 'no workspace' } }, requestId); return; }

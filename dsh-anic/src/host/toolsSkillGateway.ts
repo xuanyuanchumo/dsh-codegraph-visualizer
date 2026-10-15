@@ -41,6 +41,7 @@ import {
   genericCall,
 } from './presentation.ts';
 
+/** 注册技能域 DSH 工具（anic_install/anic_skill）。 */
 export function registerSkillGatewayTools(
   tools: ToolsSlot,
   deps: { getRoot: () => string | null; register: (tool: ToolRegistration) => (() => void) | null | undefined },

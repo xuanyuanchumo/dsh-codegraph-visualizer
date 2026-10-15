@@ -12,6 +12,7 @@ import { sendJson, resolveWorkspaceRoots, type SnapshotCtx } from '../snapshotRo
 
 export const STEP_TRACE_ROUTE = '/anic/api/step-trace';
 
+/** 注册步骤追踪路由（GET /anic/api/step-trace）。 */
 export function registerStepTraceRoute(ctx: unknown): (() => void) | null {
   const c = ctx as SnapshotCtx;
   const webServer = c.webServer;

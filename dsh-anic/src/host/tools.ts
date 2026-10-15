@@ -23,6 +23,7 @@ interface HostContext {
   get?: <T = unknown>(key: string, strict?: boolean) => T | undefined;
 }
 
+/** 注册 ANIC DSH 工具（evaluate/gate/skill 等）。 */
 export function registerAnicTools(ctx: unknown): (() => void) | null {
   const c = ctx as HostContext;
 

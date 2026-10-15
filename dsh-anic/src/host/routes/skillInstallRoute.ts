@@ -33,6 +33,7 @@ function getInlineSkillDir(): string | null {
   return join(scriptsDir, '..');
 }
 
+/** 注册技能安装路由（install/status）。 */
 export function registerSkillInstallRoute(
   ctx: unknown,
   deps: { send: SendFn; getWorkspaceRoot: () => string | null },

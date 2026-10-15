@@ -9,6 +9,7 @@ import { runTruthAudit } from '../evolution/truthAudit.ts';
 
 const PLUGIN_DIR = resolve(fileURLToPath(import.meta.url), '../../../');
 
+/** 注册真实性审计路由（GET /anic/api/truth-audit）。 */
 export function registerTruthAuditRoute(
   c: { webServer?: { register(method: string, path: string, handler: (req: unknown, res: unknown) => void): (() => void) | void } },
   send: (res: unknown, code: number, body: unknown, requestId?: string) => void,

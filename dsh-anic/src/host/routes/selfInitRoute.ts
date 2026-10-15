@@ -30,6 +30,7 @@ interface SendLike {
   (res: unknown, status: number, body: unknown, requestId?: string): void;
 }
 
+/** 注册自初始化路由（POST /anic/self/init）。 */
 export function registerSelfInitRoute(ctx: unknown, deps: { send: SendLike; getWorkspaceRoot: () => string | null; loadFlows: () => { selfInit: boolean } }): (() => void) | null {
   const webServer = (ctx as { webServer?: { register: (r: { kind: string; path: string; handler: (req: unknown, res: unknown) => void }) => (() => void) | void } }).webServer;
   if (!webServer || typeof webServer.register !== 'function') return null;

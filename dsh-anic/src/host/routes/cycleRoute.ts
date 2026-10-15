@@ -28,6 +28,7 @@ function body<T = Record<string, unknown>>(req: unknown): T {
   return (r.body ?? {}) as T;
 }
 
+/** 注册 Cycle 路由（init/advance/close/state/list）。 */
 export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) | null {
   const c = ctx as SnapshotCtx;
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;

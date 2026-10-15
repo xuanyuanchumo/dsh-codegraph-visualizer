@@ -34,12 +34,14 @@ export interface RouteContext {
   loadFlows: () => { selfInit: boolean };
 }
 
+/** 构造带请求头注入的发送函数。 */
 export function makeSend(): SendFn {
   return (res, status, body, requestId) => {
     sendJson(res, status, body, requestId ? { 'X-ANIC-Request-Id': requestId } : undefined);
   };
 }
 
+/** 从宿主上下文构建共享路由上下文（send/workspace/flows）。 */
 export function buildRouteContext(ctx: unknown): RouteContext {
   const c = ctx as SnapshotCtx;
   const send = makeSend();

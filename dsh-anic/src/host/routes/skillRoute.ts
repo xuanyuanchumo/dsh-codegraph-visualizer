@@ -17,6 +17,7 @@ import {
 
 type SendFn = (res: unknown, code: number, body: unknown, requestId?: string) => void;
 
+/** 注册技能调用路由（list/invoke/evaluate/iterate）。 */
 export function registerSkillRoutes(
   ctx: SnapshotCtx,
   send: SendFn,
@@ -31,7 +32,7 @@ export function registerSkillRoutes(
 
   return [
     // GET /anic/skill/list — list available skill scripts
-    reg('GET', '/anic/skill/list', (req, res) => {
+    reg('GET', '/anic/skill/list', (_req, res) => {
       send(res, 200, { scripts: listSkillScripts() });
     }),
 

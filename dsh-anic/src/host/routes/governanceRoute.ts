@@ -27,6 +27,7 @@ function resolveRoot(ctx: ServerContext): string | null {
   return null;
 }
 
+/** 注册治理路由（归档/预算/清扫/孤儿检查）。 */
 export function registerGovernanceRoute(ctx: ServerContext, send: SendFn): Array<(() => void) | null> {
   const disposers: Array<(() => void) | null> = [];
   const ws = ctx.webServer;

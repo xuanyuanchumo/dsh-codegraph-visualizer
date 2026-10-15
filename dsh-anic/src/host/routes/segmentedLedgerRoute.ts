@@ -28,6 +28,7 @@ function query(req: unknown, key: string): string | undefined {
   return v ?? undefined;
 }
 
+/** 注册分段账本路由（读取/追加/验证/初始化）。 */
 export function registerSegmentedLedgerRoute(
   ctx: unknown,
   opts: { send: SendFn; getWorkspaceRoot: () => string | null },
@@ -39,7 +40,7 @@ export function registerSegmentedLedgerRoute(
 
   // GET /anic/api/seg-ledger — 读取分段账本
   disposers.push(
-    c.webServer.register('GET', '/anic/api/seg-ledger', (req: unknown, res: unknown) => {
+    c.webServer.register('GET', '/anic/api/seg-ledger', (_req: unknown, res: unknown) => {
       const root = opts.getWorkspaceRoot();
       if (!root) return opts.send(res, 404, { error: 'workspace not found' });
       const dir = resolveLedgerDir(root);
@@ -98,7 +99,7 @@ export function registerSegmentedLedgerRoute(
 
   // GET /anic/api/seg-ledger/verify — 验证哈希链
   disposers.push(
-    c.webServer.register('GET', '/anic/api/seg-ledger/verify', (req: unknown, res: unknown) => {
+    c.webServer.register('GET', '/anic/api/seg-ledger/verify', (_req: unknown, res: unknown) => {
       const root = opts.getWorkspaceRoot();
       if (!root) return opts.send(res, 404, { error: 'workspace not found' });
       const dir = resolveLedgerDir(root);
@@ -109,7 +110,7 @@ export function registerSegmentedLedgerRoute(
 
   // GET /anic/api/seg-ledger/init — 初始化
   disposers.push(
-    c.webServer.register('POST', '/anic/api/seg-ledger/init', (req: unknown, res: unknown) => {
+    c.webServer.register('POST', '/anic/api/seg-ledger/init', (_req: unknown, res: unknown) => {
       const root = opts.getWorkspaceRoot();
       if (!root) return opts.send(res, 404, { error: 'workspace not found' });
       const dir = resolveLedgerDir(root);

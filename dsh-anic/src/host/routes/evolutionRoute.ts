@@ -25,6 +25,7 @@ function query(url: URL, key: string): string | undefined {
   return v ?? undefined;
 }
 
+/** 注册进化引擎路由（信任分/自主级别/熔断/技术债务）。 */
 export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<(() => void) | null> {
   const ws = ctx.webServer;
   if (!ws) return [];

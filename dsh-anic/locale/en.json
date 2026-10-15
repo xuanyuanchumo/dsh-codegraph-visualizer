@@ -32,5 +32,18 @@
     "doubt": "Doubtful",
     "pending": "Pending",
     "skip": "Skipped"
+  },
+  "presentation": {
+    "skillSummary": "Execute skill script {script}",
+    "evaluateSummary": "Project evaluation eval-runner",
+    "iterateSummary": "Iteration cycle eval + gate-check",
+    "bootstrapCycleTitle": "anic_bootstrap_cycle (≤{maxRounds} rounds)",
+    "bootstrapCycleSummary": "Bootstrap chain eval→gate→fix",
+    "bootstrapAnalyzeSummary": "Bootstrap analysis + engine insights"
+  },
+  "review": {
+    "badJson": "Request body is not valid JSON",
+    "missingFields": "Missing gate/role fields",
+    "cardNotFound": "Agent card not found: {cardId}"
   }
 }

@@ -44,6 +44,7 @@ function parseGateVerdict(stdout: string): string {
   return m?.[1] ?? 'unknown';
 }
 
+/** 注册自举路由（evaluate/gate-check/iterate/status）。 */
 export function registerSelfBootstrapRoutes(
   ctx: SnapshotCtx,
   send: SendFn,
@@ -58,7 +59,7 @@ export function registerSelfBootstrapRoutes(
 
   return [
     // POST /anic/self/evaluate — run eval-runner on dsh-anic itself
-    reg('POST', '/anic/self/evaluate', (req, res) => {
+    reg('POST', '/anic/self/evaluate', (_req, res) => {
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
       const cyclesDir = path.join(roots, '.cycles');
@@ -88,7 +89,7 @@ export function registerSelfBootstrapRoutes(
     }),
 
     // POST /anic/self/gate-check — run gate-check on dsh-anic itself
-    reg('POST', '/anic/self/gate-check', (req, res) => {
+    reg('POST', '/anic/self/gate-check', (_req, res) => {
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
       const cyclesDir = path.join(roots, '.cycles');
@@ -192,7 +193,7 @@ export function registerSelfBootstrapRoutes(
     }),
 
     // GET /anic/self/status — bootstrap state
-    reg('GET', '/anic/self/status', (req, res) => {
+    reg('GET', '/anic/self/status', (_req, res) => {
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
       const cyclesDir = path.join(roots, '.cycles');

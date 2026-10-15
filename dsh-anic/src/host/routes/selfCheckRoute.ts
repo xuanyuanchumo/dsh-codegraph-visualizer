@@ -40,6 +40,7 @@ export interface SelfCheckInput {
   agentCardsDir: string;
 }
 
+/** 运行六项运行时不变量探针并返回逐项结果。 */
 export function runSelfChecks(input: SelfCheckInput): { checks: ProbeResult[]; allOk: boolean; requestId: string } {
   const requestId = newRequestId();
   const checks: ProbeResult[] = [];

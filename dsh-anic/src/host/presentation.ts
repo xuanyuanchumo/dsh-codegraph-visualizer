@@ -16,6 +16,7 @@ import type {
   GenericResultView,
   ToolCallKind,
 } from './toolsSlot.ts';
+import { t } from './i18n.ts';
 
 /**
  * 构造终端调用视图（pending 状态）。
@@ -69,7 +70,7 @@ export function genericResult(title?: string): GenericResultView {
 export function skillPresentCall(args: Record<string, unknown>): TerminalCallView {
   const script = typeof args.script === 'string' ? args.script : '?';
   const workspace = typeof args.workspace === 'string' ? args.workspace : '.';
-  return terminalCall(`anic_skill: ${script}`, workspace, `执行技能脚本 ${script}`);
+  return terminalCall(`anic_skill: ${script}`, workspace, t('presentation.skillSummary', { script }));
 }
 
 /**
@@ -89,7 +90,7 @@ export function skillPresentResult(
 export function evaluatePresentCall(args: Record<string, unknown>): TerminalCallView {
   const dims = typeof args.dimensions === 'string' ? args.dimensions : 'all';
   const workspace = typeof args.workspace === 'string' ? args.workspace : '.';
-  return terminalCall(`anic_evaluate [${dims}]`, workspace, '项目评估 eval-runner');
+  return terminalCall(`anic_evaluate [${dims}]`, workspace, t('presentation.evaluateSummary'));
 }
 
 /**
@@ -97,7 +98,7 @@ export function evaluatePresentCall(args: Record<string, unknown>): TerminalCall
  */
 export function iteratePresentCall(args: Record<string, unknown>): TerminalCallView {
   const workspace = typeof args.workspace === 'string' ? args.workspace : '.';
-  return terminalCall('anic_iterate', workspace, '迭代循环 eval + gate-check');
+  return terminalCall('anic_iterate', workspace, t('presentation.iterateSummary'));
 }
 
 /**
@@ -106,7 +107,7 @@ export function iteratePresentCall(args: Record<string, unknown>): TerminalCallV
 export function bootstrapCyclePresentCall(args: Record<string, unknown>): TerminalCallView {
   const workspace = typeof args.workspace === 'string' ? args.workspace : '.';
   const maxRounds = typeof args.maxRounds === 'number' ? args.maxRounds : 3;
-  return terminalCall(`anic_bootstrap_cycle (≤${maxRounds} 轮)`, workspace, '自举链编排 eval→gate→fix');
+  return terminalCall(t('presentation.bootstrapCycleTitle', { maxRounds }), workspace, t('presentation.bootstrapCycleSummary'));
 }
 
 /**
@@ -114,7 +115,7 @@ export function bootstrapCyclePresentCall(args: Record<string, unknown>): Termin
  */
 export function bootstrapAnalyzePresentCall(args: Record<string, unknown>): TerminalCallView {
   const workspace = typeof args.workspace === 'string' ? args.workspace : '.';
-  return terminalCall('anic_bootstrap_analyze', workspace, '自举分析 + 引擎洞察');
+  return terminalCall('anic_bootstrap_analyze', workspace, t('presentation.bootstrapAnalyzeSummary'));
 }
 
 /**

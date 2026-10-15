@@ -13,6 +13,7 @@ interface RouteDeps {
   getWorkspaceRoot: () => string | null;
 }
 
+/** 注册栈探测路由（GET /anic/api/stack-probe）。 */
 export function registerStackProbeRoute(ctx: unknown, deps: RouteDeps): (() => void) | null {
   const c = ctx as SnapshotCtx;
   if (!c.webServer || typeof c.webServer.register !== 'function') return null;
