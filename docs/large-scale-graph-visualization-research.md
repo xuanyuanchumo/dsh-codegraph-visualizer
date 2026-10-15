@@ -1,6 +1,6 @@
 # 大规模代码图谱可视化技术研究报告
 
-> 研究目标：从当前 2000 节点上限扩展到 10万-1000万节点规模
+> 研究目标：从当前 1500 节点上限扩展到 10万-1000万节点规模
 > 项目：dsh-codegraph-visualizer（基于 Cytoscape.js + React + Zustand）
 > 日期：2026-09-21
 
@@ -15,7 +15,7 @@
 | 渲染引擎 | Cytoscape.js v3.26（Canvas 2D） | ~5-10K 节点流畅上限 |
 | 布局算法 | fCoSE / Dagre / Grid（降级策略） | Grid 降级阈值 5000 节点 |
 | 状态管理 | Zustand | — |
-| 聚类 | 增量/渐进式目录聚类 | MAX_VISIBLE_NODES = 2000 |
+| 聚类 | 增量/渐进式目录聚类 | MAX_VISIBLE_NODES = 1500（`src/shared/constants.ts:43`） |
 | 虚拟视口 | QuadTree + VirtualViewportController | 触发阈值 500 节点（cycle-93 修正，见 `src/shared/constants.ts` 的 `VIRTUAL_VIEWPORT` 注释） |
 | Worker 布局 | Web Worker（layoutWorker.js） | 阈值 500 节点 |
 | LOD | 三档样式表（minimal/compact/full） | 样式切换 O(N×S) 性能陷阱 |
