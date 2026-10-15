@@ -14,6 +14,7 @@ export interface TraceStepJson {
   sources: string[];
   ledgerVerdict: { result: string; timestamp: string } | null;
   cyclesSeen: string[];
+  warnings: string[];
 }
 
 export interface StepTraceJson {
