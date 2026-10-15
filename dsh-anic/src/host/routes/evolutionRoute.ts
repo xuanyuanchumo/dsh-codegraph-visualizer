@@ -3,6 +3,7 @@
  */
 
 import type { SnapshotCtx } from '../snapshotRoute.ts';
+import { type RouteReq, parseBody } from './routeContext.ts';
 import {
   buildTrustScores,
   recommendBand,
@@ -17,7 +18,7 @@ import {
 } from '../evolution/autonomyGovernor.ts';
 import { generateTechDebt, type EvalResult } from '../evolution/patchEngine.ts';
 
-type SendFn = (res: any, code: number, body: unknown, requestId?: string) => void;
+type SendFn = (res: unknown, code: number, body: unknown, requestId?: string) => void;
 
 function query(url: URL, key: string): string | undefined {
   const v = url.searchParams.get(key);
@@ -29,13 +30,13 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
   if (!ws) return [];
 
   const disposers: Array<(() => void) | null> = [];
-  const reg = (path: string, method: string, handler: (req: unknown, res: unknown) => void): void => {
-    const d = ws.register(method, path, handler);
+  const reg = (path: string, method: string, handler: (req: RouteReq, res: unknown) => void): void => {
+    const d = ws.register(method, path, handler as (req: unknown, res: unknown) => void);
     disposers.push(typeof d === 'function' ? d : null);
   };
 
   // GET /anic/api/trust — 信任分（从账本条目构建）
-  reg('/anic/api/trust', 'GET', (req: any, res: any) => {
+  reg('/anic/api/trust', 'GET', (req: RouteReq, res: unknown) => {
     const url = new URL(req.url ?? '', 'http://localhost');
     const entriesRaw = query(url, 'entries');
     let entries: LedgerEntryForTrust[] = [];
@@ -48,7 +49,7 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
   });
 
   // GET /anic/api/autonomy — 自主级别推荐
-  reg('/anic/api/autonomy', 'GET', (req: any, res: any) => {
+  reg('/anic/api/autonomy', 'GET', (req: RouteReq, res: unknown) => {
     const url = new URL(req.url ?? '', 'http://localhost');
     const band = (query(url, 'band') ?? 'L2') as AutonomyBand;
     const trustScore = parseInt(query(url, 'trust') ?? '50', 10);
@@ -57,14 +58,20 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
   });
 
   // POST /anic/api/breakers — 熔断检查
-  reg('/anic/api/breakers', 'POST', (req: any, res: any) => {
-    let body: BreakerInput;
-    try {
-      body = JSON.parse(req.body ?? '{}') as BreakerInput;
-    } catch {
-      send(res, 400, { error: 'ANIC_ROUTE_BAD_BODY', detail: 'Invalid JSON body' });
-      return;
-    }
+  reg('/anic/api/breakers', 'POST', (req: RouteReq, res: unknown) => {
+    const parsed = parseBody(req);
+    const body: BreakerInput = {
+      consecutiveFixFails: Number(parsed.consecutiveFixFails ?? 0),
+      hasDoubt: Boolean(parsed.hasDoubt),
+      userDataUnisolated: Boolean(parsed.userDataUnisolated),
+      destructiveNoRollback: Boolean(parsed.destructiveNoRollback),
+      perfUnrecovered: Boolean(parsed.perfUnrecovered),
+      humanRequestsL3: Boolean(parsed.humanRequestsL3),
+      unattendedHours: Number(parsed.unattendedHours ?? 0),
+      contextUsagePercent: Number(parsed.contextUsagePercent ?? 0),
+      totalRetries: Number(parsed.totalRetries ?? 0),
+      totalBreakerTrips: Number(parsed.totalBreakerTrips ?? 0),
+    };
     const breakers = checkBreakers(body);
     const band = (query(new URL(req.url ?? '', 'http://localhost'), 'band') ?? 'L2') as AutonomyBand;
     const action = decideAction(band, breakers);
@@ -73,14 +80,9 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
   });
 
   // POST /anic/api/tech-debt — 从评估结果生成技术债务
-  reg('/anic/api/tech-debt', 'POST', (req: any, res: any) => {
-    let results: EvalResult[];
-    try {
-      results = JSON.parse(req.body ?? '[]') as EvalResult[];
-    } catch {
-      send(res, 400, { error: 'ANIC_ROUTE_BAD_BODY', detail: 'Invalid JSON body' });
-      return;
-    }
+  reg('/anic/api/tech-debt', 'POST', (req: RouteReq, res: unknown) => {
+    const parsed = parseBody(req);
+    const results = Array.isArray(parsed.results) ? (parsed.results as EvalResult[]) : [];
     const entries = generateTechDebt(results);
     send(res, 200, { techDebt: entries, count: entries.length });
   });

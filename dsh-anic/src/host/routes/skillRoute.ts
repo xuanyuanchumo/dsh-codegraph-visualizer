@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import type { SnapshotCtx } from '../snapshotRoute.ts';
+import { type RouteReq, parseBody } from './routeContext.ts';
 import { resolveWorkspaceRoots, sendJson } from '../snapshotRoute.ts';
 import {
   isAllowedScript,
@@ -14,7 +15,7 @@ import {
   invokeSkillScript,
 } from '../skillInvoker.ts';
 
-type SendFn = (res: any, code: number, body: unknown, requestId?: string) => void;
+type SendFn = (res: unknown, code: number, body: unknown, requestId?: string) => void;
 
 export function registerSkillRoutes(
   ctx: SnapshotCtx,
@@ -23,8 +24,8 @@ export function registerSkillRoutes(
   const ws = ctx.webServer;
   if (!ws?.register) return [];
 
-  const reg = (method: string, p: string, handler: (req: any, res: any) => void) => {
-    const d = ws.register!(method, p, handler);
+  const reg = (method: string, p: string, handler: (req: RouteReq, res: unknown) => void) => {
+    const d = ws.register!(method, p, handler as (req: unknown, res: unknown) => void);
     return typeof d === 'function' ? d : null;
   };
 
@@ -36,11 +37,11 @@ export function registerSkillRoutes(
 
     // POST /anic/skill/invoke — invoke a skill script on a workspace
     reg('POST', '/anic/skill/invoke', (req, res) => {
-      const body = typeof req.body === 'string' ? safeJson(req.body) : req.body;
-      const script = body?.script;
-      const args: string[] = Array.isArray(body?.args) ? body.args : [];
-      const workspace = body?.workspace ?? resolveWorkspaceRoots(ctx);
-      const timeout = typeof body?.timeout === 'number' && body.timeout > 0
+      const body = parseBody(req);
+      const script = typeof body.script === 'string' ? body.script : '';
+      const args: string[] = Array.isArray(body.args) ? (body.args as string[]) : [];
+      const workspace = typeof body.workspace === 'string' ? body.workspace : resolveWorkspaceRoots(ctx);
+      const timeout = typeof body.timeout === 'number' && body.timeout > 0
         ? Math.min(body.timeout, 120000)
         : 30000;
 
@@ -74,9 +75,9 @@ export function registerSkillRoutes(
 
     // POST /anic/evaluate — cross-project evaluation
     reg('POST', '/anic/evaluate', (req, res) => {
-      const body = typeof req.body === 'string' ? safeJson(req.body) : req.body;
-      const workspace = body?.workspace ?? resolveWorkspaceRoots(ctx);
-      const dimensions = body?.dimensions;
+      const body = parseBody(req);
+      const workspace = typeof body.workspace === 'string' ? body.workspace : resolveWorkspaceRoots(ctx);
+      const dimensions = typeof body.dimensions === 'string' ? body.dimensions : undefined;
 
       const wsCheck = validateWorkspace(workspace);
       if (!wsCheck.ok) { send(res, 400, { error: wsCheck.error }); return; }
@@ -99,8 +100,8 @@ export function registerSkillRoutes(
 
     // POST /anic/iterate — cross-project iteration
     reg('POST', '/anic/iterate', (req, res) => {
-      const body = typeof req.body === 'string' ? safeJson(req.body) : req.body;
-      const workspace = body?.workspace ?? resolveWorkspaceRoots(ctx);
+      const body = parseBody(req);
+      const workspace = typeof body.workspace === 'string' ? body.workspace : resolveWorkspaceRoots(ctx);
 
       const wsCheck = validateWorkspace(workspace);
       if (!wsCheck.ok) { send(res, 400, { error: wsCheck.error }); return; }
@@ -131,8 +132,4 @@ export function registerSkillRoutes(
       });
     }),
   ];
-}
-
-function safeJson(s: string): any {
-  try { return JSON.parse(s); } catch { return {}; }
 }

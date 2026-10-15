@@ -16,8 +16,13 @@ interface RouteDeps {
   getWorkspaceRoot: () => string | null;
 }
 
+/** 解析请求体为指定类型——安全版（P1-6 修复：消除 `as T` 不安全转换）。 */
 function body<T = Record<string, unknown>>(req: unknown): T {
-  return (req as { body?: T }).body ?? {} as T;
+  const r = req as { body?: unknown };
+  if (typeof r.body === 'string') {
+    try { return JSON.parse(r.body) as T; } catch { return {} as T; }
+  }
+  return (r.body ?? {}) as T;
 }
 
 function query(req: unknown): Record<string, string> {

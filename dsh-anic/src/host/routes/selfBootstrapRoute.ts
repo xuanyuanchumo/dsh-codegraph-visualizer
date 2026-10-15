@@ -6,6 +6,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import type { SnapshotCtx } from '../snapshotRoute.ts';
+import { type RouteReq, parseBody } from './routeContext.ts';
 import { resolveWorkspaceRoots, sendJson } from '../snapshotRoute.ts';
 import {
   type BootstrapState,
@@ -19,7 +20,7 @@ import {
   invokeSkillScript,
 } from '../skillInvoker.ts';
 
-type SendFn = (res: any, code: number, body: unknown, requestId?: string) => void;
+type SendFn = (res: unknown, code: number, body: unknown, requestId?: string) => void;
 
 function getLatestCycleDir(cyclesDir: string): string | null {
   const cyclesRoot = path.join(cyclesDir, 'cycles');
@@ -50,8 +51,8 @@ export function registerSelfBootstrapRoutes(
   const ws = ctx.webServer;
   if (!ws?.register) return [];
 
-  const reg = (method: string, p: string, handler: (req: any, res: any) => void) => {
-    const d = ws.register!(method, p, handler);
+  const reg = (method: string, p: string, handler: (req: RouteReq, res: unknown) => void) => {
+    const d = ws.register!(method, p, handler as (req: unknown, res: unknown) => void);
     return typeof d === 'function' ? d : null;
   };
 
@@ -120,8 +121,8 @@ export function registerSelfBootstrapRoutes(
 
     // POST /anic/self/iterate — full micro-iteration (eval→gate→tech-debt)
     reg('POST', '/anic/self/iterate', (req, res) => {
-      const body = typeof req.body === 'string' ? safeJson(req.body) : req.body;
-      const maxRounds = body?.maxRounds ?? 3;
+      const body = parseBody(req);
+      const maxRounds = typeof body.maxRounds === 'number' ? body.maxRounds : 3;
 
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
@@ -199,8 +200,4 @@ export function registerSelfBootstrapRoutes(
       send(res, 200, state);
     }),
   ];
-}
-
-function safeJson(s: string): any {
-  try { return JSON.parse(s); } catch { return {}; }
 }
