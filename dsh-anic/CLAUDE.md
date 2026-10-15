@@ -30,3 +30,6 @@
 - 测试读 `dist/` 对 `src/` 变更惰性——先 build 再跑 smoke
 - 独立性守卫 G-IND：dsh-anic 源码不得 import 父项目 src/——只许借 node_modules
 - `invokeSkillScript` 项目目录是第一个位置参数（`node <script> <workspace> ...args`）——绝不能传 `--project-dir` 旗标，15 个脚本只认 args._[0]；替代性 e2e（skillReplaceE2E）钉死此约定
+- truthAudit T4 工具计数扫描整个工具域（`src/host/tools*.ts` glob），不硬编码 tools.ts 单文件——工具拆分后单文件计数漏报
+- `anic_install` 不得先 validateWorkspace（要求目录已存在）——安装就是 bootstrap 新目录的动作，只做 `..` 形状校验，mkdir 交给 autoInstallSkill
+- smoke 读 dist/ 且 vitest T3（≤250 行）会拦拆分前的超长文件——工具域新文件放 toolsSkillGateway.ts，槽位形状在 toolsSlot.ts

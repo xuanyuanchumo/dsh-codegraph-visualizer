@@ -121,23 +121,31 @@ export function createNodeAdapters(): Adapters; // 生产用；测试注入 mock
 - **INV-25**：配置单入口；**INV-26**：诊断域隔离。
 - Node 内部导入延迟绑定（文件底部），便于测试 mock。
 
-## 5. 工具注册（`dsh-anic/src/host/tools.ts`）
+## 5. 工具注册（工具域：`tools.ts` + `toolsSkillGateway.ts`）
 
-注册 9 个 DSH 工具供其他会话/agent 调用：
+注册 **10 个** DSH 工具供其他会话/agent 调用。技能调用域工具（anic_install + anic_skill）拆分至 `src/host/toolsSkillGateway.ts`（T3 ≤250 行模块化纪律），槽位形状契约在 `src/host/toolsSlot.ts`。
 
-| 工具 | 功能 | 底层技能脚本 |
-|---|---|---|
-| `anic_evaluate` | 评估当前周期 | eval-runner |
-| `anic_iterate` | 推进一个迭代步 | eval-runner + gate-check |
-| `anic_gate_check` | 门禁检查（G0-G3） | gate-check |
-| `anic_bootstrap` | 自举初始化（评估插件自身） | eval-runner + gate-check |
-| `anic_snapshot` | 生成快照 | （宿主原生） |
-| `anic_self_check` | 自检 | （宿主原生） |
-| `anic_hitl` | 人工介入审计 | （宿主原生） |
-| `anic_install` | 技能安装到工作区 | autoInstallSkill |
-| `anic_status` | 状态查询 | （宿主原生） |
+| 工具 | 功能 | 底层技能脚本 | 文件 |
+|---|---|---|---|
+| `anic_evaluate` | 评估当前周期 | eval-runner | tools.ts |
+| `anic_iterate` | 推进一个迭代步 | eval-runner + gate-check | tools.ts |
+| `anic_gate_check` | 门禁检查（G0-G3） | gate-check | tools.ts |
+| `anic_bootstrap` | 自举初始化（评估插件自身） | eval-runner + gate-check | tools.ts |
+| `anic_snapshot` | 生成快照 | （宿主原生） | tools.ts |
+| `anic_self_check` | 自检 | （宿主原生） | tools.ts |
+| `anic_hitl` | 人工介入审计 | （宿主原生） | tools.ts |
+| `anic_status` | 状态查询 | （宿主原生） | tools.ts |
+| `anic_install` | 技能安装到工作区（真执行 autoInstallSkill，可 bootstrap 尚不存在的目录） | — | toolsSkillGateway.ts |
+| `anic_skill` | **全白名单通用网关**：任意 15 脚本原生调用（script+workspace+args+timeout） | 15/15 | toolsSkillGateway.ts |
 
-未走工具的其余脚本经 HTTP 网关 `POST /anic/skill/invoke`（白名单 15 脚本 + workspace 校验，`src/host/routes/skillRoute.ts`）。
+### 5.0 覆盖性契约（用户需求：所有功能业务脚本必须能 DSH 原生调用）
+
+- `anic_skill` 的 `script` 枚举在**运行时**取自 `listSkillScripts()`——单一事实源，绝不在 schema 手抄第二份数组（两份有序列表必然漂移）。
+- 契约测试 `tests/unit/skillToolNative.test.ts` 钉死：白名单 15 项 ⇄ 内联底座 `scripts/*.mjs`（扣除传输层 mcp-server）集合**恰好相等**；schema 枚举 ≡ 白名单；行为级证明（stub 宿主槽位 → 真实 spawn → 安装→init→workflow-state 全链退出 0）；dispose 调用每一个注册 disposer。
+- `anic_install` 只做路径形状校验（拒绝 `..`），**不要求目录已存在**——安装本身就是 bootstrap 新工作区的动作，`autoInstallSkill` 会 mkdirSync recursive（先跑 validateWorkspace 会让安装永远无法 bootstrap 新目录，vitest 实测教训）。
+- truthAudit T4 工具计数扫描**整个工具域**（`src/host/tools*.ts`），不硬编码单文件——工具拆分后单文件计数漏报的教训。
+
+未走工具的其余入口经 HTTP 网关 `POST /anic/skill/invoke`（白名单 15 脚本 + workspace 校验，`src/host/routes/skillRoute.ts`）——与 `anic_skill` 工具同源同安全模型。
 
 ### 5.1 技能脚本调用约定（P1 教训）
 

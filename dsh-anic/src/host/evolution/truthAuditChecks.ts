@@ -98,10 +98,23 @@ export function auditLogic(pluginDir: string): TruthAuditResult {
     const importCount = (readFileSync(indexPath, 'utf8').match(/^import\s/gm) ?? []).length;
     findings.push({ check: 'routes/index.ts imports', status: importCount >= 8 ? 'pass' : 'warn', detail: `${importCount} imports (expect >=8)` });
   }
-  const toolsPath = join(pluginDir, 'src', 'host', 'tools.ts');
-  if (existsSync(toolsPath)) {
-    const toolCount = (readFileSync(toolsPath, 'utf8').match(/name:\s*['"]anic_/g) ?? []).length;
-    findings.push({ check: 'DSH tool count', status: toolCount >= 9 ? 'pass' : 'warn', detail: `${toolCount} tools (expect >=9)` });
+  // 工具域整体扫描（tools.ts + tools*.ts）：工具拆分到多文件后单文件计数会
+  // 漏报（T4 首版只扫 tools.ts，anic_skill/anic_install 拆到 toolsSkillGateway.ts
+  // 后计数 7→warn 的教训）。目录扫描对未来的域拆分保持鲁棒。
+  const hostDir = join(pluginDir, 'src', 'host');
+  const toolFiles = existsSync(hostDir)
+    ? readdirSync(hostDir).filter((f) => /^tools.*\.ts$/.test(f))
+    : [];
+  let toolCount = 0;
+  for (const f of toolFiles) {
+    toolCount += (readFileSync(join(hostDir, f), 'utf8').match(/name:\s*['"]anic_/g) ?? []).length;
+  }
+  if (toolFiles.length > 0) {
+    findings.push({
+      check: 'DSH tool count',
+      status: toolCount >= 9 ? 'pass' : 'warn',
+      detail: `${toolCount} tools across ${toolFiles.length} tool modules (expect >=9)`,
+    });
   }
   const score = Math.round((findings.filter((f) => f.status === 'pass').length / findings.length) * 100);
   return { dimension: 'T4_logic', passed: findings.every((f) => f.status !== 'fail'), score, findings };

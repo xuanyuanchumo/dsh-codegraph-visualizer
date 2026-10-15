@@ -7,18 +7,9 @@
  */
 
 import { resolveWorkspaceRoots, type SnapshotCtx } from './snapshotRoute.ts';
-import { resolveSkillScriptsDir, invokeSkillScript, validateWorkspace, isAllowedScript } from './skillInvoker.ts';
-
-interface ToolRegistration {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  handler: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-}
-
-interface ToolsSlot {
-  register?: (tool: ToolRegistration) => (() => void) | null | undefined;
-}
+import { registerSkillGatewayTools } from './toolsSkillGateway.ts';
+import type { ToolsSlot } from './toolsSlot.ts';
+import { resolveSkillScriptsDir, invokeSkillScript, validateWorkspace } from './skillInvoker.ts';
 
 interface HostContext {
   tools?: ToolsSlot;
@@ -206,22 +197,6 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     },
   }) ?? null);
 
-  // Tool: anic_install — install/update the bundled skill into workspace
-  disposers.push(tools.register({
-    name: 'anic_install',
-    description: 'Install or update the ai-native-iteration-cycle skill from the plugin bundle into the workspace .dsh/skills/ (idempotent by version)',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspace: { type: 'string', description: 'Target project directory' },
-      },
-    },
-    handler: async (args) => {
-      const root = (args.workspace as string) ?? getRoot() ?? '';
-      return { installUrl: `/anic/skill/install?workspace=${encodeURIComponent(root)}` };
-    },
-  }) ?? null);
-
   // Tool: anic_status — get full org status panorama (native, no skill dependency)
   disposers.push(tools.register({
     name: 'anic_status',
@@ -237,6 +212,10 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
       return { statusUrl: `/anic/org-status?workspace=${encodeURIComponent(root)}` };
     },
   }) ?? null);
+
+  // 技能调用域工具（anic_install + anic_skill 通用网关）拆分至 toolsSkillGateway.ts
+  // （T3 ≤250 行模块化纪律）；disposer 一并纳入本聚合器的清理面。
+  disposers.push(...registerSkillGatewayTools(tools, { getRoot, register: tools.register }));
 
   const cleanups = disposers.filter((d): d is () => void => typeof d === 'function');
   if (cleanups.length === 0) return null;
