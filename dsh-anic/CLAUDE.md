@@ -35,3 +35,4 @@
 - smoke 读 dist/ 且 vitest T3（≤250 行）会拦拆分前的超长文件——工具域新文件放 toolsSkillGateway.ts，槽位形状在 toolsSlot.ts
 - FlowTracker 每流程状态跟踪：anic_skill handler 在 invokeSkillScript 前后调用 startFlow/finishFlow，持久化到 {workspace}/.cycles/flow-tracker.json；flowStats 中 `stats[f.script]` 在 noUncheckedIndexedAccess 下需用 let s 本地变量收窄（直接 `stats[f.script].total++` 会 TS2532）
 - presentCall/presentResult 纯函数在 presentation.ts 构造 ToolCallView/ToolResultView——脚本执行类用终端卡片（card:'terminal'），查询类用通用卡片（card:'generic'）；空字符串经 `output || undefined` 规范化为 undefined（测试断言要匹配）
+- continuousLearning 健康等级检查顺序：slow（超时率）先于 degraded（成功率）——因为 timeout 是 DONE 的子集，先检查更具体的；analyzeSkillHealth 是纯函数零副作用，anic_status 返回 health+healthSummary

@@ -10,6 +10,7 @@ import { resolveSkillScriptsDir, invokeSkillScript, validateWorkspace } from './
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { loadFlowTracker, recentFlows, flowStats } from './runtime/flowTracker.ts';
+import { analyzeSkillHealth, formatHealthSummary } from './runtime/continuousLearning.ts';
 import {
   evaluatePresentCall,
   iteratePresentCall,
@@ -222,20 +223,17 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     handler: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
       const flowLimit = Math.min(Math.max(typeof args.flowLimit === 'number' ? args.flowLimit : 10, 1), 50);
-      // M10-a：附加 FlowTracker 最近记录与统计，供大模型和开发人员查阅管理
+      // M10-a/e：FlowTracker 最近记录 + 统计 + 持续学习健康报告
       const cyclesDir = join(root, '.cycles');
-      let flows: unknown[] = [];
-      let stats: Record<string, unknown> = {};
+      let flows: unknown[] = []; let stats: Record<string, unknown> = {};
+      let health: unknown = null; let healthSummary = '';
       if (existsSync(cyclesDir)) {
-        const trackerState = loadFlowTracker(cyclesDir);
-        flows = recentFlows(trackerState, flowLimit);
-        stats = flowStats(trackerState);
+        const ts = loadFlowTracker(cyclesDir);
+        flows = recentFlows(ts, flowLimit); stats = flowStats(ts);
+        const report = analyzeSkillHealth(ts);
+        health = report; healthSummary = formatHealthSummary(report);
       }
-      return {
-        statusUrl: `/anic/org-status?workspace=${encodeURIComponent(root)}`,
-        flows,
-        flowStats: stats,
-      };
+      return { statusUrl: `/anic/org-status?workspace=${encodeURIComponent(root)}`, flows, flowStats: stats, health, healthSummary };
     },
   }) ?? null);
 

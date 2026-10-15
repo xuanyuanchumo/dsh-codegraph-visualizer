@@ -178,12 +178,23 @@ node <scriptPath> <workspace> ...args
 - **测试**：`tests/unit/presentCallContract.test.ts` 19 例——视图形状 / 安全降级 / 纯函数幂等性。
 - **设计意图**：调用时可视化透明化——大模型与开发人员在 DSH UI 中实时看到技能调用的脚本名、工作目录、退出码与输出，无需查阅日志。
 
+### 5.4 持续学习层（M10-e）
+
+分析 FlowTracker 历史数据，识别模式并生成改进建议，为大模型自举提供反馈闭环。
+
+- **实现**：`src/host/runtime/continuousLearning.ts`（189 行）——纯函数 `analyzeSkillHealth(state) → SkillHealthReport`，零副作用零 IO。
+- **健康等级**：`healthy`（成功率≥80%）/ `degraded`（<80%）/ `slow`（超时率>20%）/ `expensive`（平均耗时>30s）/ `insufficient`（样本<3）。
+- **改进建议**：按严重程度（critical/warn/info）生成可操作建议，如「检查 stderr 日志，定位失败原因，修复后重跑 eval」。
+- **接入**：`anic_status` handler 返回 `health`（结构化报告）+ `healthSummary`（可读文本摘要）。
+- **测试**：`tests/unit/continuousLearning.test.ts` 12 例——健康等级判定 / 改进建议生成 / 格式化摘要 / 边界条件。
+- **设计意图**：eval 结果 → 模式识别 → 改进建议 → 下一轮自举，形成闭环。大模型可查询 `anic_status.health.suggestions` 获取可操作建议。
+
 ## 6. 测试金字塔
 
 | 层 | 命令 | 范围 | 当前状态 |
 |---|---|---|---|
 | L1 validate | `pnpm run lint` | DSH 规范符合性门（`validate-dsh.mjs`） | 12/12 ✅ |
-| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 223/223 ✅ |
+| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 235/235 ✅ |
 | L3 smoke | `pnpm run test:smoke` | stub 宿主机制冒烟 | 19/19 ✅ |
 | L4 j0-probe | `pnpm run j0` | 真实宿主 J0 六步协议探针 | 按需运行 |
 | L5 替代性 e2e | vitest（`skillReplaceE2E`） | 插件内联技能 → 全新工作区完整自举 | 7/7 ✅ |
