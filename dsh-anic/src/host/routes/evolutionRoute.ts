@@ -52,7 +52,8 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
   // GET /anic/api/autonomy — 自主级别推荐
   reg('/anic/api/autonomy', 'GET', (req: RouteReq, res: unknown) => {
     const url = new URL(req.url ?? '', 'http://localhost');
-    const band = (query(url, 'band') ?? 'L2') as AutonomyBand;
+    const bandRaw = query(url, 'band') ?? 'L2';
+    const band: AutonomyBand = /^L[1-4]$/.test(bandRaw) ? (bandRaw as AutonomyBand) : 'L2';
     const trustScore = parseInt(query(url, 'trust') ?? '50', 10);
     const recommended = recommendBand(band, trustScore);
     send(res, 200, { current: band, trustScore, recommended });
@@ -74,7 +75,8 @@ export function registerEvolutionRoute(ctx: SnapshotCtx, send: SendFn): Array<((
       totalBreakerTrips: Number(parsed.totalBreakerTrips ?? 0),
     };
     const breakers = checkBreakers(body);
-    const band = (query(new URL(req.url ?? '', 'http://localhost'), 'band') ?? 'L2') as AutonomyBand;
+    const bandRaw = query(new URL(req.url ?? '', 'http://localhost'), 'band') ?? 'L2';
+    const band: AutonomyBand = /^L[1-4]$/.test(bandRaw) ? (bandRaw as AutonomyBand) : 'L2';
     const action = decideAction(band, breakers);
     const downgraded = action === 'downgrade' ? downgradeBand(band) : band;
     send(res, 200, { breakers, action, downgradedBand: downgraded });

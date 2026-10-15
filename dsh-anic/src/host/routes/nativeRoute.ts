@@ -49,7 +49,8 @@ export function registerNativeRoute(
     if (!root) return deps.send(res, 404, { error: 'no workspace' }, rid);
     const r = req as { url?: string };
     const scoreMatch = r?.url?.match(/score=([0-9.]+)/);
-    const score = scoreMatch?.[1] ? parseFloat(scoreMatch[1]) : 1.0;
+    const parsed = scoreMatch?.[1] ? parseFloat(scoreMatch[1]) : 1.0;
+    const score = Math.max(0, Math.min(1, parsed)); // 限制 [0, 1] 范围
     const result = runBandDetection(root, score);
     deps.send(res, 200, result, rid);
   });

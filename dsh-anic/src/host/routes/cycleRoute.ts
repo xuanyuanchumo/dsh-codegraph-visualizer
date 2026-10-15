@@ -48,7 +48,7 @@ export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) 
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
     const { cycleNumber, nodeId, ...record } = body<{ cycleNumber: number; nodeId: string; gateApproved?: boolean; gate?: string; gateName?: string; result?: 'PASS' | 'FAIL'; detail?: string }>(req);
-    if (!cycleNumber || !nodeId) { send(res, 400, { error: 'cycleNumber and nodeId required' }); return; }
+    if (!cycleNumber || !nodeId || !Number.isInteger(cycleNumber) || cycleNumber < 1) { send(res, 400, { error: 'cycleNumber (positive integer) and nodeId required' }); return; }
     const result = advanceCycle(cyclesDir, cycleNumber, nodeId, record);
     send(res, result.ok ? 200 : 409, result);
   });
@@ -58,7 +58,7 @@ export function registerCycleRoute(ctx: unknown, deps: RouteDeps): (() => void) 
     if (!root) { send(res, 404, { error: 'no workspace' }); return; }
     const cyclesDir = join(root, '.cycles');
     const { cycleNumber } = body<{ cycleNumber: number }>(req);
-    if (!cycleNumber) { send(res, 400, { error: 'cycleNumber required' }); return; }
+    if (!cycleNumber || !Number.isInteger(cycleNumber) || cycleNumber < 1) { send(res, 400, { error: 'cycleNumber (positive integer) required' }); return; }
     const result = closeCycle(cyclesDir, cycleNumber);
     send(res, result.ok ? 200 : 409, result);
   });
