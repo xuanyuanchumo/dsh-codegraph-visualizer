@@ -46,11 +46,12 @@ export function runSelfChecks(input: SelfCheckInput): { checks: ProbeResult[]; a
   const checks: ProbeResult[] = [];
   const cyclesDir = join(input.workspaceRoot, '.cycles');
 
-  // P1 INV-13 确定性
+  // P1 INV-13 确定性：固定 generatedAt 排除时间戳非确定性，只比较内容
   try {
     const hasCycles = existsSync(cyclesDir);
-    const a = hasCycles ? buildWorkflowSnapshot(cyclesDir) : null;
-    const b = hasCycles ? buildWorkflowSnapshot(cyclesDir) : null;
+    const FIXED_TS = '2025-01-01T00:00:00.000Z';
+    const a = hasCycles ? buildWorkflowSnapshot(cyclesDir, FIXED_TS) : null;
+    const b = hasCycles ? buildWorkflowSnapshot(cyclesDir, FIXED_TS) : null;
     const da = a ? createHash('sha256').update(JSON.stringify(a)).digest('hex').slice(0, 16) : 'absent';
     const db = b ? createHash('sha256').update(JSON.stringify(b)).digest('hex').slice(0, 16) : 'absent';
     checks.push({ id: 'P1-snapshot-deterministic', inv: 'INV-13', ok: da === db, detail: `digest=${da}` + (da !== db ? ` vs ${db}` : '') });
@@ -58,10 +59,12 @@ export function runSelfChecks(input: SelfCheckInput): { checks: ProbeResult[]; a
     checks.push({ id: 'P1-snapshot-deterministic', inv: 'INV-13', ok: false, detail: `threw: ${e instanceof Error ? e.message : String(e)}` });
   }
 
-  // P2 INV-21 结构化身份
+  // P2 INV-21 结构化身份：节点 id 必须使用结构化前缀（wf:/cycle:/evt:/inc:/aux:），
+  // 不含从自由文本解析的 id。an- 是旧约定，实际结构化前缀见 snapshotCore.ts。
+  const STRUCTURED_PREFIXES = ['wf:', 'cycle:', 'evt:', 'inc:', 'aux:'];
   try {
     const snap = existsSync(cyclesDir) ? buildWorkflowSnapshot(cyclesDir) : null;
-    const bad = snap ? snap.nodes.filter((n: { id: string }) => !n.id.startsWith('an-')).map((n: { id: string }) => n.id).slice(0, 5) : [];
+    const bad = snap ? snap.nodes.filter((n: { id: string }) => !STRUCTURED_PREFIXES.some((p) => n.id.startsWith(p))).map((n: { id: string }) => n.id).slice(0, 5) : [];
     checks.push({ id: 'P2-structured-identity', inv: 'INV-21', ok: snap ? bad.length === 0 : true, detail: snap ? (bad.length === 0 ? `all ${snap.nodes.length} node ids are structured` : `non-structured ids: ${bad.join(',')}`) : 'no .cycles (vacuous ok)' });
   } catch (e) {
     checks.push({ id: 'P2-structured-identity', inv: 'INV-21', ok: false, detail: `threw: ${e instanceof Error ? e.message : String(e)}` });
@@ -86,10 +89,11 @@ export function runSelfChecks(input: SelfCheckInput): { checks: ProbeResult[]; a
   // P5 INV-18 投影可重算（stepTrace 纯函数）
   try {
     if (existsSync(join(cyclesDir, 'workflow-graph.yaml'))) {
-      // 复用快照内已解析的图（同一结构化来源，不二次读盘）
-      const snap = buildWorkflowSnapshot(cyclesDir);
-      const t1 = JSON.stringify(buildStepTrace(snap, { cyclesDir }));
-      const t2 = JSON.stringify(buildStepTrace(snap, { cyclesDir }));
+      // 固定 generatedAt 排除时间戳非确定性（与 P1 同理）
+      const snap = buildWorkflowSnapshot(cyclesDir, '2025-01-01T00:00:00.000Z');
+      const fixedNow = new Date('2025-01-01T00:00:00.000Z');
+      const t1 = JSON.stringify(buildStepTrace(snap, { cyclesDir, now: fixedNow }));
+      const t2 = JSON.stringify(buildStepTrace(snap, { cyclesDir, now: fixedNow }));
       checks.push({ id: 'P5-steptrace-reproducible', inv: 'INV-18', ok: t1 === t2, detail: t1 === t2 ? `trace stable (${t1.length} chars)` : 'two builds differ' });
     } else {
       checks.push({ id: 'P5-steptrace-reproducible', inv: 'INV-18', ok: true, detail: 'no workflow-graph.yaml (vacuous ok)' });

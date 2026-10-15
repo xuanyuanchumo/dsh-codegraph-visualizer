@@ -39,7 +39,9 @@ export interface RegisterRoutesOptions {
 }
 
 function defaultAgentCardsDir(): string {
-  try { return fileURLToPath(new URL('../../assets/agents/', import.meta.url)); } catch { return ''; }
+  // dist/host.js → ../assets/agents/ = dsh-anic/assets/agents/
+  // （../../ 会多弹一层落到 workspace root，P4 自检 ENOENT 根因）
+  try { return fileURLToPath(new URL('../assets/agents/', import.meta.url)); } catch { return ''; }
 }
 
 /** 注册全部 ANIC 路由（六域分区聚合）。 */
