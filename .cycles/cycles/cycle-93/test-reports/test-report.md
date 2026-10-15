@@ -1,0 +1,153 @@
+# 测试报告
+
+## 1. 头部
+
+| 循环编号 | 日期 | 执行者 | 测试范围 |
+|---|---|---|---|
+| `cycle-93` | 2026-10-14 | AI（GLM-5.2） | 父项目 unit + dsh-anic 全套 + lint + typecheck + build |
+
+## 2. 测试结果汇总
+
+| 套件 | 命令 | 结果 | 耗时 | 备注 |
+|---|---|---|---|---|
+| 父项目 typecheck | `pnpm run typecheck` | ✅ exit 0 | ~15s | tsconfig.host + client + test 三份 |
+| 父项目 lint | `pnpm run lint` | ✅ 0 warnings 0 errors | 169ms | oxlint 247 files 103 rules |
+| 父项目 unit tests | `pnpm run test` | ✅ 5373 passed (197 files) | 160s | 含新增 virtualScrollReachability 4 例 + e2eSelectorContract 10 例 |
+| 父项目 build | `pnpm run build` | ✅ exit 0 | ~30s | layoutWorker 1528568 bytes |
+| dsh-anic typecheck | `pnpm run typecheck` | ✅ exit 0 | ~5s | scripts/typecheck.mjs 向上查 tsc |
+| dsh-anic validate | `pnpm run lint` | ✅ 12/12 | 0.4s | DSH 规范符合性门 |
+| dsh-anic vitest | `pnpm run test:unit` | ✅ 36/36 | 4.7s | 含新增 8 套件（evolution/governance/native/reviewEngine/runtime/segmentedLedger/selfBootstrap/truthAudit） |
+| dsh-anic smoke | `pnpm run test:smoke` | ✅ 19/19 | 0.1s | stub 宿主机制冒烟 |
+| dsh-anic build | `pnpm run build` | ✅ exit 0 | 70ms | tsdown client + host bundle |
+
+## 3. 覆盖率
+
+| 套件 | 覆盖率 | 备注 |
+|---|---|---|
+| 父项目 unit | 未跑 coverage（耗时） | cycle-92 已验证 ≥86% 门 |
+| dsh-anic | 未跑 coverage | M9 新模块由单元测试覆盖 |
+
+## 4. 新增/变更测试
+
+| 测试 | 类型 | 说明 |
+|---|---|---|
+| tests/unit/virtualScrollReachability.test.ts | unit | 4 例：SCROLL_THRESHOLD 与聚类上限联合约束 |
+| tests/unit/e2eSelectorContract.test.ts | unit | 10 例（扩 3 例）：选择器契约硬化 |
+| dsh-anic/tests/unit/evolution.test.ts | unit | 进化引擎模块 |
+| dsh-anic/tests/unit/governance.test.ts | unit | 治理模块 |
+| dsh-anic/tests/unit/native.test.ts | unit | 原生路由 |
+| dsh-anic/tests/unit/reviewEngine.test.ts | unit | LLM 评审引擎 |
+| dsh-anic/tests/unit/runtime.test.ts | unit | 运行时模块 |
+| dsh-anic/tests/unit/segmentedLedger.test.ts | unit | 分段账本 |
+| dsh-anic/tests/unit/selfBootstrap.test.ts | unit | 自举闭环 |
+| dsh-anic/tests/unit/truthAudit.test.ts | unit | 真值审计 |
+
+## 4b. 第二轮新增测试（技能替代性，goal-6e516be5，2026-10-15）
+
+| 测试 | 类型 | 说明 |
+|---|---|---|
+| dsh-anic/tests/unit/skillInvokerContract.test.ts | 契约 | 5 例：resolveSkillScriptsDir 唯一定义在 host/skillInvoker.ts；所有 import 来自该文件；≥3 真实使用方；反向自检（g 标志） |
+| dsh-anic/tests/unit/skillReplaceE2E.test.ts | 端到端 | 7 例：全新空工作区→autoInstallSkill→resolveSkillScriptsDir 命中工作区副本→init-workflow 退出 0 且 .cycles/config.yml+CLAUDE.md 落在 workspace（P1 回归锚点：位置参数形态）→幽灵目录守卫→workflow-state status 可读→幂等重跑→未安装工作区内联兜底 |
+
+第二轮验证证据（10:09 实测）：
+
+| 套件 | 结果 | 备注 |
+|---|---|---|
+| dsh-anic typecheck | ✅ exit 0 | scripts/typecheck.mjs |
+| dsh-anic vitest | ✅ 165/165（13 套件） | 153 + 5 + 7 = 165 对账一致 |
+| dsh-anic smoke | ✅ 19/19 | ALL PASS |
+| dsh-anic validate | ✅ 12/12 | DSH 规范符合性门 |
+| dsh-anic build | ✅ 52ms | dist/client.js + dist/host.js |
+
+## 5. G2 门禁判定
+
+- 测试零错：是（第二轮：165 + 19 + 12 全绿；第一轮：5373 + 36 + 19 + 12 全绿）
+- G2 通过
+
+## 6. 第三轮增量（DSH 原生调用面，用户指令，2026-10-15）
+
+| 套件 | 结果 | 备注 |
+|---|---|---|
+| dsh-anic vitest | ✅ **172/172（14 套件）** | +skillToolNative 7 例：白名单⇄内联底座集合恰好相等 / schema 枚举≡listSkillScripts / stub 宿主真实 spawn（安装→init→workflow-state 全链退出 0）/ 白名单外拒绝回显 allowed / dispose 全量（断言次数） |
+| truthAudit T3/T4 | ✅ | T3 拦截 320 行 tools.ts → 拆分 toolsSkillGateway.ts + toolsSlot.ts 后通过；T4 计数改扫工具域 glob（src/host/tools*.ts）后通过 |
+| smoke | ✅ 19/19 | 先 build 再跑（smoke 读 dist/） |
+| validate | ✅ 12/12 | — |
+| typecheck | ✅ 0 错误 | scripts/typecheck.mjs |
+| build | ✅ | tsdown host+client（38ms/46ms） |
+| 提交 | a8667e9 | 7 文件（2 改源 + 3 新源/测 + 2 文档） |
+
+第三轮 G2 判定：测试零错 → 通过（172 + 19 + 12 全绿）
+
+## 7. 第四轮增量（M10-a FlowTracker，2026-10-15）
+
+| 套件 | 结果 | 备注 |
+|---|---|---|
+| dsh-anic vitest | ✅ **188/188（16 套件）** | +flowTracker 15 例（生命周期/查询/淘汰/截断/持久化）+ flowTrackerIntegration 3 例（anic_skill→flow-tracker.json→anic_status 端到端） |
+| truthAudit T3/T4 | ✅ | tools.ts 225 行 / toolsSkillGateway.ts 130 行 / flowTracker.ts 158 行 均 ≤250；工具域 10 工具计数正确 |
+| smoke | ✅ 19/19 | ALL PASS |
+| validate | ✅ 12/12 | DSH 规范符合性门 |
+| typecheck | ✅ 0 错误 | scripts/typecheck.mjs |
+| build | ✅ | tsdown host+client（44ms/62ms） |
+| P0-P3 扫描 | ✅ 零问题 | 零 console.log（除 logger.ts）/ 零 as any / 零 .then / 零超 250 行 |
+| 提交 | 7ec23eb + f50dacb | 10 文件（3 新源/测 + 7 改源/测/文档） |
+
+第四轮 G2 判定：测试零错 → 通过（188 + 19 + 12 全绿）
+
+## 8. 第五轮增量（M10-b/c + P0-P3 修复，2026-10-15）
+
+| 套件 | 结果 | 备注 |
+|---|---|---|
+| dsh-anic vitest | ✅ **204/204（18 套件）** | +bootstrapOrchestrator 11 例（解析 8 + 端到端 3）+ bootstrapEngineIntegration 5 例（引擎洞察/H1-H4/tech-debt/完整结构/幂等） |
+| truthAudit T3/T4 | ✅ | tools.ts 225 行 / toolsSkillGateway.ts 163 行 / bootstrapOrchestrator 132 行 / bootstrapEngineIntegration 91 行 均 ≤250；工具域 12 工具计数正确 |
+| smoke | ✅ 19/19 | ALL PASS |
+| validate | ✅ 12/12 | DSH 规范符合性门 |
+| typecheck | ✅ 0 错误 | scripts/typecheck.mjs |
+| build | ✅ | tsdown host+client（45ms/52ms） |
+| P0-P3 修复 | ✅ 6 项 | P0-1 archiver require→ESM / P1-1 verifyFn 真实检查 / P1-2 review CORS / P1-4 safeHandler 兜底 / P2-1 timeout 校验 / P3-3 import 位置 |
+| 测试审计修复 | ✅ | usePanelResize.test.ts:38 no-op → 真实 DOM 断言（父工程 12/12） |
+| 提交 | 57c86cc + b9e4a7a + f6d2dc8 + 8d4c771 + 3b2de1f | 20 文件 |
+
+第五轮 G2 判定：测试零错 → 通过（204 + 19 + 12 全绿）
+
+## 9. 第六轮终态验证（2026-10-15，父项目）
+
+| 套件 | 命令 | 通过 | 失败 | 错误 | 备注 |
+|---|---|---|---|---|---|
+| 父项目 unit | `npx vitest run` | 5373 | 0 | 0 | 197 文件；含 virtualScrollReachability 4 例、e2eSelectorContract 10 例 |
+| 父项目 typecheck | `tsc -p tsconfig.{host,client,test}.json` | 3/3 | 0 | 0 | exit 0 |
+| 父项目 lint | `pnpm run lint` | 1 | 0 | 0 | oxlint 247 文件 / 103 规则，0 warnings 0 errors |
+| 父项目 build | `pnpm run build` | 1 | 0 | 0 | layoutWorker 1528568 B |
+| 父项目 perf-gate | `node scripts/perf-gate.mjs` | 3 | 0 | 0 | client 2.47MB/3MB · host 208KB/512KB · testCount 5373 ≥ baseline 5347 |
+| 父项目 e2e（performance project） | `npx playwright test --project=performance` | 11 | 0 | 0 | 含 J35 三条新用例（开启 / 反向关闭 / 大图平移） |
+| dsh-anic 三层 | `node scripts/run-tests.mjs` | 204+19+12 | 0 | 0 | 见第五轮 |
+
+**通过：5373+3+1+1+3+11+235**　**失败：0**　**错误：0**
+
+### 9.1 变异探针（证明新断言有鉴别力）
+
+| 探针 | 变异 | 结果 | 结论 |
+|---|---|---|---|
+| M-A | `VIRTUAL_VIEWPORT.SCROLL_THRESHOLD` 500 → 5000（高于注入的 3000 节点） | e2e J35 **3 failed** | 开启断言真的依赖阈值可达 |
+| M-B | `CytoscapeRenderer.disableVirtualScroll` 去掉 `removeAttribute` | e2e **1 failed / 2 passed**（仅反向用例红） | 双向断言中反向那条在做实事 |
+| M-C | 阈值回到历史值 2500 | unit `virtualScrollReachability` **1 failed** | 联合校准契约能抓住旧值 |
+| M-D | 动态面板豁免恢复为形状判定 `/^cg-[a-z-]+-panel$/` + 加入未登记 `.cg-fake-panel` | 守卫 **10 passed** | 旧豁免正是逃逸口（修复前该形状确实放行） |
+| M-E | 恢复一条裸字面量 `.cg-graph-panel` | 守卫 **1 failed** 并指名 `PANEL.root` | 零容忍断言生效 |
+
+### 9.2 未闭环项（诚实披露）
+
+- `performance` project 仍无 npm script、不在 CI ⇒ J35 的**端到端**覆盖仍未进门禁；进门禁的是单测侧可达性契约。
+- `docs/长期愿景评估.md` 缺失 ⇒ 六维评分 KPI 不可采集（既有登记项）。
+- 50,000 节点 FPS ≥ 30（FR-50 验收原文）**未实测**；本次只证明了特性可达，未做规模压测。
+
+## 10. 门禁汇总（G2 解析口径）
+
+| 项 | 数值 |
+|---|---|
+| 通过 | 5627 |
+| 失败 | 0 |
+| 错误 | 0 |
+
+> 口径（明细见 §2 / §4b / §6 / §8 / §9）：
+> - 用例级：父项目 unit 5373 + 父项目 e2e(performance) 11 + dsh-anic 204 + smoke 19 + validate 12 = **5619**
+> - 套件级门：父项目 typecheck 3 份 tsconfig + lint 1 + build 1 + perf-gate 3 档 = **8**
+> - 合计 **5627**；失败 0、错误 0（变异探针的失败不计入：它们是刻意的红→绿对照，见 §9.1）
