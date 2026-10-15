@@ -32,6 +32,14 @@ import {
 } from './runtime/flowTracker.ts';
 import { runSelfBootstrapCycle } from './runtime/bootstrapOrchestrator.ts';
 import { runBootstrapWithEngines } from './runtime/bootstrapEngineIntegration.ts';
+import {
+  skillPresentCall,
+  skillPresentResult,
+  bootstrapCyclePresentCall,
+  bootstrapAnalyzePresentCall,
+  terminalResult,
+  genericCall,
+} from './presentation.ts';
 
 export function registerSkillGatewayTools(
   tools: ToolsSlot,
@@ -52,6 +60,8 @@ export function registerSkillGatewayTools(
         workspace: { type: 'string', description: 'Target project directory' },
       },
     },
+    presentCall: (args) => genericCall('anic_install', 'edit', { workspace: args.workspace }),
+    presentResult: () => ({ card: 'generic' as const, title: 'anic_install ✓' }),
     handler: safeHandler(async (args) => {
       const root = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!root) return { error: 'no workspace' };
@@ -98,6 +108,8 @@ export function registerSkillGatewayTools(
       },
       required: ['script'],
     },
+    presentCall: skillPresentCall,
+    presentResult: skillPresentResult,
     handler: safeHandler(async (args) => {
       const script = String(args.script ?? '');
       if (!isAllowedScript(script)) {
@@ -152,6 +164,8 @@ export function registerSkillGatewayTools(
         timeout: { type: 'number', description: 'Per-step timeout ms (default 60000)' },
       },
     },
+    presentCall: bootstrapCyclePresentCall,
+    presentResult: () => ({ card: 'generic' as const, title: 'anic_bootstrap_cycle ✓' }),
     handler: safeHandler(async (args) => {
       const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!ws) return { error: 'no workspace' };
@@ -185,6 +199,8 @@ export function registerSkillGatewayTools(
         timeout: { type: 'number', description: 'Per-step timeout ms (default 60000)' },
       },
     },
+    presentCall: bootstrapAnalyzePresentCall,
+    presentResult: () => ({ card: 'generic' as const, title: 'anic_bootstrap_analyze ✓' }),
     handler: safeHandler(async (args) => {
       const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!ws) return { error: 'no workspace' };

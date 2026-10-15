@@ -168,12 +168,22 @@ node <scriptPath> <workspace> ...args
 - **测试**：`tests/unit/flowTracker.test.ts` 15 例——生命周期 / 查询 / 滚动淘汰 / 截断 / 持久化健壮性 / flowId 唯一性。
 - **设计意图**：大模型自举时可查询 `anic_status` 获取最近调用历史与成功率统计，开发人员可查阅 `.cycles/flow-tracker.json` 审计。
 
+### 5.3 技能优先面呈现（M10-d）
+
+所有 `anic_*` 工具声明 `presentCall` / `presentResult`，使大模型调用时 DSH UI 透明呈现工具卡片。
+
+- **实现**：`src/host/presentation.ts`（114 行）——纯函数构造 `TerminalCallView`（脚本执行类）与 `GenericCallView`（查询类），含 `terminalCall` / `terminalResult` / `genericCall` / `genericResult` 及 7 个工具专用呈现函数。
+- **接入**：`ToolRegistration` 接口扩展 `presentCall?` / `presentResult?` 可选字段；`tools.ts` 的 `anic_evaluate` / `anic_iterate` / `anic_status` 与 `toolsSkillGateway.ts` 的 `anic_install` / `anic_skill` / `anic_bootstrap_cycle` / `anic_bootstrap_analyze` 均已接入。
+- **呈现策略**：脚本执行类工具（`anic_skill` / `anic_evaluate` / `anic_iterate` / `anic_bootstrap_cycle` / `anic_bootstrap_analyze`）使用终端卡片（`card: 'terminal'`），显示命令标题 + 工作目录 + 摘要；查询类工具（`anic_status`）使用通用卡片（`card: 'generic'`，`kind: 'read'`）。
+- **测试**：`tests/unit/presentCallContract.test.ts` 19 例——视图形状 / 安全降级 / 纯函数幂等性。
+- **设计意图**：调用时可视化透明化——大模型与开发人员在 DSH UI 中实时看到技能调用的脚本名、工作目录、退出码与输出，无需查阅日志。
+
 ## 6. 测试金字塔
 
 | 层 | 命令 | 范围 | 当前状态 |
 |---|---|---|---|
 | L1 validate | `pnpm run lint` | DSH 规范符合性门（`validate-dsh.mjs`） | 12/12 ✅ |
-| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 188/188 ✅ |
+| L2 vitest | `pnpm run test:unit` | 单元/契约测试 | 223/223 ✅ |
 | L3 smoke | `pnpm run test:smoke` | stub 宿主机制冒烟 | 19/19 ✅ |
 | L4 j0-probe | `pnpm run j0` | 真实宿主 J0 六步协议探针 | 按需运行 |
 | L5 替代性 e2e | vitest（`skillReplaceE2E`） | 插件内联技能 → 全新工作区完整自举 | 7/7 ✅ |

@@ -3,11 +3,55 @@
  * 独立成文件以避免 tools ↔ toolsSkillGateway 的 type-only 循环引用。
  */
 
+/**
+ * 工具调用呈现视图（DSH ToolCallView 子集）。
+ * M10-d 技能优先面：工具调用时可视化透明化。
+ */
+export type ToolCallKind = 'read' | 'edit' | 'delete' | 'move' | 'search' | 'execute' | 'fetch' | 'other';
+
+/** 通用卡片视图（pending 状态）。 */
+export interface GenericCallView {
+  card: 'generic';
+  title: string;
+  kind?: ToolCallKind;
+  rawInput?: unknown;
+}
+
+/** 终端卡片视图（pending 状态）——命令执行类工具。 */
+export interface TerminalCallView {
+  card: 'terminal';
+  title: string;
+  summary?: string;
+  cwd?: string;
+}
+
+export type ToolCallView = GenericCallView | TerminalCallView;
+
+/** 通用结果视图（completed 状态）。 */
+export interface GenericResultView {
+  card: 'generic';
+  title?: string;
+}
+
+/** 终端结果视图（completed 状态）——含退出码与输出。 */
+export interface TerminalResultView {
+  card: 'terminal';
+  title?: string;
+  output?: string;
+  exitCode?: number;
+}
+
+export type ToolResultView = GenericResultView | TerminalResultView;
+
 export interface ToolRegistration {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   handler: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  /** M10-d: pending 状态呈现（DSH UI 工具卡片标题/图标）。 */
+  presentCall?: (args: Record<string, unknown>) => ToolCallView | undefined;
+  /** M10-d: completed 状态呈现（DSH UI 工具结果卡片）。 */
+  presentResult?: (args: Record<string, unknown>, result: Record<string, unknown>) => ToolResultView | undefined;
 }
 
 export interface ToolsSlot {

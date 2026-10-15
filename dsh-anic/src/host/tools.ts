@@ -1,11 +1,8 @@
 /**
  * DSH tool registration — exposes dsh-anic capabilities as DSH tools
  * that other sessions/agents can invoke (M8 G-TOOL).
- *
- * INV-24: 'tools' is in inject but we still probe via ctx.get('tools', false)
- * for graceful degradation on hosts without the tools slot.
+ * INV-24: 'tools' in inject but we probe ctx.get('tools', false) for graceful degradation.
  */
-
 import { resolveWorkspaceRoots, type SnapshotCtx } from './snapshotRoute.ts';
 import { registerSkillGatewayTools } from './toolsSkillGateway.ts';
 import type { ToolsSlot } from './toolsSlot.ts';
@@ -13,6 +10,12 @@ import { resolveSkillScriptsDir, invokeSkillScript, validateWorkspace } from './
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { loadFlowTracker, recentFlows, flowStats } from './runtime/flowTracker.ts';
+import {
+  evaluatePresentCall,
+  iteratePresentCall,
+  statusPresentCall,
+  terminalResult,
+} from './presentation.ts';
 
 interface HostContext {
   tools?: ToolsSlot;
@@ -52,6 +55,8 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
         dimensions: { type: 'string', description: 'Comma-separated dimension IDs (e.g. E1,E2,E3)' },
       },
     },
+    presentCall: evaluatePresentCall,
+    presentResult: (_args, result) => terminalResult(result, 'anic_evaluate ✓'),
     handler: async (args) => {
       const ws = (args.workspace as string) ?? getRoot() ?? '';
       const check = validateWorkspace(ws);
@@ -79,6 +84,8 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
         workspace: { type: 'string', description: 'Target project directory' },
       },
     },
+    presentCall: iteratePresentCall,
+    presentResult: () => ({ card: 'generic' as const, title: 'anic_iterate ✓' }),
     handler: async (args) => {
       const ws = (args.workspace as string) ?? getRoot() ?? '';
       const check = validateWorkspace(ws);
@@ -211,6 +218,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
         flowLimit: { type: 'number', description: 'Max recent flow records to return (default 10, max 50)' },
       },
     },
+    presentCall: statusPresentCall,
     handler: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
       const flowLimit = Math.min(Math.max(typeof args.flowLimit === 'number' ? args.flowLimit : 10, 1), 50);
