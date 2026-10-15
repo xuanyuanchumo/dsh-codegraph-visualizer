@@ -13,7 +13,7 @@ type SendFn = (res: unknown, code: number, body: unknown, requestId?: string) =>
 
 interface ServerContext {
   webServer?: {
-    register?: (method: string, path: string, handler: (req: unknown, res: unknown) => void) => (() => void) | void;
+    register?: (route: { kind: 'exact' | 'prefix'; path: string; handler: (req: unknown, res: unknown) => void }) => (() => void) | void;
   };
   workspaceRegistry?: { list?: () => Array<{ path?: string }> };
   sessions?: { list?: () => Array<{ header?: { cwd?: string } }> };
@@ -33,13 +33,13 @@ export function registerGovernanceRoute(ctx: ServerContext, send: SendFn): Array
   const ws = ctx.webServer;
   if (!ws?.register) return disposers;
 
-  const reg = (path: string, method: string, handler: (req: unknown, res: unknown) => void): void => {
-    const d = ws.register!(method, path, handler);
+  const reg = (path: string, handler: (req: unknown, res: unknown) => void): void => {
+    const d = ws.register!({ kind: 'exact', path, handler });
     disposers.push(typeof d === 'function' ? d : null);
   };
 
   // POST /anic/governance/archive — 归档旧 cycle
-  reg('/anic/governance/archive', 'POST', (req, res) => {
+  reg('/anic/governance/archive', (req, res) => {
     const root = resolveRoot(ctx);
     if (!root) return send(res, 500, { error: 'ANIC_ROUTE_NO_WORKSPACE' });
     const cyclesDir = join(root, '.cycles');
@@ -51,7 +51,7 @@ export function registerGovernanceRoute(ctx: ServerContext, send: SendFn): Array
   });
 
   // GET /anic/governance/budget — 预算检查
-  reg('/anic/governance/budget', 'GET', (req, res) => {
+  reg('/anic/governance/budget', (req, res) => {
     const root = resolveRoot(ctx);
     if (!root) return send(res, 500, { error: 'ANIC_ROUTE_NO_WORKSPACE' });
     const cyclesDir = join(root, '.cycles');
@@ -70,7 +70,7 @@ export function registerGovernanceRoute(ctx: ServerContext, send: SendFn): Array
   });
 
   // POST /anic/governance/sweep — 清扫空目录与过期 .tmp
-  reg('/anic/governance/sweep', 'POST', (req, res) => {
+  reg('/anic/governance/sweep', (req, res) => {
     const root = resolveRoot(ctx);
     if (!root) return send(res, 500, { error: 'ANIC_ROUTE_NO_WORKSPACE' });
     const cyclesDir = join(root, '.cycles');
@@ -82,7 +82,7 @@ export function registerGovernanceRoute(ctx: ServerContext, send: SendFn): Array
   });
 
   // GET /anic/governance/prune — 孤儿检查
-  reg('/anic/governance/prune', 'GET', (_req, res) => {
+  reg('/anic/governance/prune', (_req, res) => {
     const root = resolveRoot(ctx);
     if (!root) return send(res, 500, { error: 'ANIC_ROUTE_NO_WORKSPACE' });
     const cyclesDir = join(root, '.cycles');

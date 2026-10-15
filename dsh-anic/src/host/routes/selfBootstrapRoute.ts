@@ -52,14 +52,14 @@ export function registerSelfBootstrapRoutes(
   const ws = ctx.webServer;
   if (!ws?.register) return [];
 
-  const reg = (method: string, p: string, handler: (req: RouteReq, res: unknown) => void) => {
-    const d = ws.register!(method, p, handler as (req: unknown, res: unknown) => void);
+  const reg = (p: string, handler: (req: RouteReq, res: unknown) => void) => {
+    const d = ws.register!({ kind: 'exact', path: p, handler: handler as (req: unknown, res: unknown) => void });
     return typeof d === 'function' ? d : null;
   };
 
   return [
     // POST /anic/self/evaluate — run eval-runner on dsh-anic itself
-    reg('POST', '/anic/self/evaluate', (_req, res) => {
+    reg('/anic/self/evaluate', (_req, res) => {
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
       const cyclesDir = path.join(roots, '.cycles');
@@ -89,7 +89,7 @@ export function registerSelfBootstrapRoutes(
     }),
 
     // POST /anic/self/gate-check — run gate-check on dsh-anic itself
-    reg('POST', '/anic/self/gate-check', (_req, res) => {
+    reg('/anic/self/gate-check', (_req, res) => {
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
       const cyclesDir = path.join(roots, '.cycles');
@@ -121,7 +121,7 @@ export function registerSelfBootstrapRoutes(
     }),
 
     // POST /anic/self/iterate — full micro-iteration (eval→gate→tech-debt)
-    reg('POST', '/anic/self/iterate', (req, res) => {
+    reg('/anic/self/iterate', (req, res) => {
       const body = parseBody(req);
       const maxRounds = typeof body.maxRounds === 'number' ? body.maxRounds : 3;
 
@@ -193,7 +193,7 @@ export function registerSelfBootstrapRoutes(
     }),
 
     // GET /anic/self/status — bootstrap state
-    reg('GET', '/anic/self/status', (_req, res) => {
+    reg('/anic/self/status', (_req, res) => {
       const roots = resolveWorkspaceRoots(ctx);
       if (!roots) { send(res, 500, { error: 'no workspace' }); return; }
       const cyclesDir = path.join(roots, '.cycles');

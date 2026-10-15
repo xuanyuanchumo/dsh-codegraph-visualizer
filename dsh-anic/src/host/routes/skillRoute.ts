@@ -25,19 +25,19 @@ export function registerSkillRoutes(
   const ws = ctx.webServer;
   if (!ws?.register) return [];
 
-  const reg = (method: string, p: string, handler: (req: RouteReq, res: unknown) => void) => {
-    const d = ws.register!(method, p, handler as (req: unknown, res: unknown) => void);
+  const reg = (p: string, handler: (req: RouteReq, res: unknown) => void) => {
+    const d = ws.register!({ kind: 'exact', path: p, handler: handler as (req: unknown, res: unknown) => void });
     return typeof d === 'function' ? d : null;
   };
 
   return [
     // GET /anic/skill/list — list available skill scripts
-    reg('GET', '/anic/skill/list', (_req, res) => {
+    reg('/anic/skill/list', (_req, res) => {
       send(res, 200, { scripts: listSkillScripts() });
     }),
 
     // POST /anic/skill/invoke — invoke a skill script on a workspace
-    reg('POST', '/anic/skill/invoke', (req, res) => {
+    reg('/anic/skill/invoke', (req, res) => {
       const body = parseBody(req);
       const script = typeof body.script === 'string' ? body.script : '';
       const args: string[] = Array.isArray(body.args) ? (body.args as string[]) : [];
@@ -75,7 +75,7 @@ export function registerSkillRoutes(
     }),
 
     // POST /anic/evaluate — cross-project evaluation
-    reg('POST', '/anic/evaluate', (req, res) => {
+    reg('/anic/evaluate', (req, res) => {
       const body = parseBody(req);
       const workspace = typeof body.workspace === 'string' ? body.workspace : resolveWorkspaceRoots(ctx);
       const dimensions = typeof body.dimensions === 'string' ? body.dimensions : undefined;
@@ -100,7 +100,7 @@ export function registerSkillRoutes(
     }),
 
     // POST /anic/iterate — cross-project iteration
-    reg('POST', '/anic/iterate', (req, res) => {
+    reg('/anic/iterate', (req, res) => {
       const body = parseBody(req);
       const workspace = typeof body.workspace === 'string' ? body.workspace : resolveWorkspaceRoots(ctx);
 
