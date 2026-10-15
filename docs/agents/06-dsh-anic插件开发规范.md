@@ -61,6 +61,11 @@ export function apply(ctx: unknown): void {
 - 共享 deps 经 `routeContext.ts` 的 `buildRouteContext(ctx)` 提取（单一职责）。
 - 聚合器 `registerAnicRoutes` 收集所有 disposer，返回统一清理函数。
 - **守卫**：`if (!c.webServer || typeof c.webServer.register !== 'function') return null;`
+- **API 签名**（P0 教训）：`webServer.register` 必须用**单对象**调用：
+  ```typescript
+  ws.register!({ kind: 'exact', path: '/anic/...', handler: (req, res) => ... });
+  ```
+  旧 3-arg 形式 `ws.register!(method, path, handler)` 会使 `route.path = undefined`，导致 `duplicate undefined route` 错误且所有路由变死路由。全部 18 个路由文件已迁移至单对象签名。
 
 ## 4. 模块架构
 
@@ -104,6 +109,10 @@ export function apply(ctx: unknown): void {
 | `segmentedLedger.ts` | 分段账本 |
 | `stackProbe.ts` | 栈探针 |
 | `stateMachine.ts` | 状态机 |
+| `flowTracker.ts` | 每流程状态跟踪（M10-a），持久化 `.cycles/flow-tracker.json` |
+| `bootstrapOrchestrator.ts` | 自举编排器（M10-b），协调评估→门禁→推进 |
+| `bootstrapEngineIntegration.ts` | 自举引擎集成（M10-c），连接进化引擎与自举闭环 |
+| `continuousLearning.ts` | 持续学习（M10-e），健康等级分析 `analyzeSkillHealth` |
 
 ### 4.5 适配器层（`dsh-anic/src/adapters/index.ts`）
 
@@ -121,9 +130,9 @@ export function createNodeAdapters(): Adapters; // 生产用；测试注入 mock
 - **INV-25**：配置单入口；**INV-26**：诊断域隔离。
 - Node 内部导入延迟绑定（文件底部），便于测试 mock。
 
-## 5. 工具注册（工具域：`tools.ts` + `toolsSkillGateway.ts`）
+## 5. 工具注册（工具域：`tools.ts` + `toolsSkillGateway.ts` + `toolsPointerGateway.ts`）
 
-注册 **12 个** DSH 工具供其他会话/agent 调用。技能调用域工具（anic_install + anic_skill + anic_bootstrap_cycle + anic_bootstrap_analyze）拆分至 `src/host/toolsSkillGateway.ts`（T3 ≤250 行模块化纪律），槽位形状契约在 `src/host/toolsSlot.ts`。
+注册 **12 个** DSH 工具供其他会话/agent 调用。技能调用域工具（anic_install + anic_skill + anic_bootstrap_cycle + anic_bootstrap_analyze）拆分至 `src/host/toolsSkillGateway.ts`（T3 ≤250 行模块化纪律）；指针工具（anic_snapshot + anic_self_check + anic_hitl）拆分至 `src/host/toolsPointerGateway.ts`；槽位形状契约在 `src/host/toolsSlot.ts`。
 
 | 工具 | 功能 | 底层技能脚本 | 文件 |
 |---|---|---|---|
@@ -249,6 +258,10 @@ pnpm run j0          # 真实宿主 J0 探针（不启停宿主）
 | 嵌入快照与路由快照共用构建器 | 改 `snapshotCore.ts` 要同步两处 |
 | 测试读 `dist/` 对 `src/` 变更惰性 | 先 `pnpm run build` 再跑 smoke |
 | 父工程 `src/` 零变更 | dsh-anic 是独立工程，不改父项目源码 |
+| `webServer.register` 签名 | **必须**用单对象 `register({ kind: 'exact', path, handler })`，旧 3-arg `register(method, path, handler)` 会使 `route.path=undefined` → `duplicate undefined route` 错误，所有路由变死路由（P0 教训：71de9d5 + 5e4eb39） |
+| `tools.register` output 声明 | DSH 宿主要求每个工具声明 `output: { schema, render }`，否则 `TypeError: tool must declare output` → 插件整体加载失败（P0 教训：9d8105d）。用 `makeToolOutput()` 工厂统一构造 |
+| `tools.register` this 绑定 | 传 `tools.register!` 作为裸函数引用会丢失 `this` → `Cannot read properties of undefined (reading 'layers')`。必须包裹：`(tool) => tools.register!(tool)`（P0 教训：fd260fd） |
+| 客户端接口与服务端类型对齐 | `OrgStatusJson` / `TraceStepJson` 等客户端接口必须与服务端 `OrgStatus` / `TraceStep` 字段名和形状完全匹配，否则 `esc(undefined)` 崩溃（P0 教训：63370d4） |
 
 ## 10. 相关文档
 
