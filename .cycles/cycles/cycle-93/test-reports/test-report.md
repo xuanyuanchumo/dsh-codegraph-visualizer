@@ -151,3 +151,22 @@
 > - 用例级：父项目 unit 5373 + 父项目 e2e(performance) 11 + dsh-anic 204 + smoke 19 + validate 12 = **5619**
 > - 套件级门：父项目 typecheck 3 份 tsconfig + lint 1 + build 1 + perf-gate 3 档 = **8**
 > - 合计 **5627**；失败 0、错误 0（变异探针的失败不计入：它们是刻意的红→绿对照，见 §9.1）
+
+## 11. 真实 DSH 宿主复验（objective #7，2026-10-15）
+
+命令：`node ./scripts/start-dsh-test.mjs start 120000` → DSH PID 43052（3080）+ Chrome PID 46292（9222）；
+认证 URL `http://127.0.0.1:3080/?token=0l1HF…`；经 **Chrome DevTools MCP** 驱动（`navigate_page`/`evaluate_script`/`take_screenshot` 均需显式传 `pageId`）。
+结束后 `node ./scripts/start-dsh-test.mjs stop`，status 确认 3080/9222 均已停止。
+
+| # | 验证项 | 方法 | 实测结果 |
+|---|---|---|---|
+| 1 | 顶部标签栏同级注册 | 读 `[role=tab]` 列表 | `["对话","轨迹","代码图谱"]` —— 与本插件 objective #4 的「同级动态注册」一致 |
+| 2 | 标签激活 | 点击「代码图谱」后读 `aria-selected` | `代码图谱=true`，其余 false |
+| 3 | 视图容器可见 | 读 `[data-cg-conversation-view]` | `data-cg-visible="true"`，rect `[280,76,824,432]` |
+| 4 | 面板完整渲染 | 统计 `[class*="cg-"]` | 64 个元素；`.cg-graph-panel` 与 `.cg-graph-container` 均存在 |
+| 5 | **虚拟滚动标记（本轮修复项）** | 注入 3000 个 `function` 节点 + `setViewMode('callgraph')` | 容器 `data-cg-virtual-scroll="on"`，`cy.nodes().length = 3000`，store 显示层 3000 |
+| 6 | 虚拟滚动反向 | `setViewMode('code')` + 1 节点小图 | 标记变为 `null`（`removeAttribute` 生效） |
+| 7 | 非空图谱渲染 | `setCurrentWorkspace` 切到本仓库（`.codegraph/codegraph.db` 12.8MB 索引）→ `loadBootstrap()` | `indexStatus=ready`，50 节点 / 6 边；状态栏「50 节点 · 6 边」「✓ 图谱完整（2193 节点）」，截图见 `.cycles/cycles/cycle-93/` 审计记录 |
+
+> 说明：第 5 项在真机上直接复现了本轮修复的效果——**同一个 3000 节点注入在修复前不可能出现该标记**（阈值 2500 且 code 视图上限 1500）。
+> 第 7 项同时排除了「插件在真机里只能看空态」的可能：换成已建索引的工作区后图谱真实渲染。
