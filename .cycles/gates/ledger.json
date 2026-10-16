@@ -566,7 +566,43 @@
       "timestamp": "2026-10-14T06:07:42.016Z",
       "previousHash": "ca54218e3d7db2d3b2a598876d2a62363cb10d1fcbe53f2e8e35b1622b60a35d",
       "hash": "6f6c5c090542003dc1754f1c90349a90e2cf59ecb79dc3c214691e454354aacb"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-95: 评估收敛。dsh-anic 深挖出 4 P0（ledger 包裹形态读 0 条且 append 会销毁 63 条历史链 / renderOrgStatus HTML 字符串被 React 转义整区渲染为字面量 / prefers-color-scheme 抢先命中宿主主题 / 根容器死滚动容器吞掉 sticky 工具栏）+ 1 P1 对比度 + 2 P2 无障碍 + 2 P3 测试卫生，全部实测定位（真实宿主 DOM/HTTP + WCAG 数值审计）。目标 #7 网页端全旅程 + 桌面标记仿真 + 响应式完成。",
+      "timestamp": "2026-10-16T01:43:18.435Z",
+      "previousHash": "6f6c5c090542003dc1754f1c90349a90e2cf59ecb79dc3c214691e454354aacb",
+      "hash": "6f6968c7420cb5370bec7604b1e8b3b5d990512a3d75935bfaf6ddbfd30f13eb"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-95: 任务闭合。T1-T14 全部完成（4 P0 修复 + 对比度系统 palette/tokens/contrastContract + 图键盘可达性 + 工具栏 aria + G-IND 机械守卫 + 竞态与泄漏修复 + 真实宿主 3 轮重启验证 + 桌面仿真 + 11 篇 agents 文档 + 5 技能参考目录 + 外来回滚事件保全 + 四件套）。6 条携带项（CO-1..CO-6）写明去向。",
+      "timestamp": "2026-10-16T01:43:18.450Z",
+      "previousHash": "6f6968c7420cb5370bec7604b1e8b3b5d990512a3d75935bfaf6ddbfd30f13eb",
+      "hash": "1d496492397d9a1c824cb9c92413fc32b735e50b96c3b79fc5c92285fc718f8a"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-95: 测试收敛。dsh-anic typecheck exit 0；vitest 27 文件 / 315 用例全绿（基线 cycle-94: 20/235 ⇒ +7 文件 +80 用例）；validate C1-C8 全过；smoke 19/19；build OK。每个新守卫经变异探针先红后绿（ledger 6/7、org 4/8、theme 6/16、layout 3/7、graphA11y 7+1+1、independence 1+1+3、contrast 1+1+1、chainHead 2）。真实宿主实测：浅色 691 文本 0 违约 / 深色 480 文本 0 违约 / 工具栏四点钉住 / 账本 63 条回归。",
+      "timestamp": "2026-10-16T01:43:18.460Z",
+      "previousHash": "1d496492397d9a1c824cb9c92413fc32b735e50b96c3b79fc5c92285fc718f8a",
+      "hash": "880e8e70f312b256af7db8383df3bb2588bd115321c7373ef683664ed22932b6"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-95: 构建收敛。pnpm run build exit 0（host-esm 173.65 kB gzip 46.32 kB，dist/client.js + dist/host.js）；父工程 typecheck exit 0（外来回滚处置后复验）。外来回滚事件（08:55:39，37 文件至 ~cycle-76 时代）已 patch + stash 双保全，未污染提交历史。诚实披露：桌面 profile bundles 不含 dsh-anic（配置缺口非代码缺陷）；客户端文案未走 t()；visual-linux 基线仍未生成。",
+      "timestamp": "2026-10-16T01:43:18.471Z",
+      "previousHash": "880e8e70f312b256af7db8383df3bb2588bd115321c7373ef683664ed22932b6",
+      "hash": "aedc2453a6d4b4a85222a3c1908dcd9dd8f32b9b4a9487e0fc637b1efda286a7"
     }
   ],
-  "chainHead": "6f6c5c090542003dc1754f1c90349a90e2cf59ecb79dc3c214691e454354aacb"
+  "chainHead": "aedc2453a6d4b4a85222a3c1908dcd9dd8f32b9b4a9487e0fc637b1efda286a7"
 }
