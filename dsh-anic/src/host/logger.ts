@@ -8,7 +8,7 @@
  *   诊断面板按 requestId 关联（11 §L-2）。
  * - 错误码工厂在 `shared/errors.ts`（client 也要用，shared 单实现）。
  * - INV-26（诊断域隔离）：本模块只写日志流，**绝不写 `.cycles/`** ——
- *   该不变量由 tests/contract 常驻守卫（G-IND 家族）与 self-check 探针共同约束。
+ *   该不变量由 tests/contract/independenceGuard.test.ts 常驻守卫与 self-check 探针共同约束。
  */
 
 export const ANIC_LOG_PREFIX = '[dsh-anic]';

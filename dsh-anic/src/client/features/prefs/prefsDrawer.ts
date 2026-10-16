@@ -8,6 +8,7 @@
  */
 import { createElement, type ReactElement } from 'react';
 import { FLOWS, PREFS_KEY, parseRawPrefs, resolveFlows, type FlowLayer } from '../../../shared/flows.ts';
+import { token } from '../../../shared/tokens.ts';
 
 export interface FlowOverrideInput {
   /** 工作区层（host/config.ts 的 anic 段解析结果，键 = 'flow.xxx'） */
@@ -43,6 +44,15 @@ export function writeUserPrefs(flows: Record<string, boolean>): void {
 
 const SOURCE_LABEL: Record<FlowLayer, string> = { user: '用户', workspace: '工作区', deployment: '部署' };
 
+/**
+ * 抽屉容器 id。
+ *
+ * 与工具栏开关的 `aria-controls` 是**同一契约的两半**，因此必须同源：
+ * 两处各写一份字面量，改名时必然只改一边，`aria-controls` 就指向一个不存在的
+ * id —— 而这是**静默失效**，AT 只会读不出关联，没有任何报错。
+ */
+export const PREFS_PANEL_ID = 'anic-prefs-drawer';
+
 /** 纯渲染 + 回调：抽屉（smoke 可断言 data-anic-prefs 抽屉结构）。 */
 export function renderPrefsDrawer(input: FlowOverrideInput, onChange: (flows: Record<string, boolean>) => void): ReactElement {
   const user = readUserPrefsRaw();
@@ -64,21 +74,30 @@ export function renderPrefsDrawer(input: FlowOverrideInput, onChange: (flows: Re
           onChange(next);
         },
       }),
-      createElement('span', { style: { flex: 1, color: '#334155' } }, f.label),
-      createElement('span', { style: { fontSize: 10, color: '#94a3b8' } }, `${sourceLabel}层 · ${f.layers.join('/')}`),
+      createElement('span', { style: { flex: 1, color: token('anic-text') } }, f.label),
+      createElement('span', { style: { fontSize: 10, color: token('anic-text-faint') } }, `${sourceLabel}层 · ${f.layers.join('/')}`),
     );
   });
 
   return createElement(
     'div',
-    { 'data-anic-prefs': 'drawer', style: { padding: '8px 10px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' } },
-    createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#334155' } }, '功能开关（三层：用户 > 工作区 > 部署）'),
+    {
+      'data-anic-prefs': 'drawer',
+      id: PREFS_PANEL_ID,
+      // role="region" + aria-label：抽屉是一块有名字的地标，AT 可直接跳入。
+      // 它不是 modal（不做焦点陷阱、不遮挡主体），因此不用 role="dialog"/
+      // aria-modal —— 那会谎报"模式化"，让 AT 以为外部内容 inert。
+      role: 'region',
+      'aria-label': 'ANIC 功能开关',
+      style: { padding: '8px 10px', borderTop: `1px solid ${token('anic-border')}`, background: token('anic-surface') },
+    },
+    createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4, color: token('anic-text') } }, '功能开关（三层：用户 > 工作区 > 部署）'),
     ...rows,
     resolved.warnings.length > 0
-      ? createElement('div', { 'data-anic-flow-warnings': 'true', style: { fontSize: 10, color: '#b45309', marginTop: 6 } },
+      ? createElement('div', { 'data-anic-flow-warnings': 'true', style: { fontSize: 10, color: token('anic-warn-text'), marginTop: 6 } },
           `开关告警 ${String(resolved.warnings.length)} 条（未知键/非法值已忽略，详见遥测）`)
       : null,
-    createElement('div', { style: { fontSize: 10, color: '#94a3b8', marginTop: 6 } },
+    createElement('div', { style: { fontSize: 10, color: token('anic-text-faint'), marginTop: 6 } },
       'M1 仅用户层可写；工作区层请编辑 .cycles/config.yml 的 anic 段（唯一规范入口）。'),
   );
 }

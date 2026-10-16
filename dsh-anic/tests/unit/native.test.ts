@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { classifyBand, detectTrend, runBandDetection } from '../../src/host/evolution/bandDetector.ts';
 import { aggregateVerdicts, heuristicEvaluate, runGate, GATE_NAMES, AGENT_ROLES } from '../../src/host/llm/multiAgentGate.ts';
 import { runFixLoop, MAX_RETRIES } from '../../src/host/evolution/fixLoop.ts';
@@ -7,11 +10,32 @@ import { runFactBaseVerify } from '../../src/host/governance/factBaseVerify.ts';
 import { runPlanSync } from '../../src/host/governance/planSync.ts';
 import { runOrgStatus } from '../../src/host/evolution/orgStatus.ts';
 import { resolveSkillScriptsDir, isSkillInstalled, autoInstallSkill, listSkillScripts } from '../../src/host/skillInvoker.ts';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 
-const TMP = join(process.cwd(), 'tests', 'tmp-native');
-const MKDIR = (p: string) => { try { require('node:fs').mkdirSync(p, { recursive: true }); } catch {} };
+/**
+ * 临时工作区一律落在**系统临时目录**，并在每个用例后删除。
+ *
+ * 修因（真实泄漏，非假想）：本文件此前写作
+ * `const TMP = join(process.cwd(), 'tests', 'tmp-native')`，且**没有任何清理**
+ * —— 每次运行都把 `runFixLoop` 的 `.cycles/tech-debt/fix-loop-*.json` 留在
+ * 仓库树内，实测已累积 **87 个**残留文件。
+ *
+ * 它还有一个更隐蔽的连带后果：`tests/` 下的临时目录会被
+ * `tests/contract/independenceGuard.test.ts` 的递归 walk 扫到（该守卫在模块
+ * 加载期列目录、在用例执行期读文件），于是"目录被删掉"会让守卫以 ENOENT
+ * 报红 —— 一个用例的脏写让另一个用例随机失败。仓库内其余 12 个测试文件
+ * 早已统一用 `mkdtempSync(tmpdir())` + `afterEach(rmSync)`，本文件是唯一的例外。
+ *
+ * 另删：原第 14 行的 `MKDIR` 常量是死代码（全文件零调用），且用了 `require`。
+ */
+let TMP: string;
+
+beforeEach(() => {
+  TMP = mkdtempSync(join(tmpdir(), 'anic-native-'));
+});
+
+afterEach(() => {
+  rmSync(TMP, { recursive: true, force: true });
+});
 
 describe('bandDetector', () => {
   it('classifies bands correctly', () => {

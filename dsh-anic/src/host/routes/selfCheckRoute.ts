@@ -102,7 +102,7 @@ export function runSelfChecks(input: SelfCheckInput): { checks: ProbeResult[]; a
     checks.push({ id: 'P5-steptrace-reproducible', inv: 'INV-18', ok: false, detail: `threw: ${e instanceof Error ? e.message : String(e)}` });
   }
 
-  // P6 INV-26 形态声明（运行时无副作用：本端点零写路径；源码守卫 G-IND 常驻）
+  // P6 INV-26 形态声明（运行时无副作用：本端点零写路径；源码守卫 tests/contract/independenceGuard.test.ts 常驻）
   checks.push({ id: 'P6-diagnostics-domain-isolation', inv: 'INV-26', ok: true, detail: 'self-check is read-only by construction (no write path in this module)' });
 
   const allOk = checks.every((c) => c.ok);
