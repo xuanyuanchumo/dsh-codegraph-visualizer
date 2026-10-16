@@ -602,7 +602,47 @@
       "timestamp": "2026-10-16T01:43:18.471Z",
       "previousHash": "880e8e70f312b256af7db8383df3bb2588bd115321c7373ef683664ed22932b6",
       "hash": "aedc2453a6d4b4a85222a3c1908dcd9dd8f32b9b4a9487e0fc637b1efda286a7"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "评估报告与事实基座齐备：m02105 判别矩阵 + 三层变异探针 + J0/路由证据（cycle-96）",
+      "timestamp": "2026-10-16T04:12:12.494Z",
+      "previousHash": "aedc2453a6d4b4a85222a3c1908dcd9dd8f32b9b4a9487e0fc637b1efda286a7",
+      "hash": "685577bc93db8227619b8d9dd6a52cc4e176516491971746378934216d4fd1d1",
+      "cycle": "cycle-96"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "任务清单 6/6 本轮任务完成（P0-TOOLS-FIELDS / P0-BOOTSTRAP-PARSER / P1-CHAINHEAD / J0 修复 / FreeRoute 验证 / 四件套），携带项全部 P2/P3（cycle-96）",
+      "timestamp": "2026-10-16T04:12:12.506Z",
+      "previousHash": "685577bc93db8227619b8d9dd6a52cc4e176516491971746378934216d4fd1d1",
+      "hash": "1f299aa40b5b9fbd0f28aa4411aaad966862972572a51df329f3b0c15f8b1e9d",
+      "cycle": "cycle-96"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "双侧测试全绿：父 5373 + anic 331 用例 + smoke 20/20 + validate PASS + 4 项变异探针先红后绿（cycle-96）",
+      "timestamp": "2026-10-16T04:12:12.518Z",
+      "previousHash": "1f299aa40b5b9fbd0f28aa4411aaad966862972572a51df329f3b0c15f8b1e9d",
+      "hash": "9580f70c9268195f2fe2e727088022be701ab2ffdc388421c3293c2e25a816a8",
+      "cycle": "cycle-96"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "双侧 build exit 0；真实宿主 7 路由 200 + J0 8/8 + anic_evaluate 端到端真实调用成功（cycle-96）",
+      "timestamp": "2026-10-16T04:12:12.530Z",
+      "previousHash": "9580f70c9268195f2fe2e727088022be701ab2ffdc388421c3293c2e25a816a8",
+      "hash": "84e4574a6a6d7ddf71acf45ab818e667b96f794e3fbd3c2d174d6ca15d8edd55",
+      "cycle": "cycle-96"
     }
   ],
-  "chainHead": "aedc2453a6d4b4a85222a3c1908dcd9dd8f32b9b4a9487e0fc637b1efda286a7"
+  "chainHead": "84e4574a6a6d7ddf71acf45ab818e667b96f794e3fbd3c2d174d6ca15d8edd55"
 }
