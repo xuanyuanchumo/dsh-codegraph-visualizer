@@ -678,7 +678,43 @@
       "timestamp": "2026-10-16T06:21:12.871Z",
       "previousHash": "a9adde271dc742978fef80a50453221ab862b0b368bdf75e78b4470fb0ef6fec",
       "hash": "943b920f1278d2ccf95d3acbf33c416b46039c815a246b6f1fa35dfb8dc1578f"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-97 评估报告（补记）：技能注册+实时调用流+客户端实时渲染，真模型实测发现两 P0 如实记录",
+      "timestamp": "2026-10-16T06:29:31.967Z",
+      "previousHash": "943b920f1278d2ccf95d3acbf33c416b46039c815a246b6f1fa35dfb8dc1578f",
+      "hash": "ef35131e6122631995d7469aa46a97757cd514f5a0870cede3d6735cb397e004"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-97 任务清单（补记）：T1-T10 完成，源码随 e7aac74 提交",
+      "timestamp": "2026-10-16T06:29:32.058Z",
+      "previousHash": "ef35131e6122631995d7469aa46a97757cd514f5a0870cede3d6735cb397e004",
+      "hash": "8ad641597437e95a43c1f039bef6f637b587a2f7994c11bd562f3f5b6aed99a2"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-97 测试报告（补记）：30 文件 368 用例全绿 + 真模型实测",
+      "timestamp": "2026-10-16T06:29:32.156Z",
+      "previousHash": "8ad641597437e95a43c1f039bef6f637b587a2f7994c11bd562f3f5b6aed99a2",
+      "hash": "64b6cb60393fef072ac007401c8a62a6d8ba277d1b0ff1b457c4a5aa9b7e8f38"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-97 交付清单（补记）：typecheck 0 / build OK",
+      "timestamp": "2026-10-16T06:29:32.237Z",
+      "previousHash": "64b6cb60393fef072ac007401c8a62a6d8ba277d1b0ff1b457c4a5aa9b7e8f38",
+      "hash": "3b72af1ca3c03558d7a5ab2967d47a3244d1253f6944aa6cdb55f8b2525d3f29"
     }
   ],
-  "chainHead": "943b920f1278d2ccf95d3acbf33c416b46039c815a246b6f1fa35dfb8dc1578f"
+  "chainHead": "3b72af1ca3c03558d7a5ab2967d47a3244d1253f6944aa6cdb55f8b2525d3f29"
 }
