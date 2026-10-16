@@ -3,6 +3,31 @@
 > 所有脚本的输入参数、输出格式、退出码含义。
 > 读取本文件的时机：需要调用脚本或理解脚本输出时。
 
+## 目录
+
+- [scripts/init-workflow.mjs](#scriptsinit-workflowmjs)
+- [scripts/init-cycle.mjs](#scriptsinit-cyclemjs)
+- [scripts/gate-check.mjs](#scriptsgate-checkmjs)
+- [scripts/fact-base-verify.mjs](#scriptsfact-base-verifymjs)
+- [scripts/eval-runner.mjs](#scriptseval-runnermjs)
+- [scripts/band-detector.mjs](#scriptsband-detectormjs)
+- [scripts/workflow-state.mjs](#scriptsworkflow-statemjs)
+- [scripts/gate-ledger.mjs](#scriptsgate-ledgermjs)
+- [scripts/plan-sync-check.mjs](#scriptsplan-sync-checkmjs)
+- [scripts/org-status.mjs](#scriptsorg-statusmjs)
+- [scripts/quick-validate.mjs](#scriptsquick-validatemjs)
+- [scripts/mcp-server.mjs](#scriptsmcp-servermjs)
+- [scripts/archive-cycle.mjs](#scriptsarchive-cyclemjs)
+- [assets/hooks/production-gate.sh](#assetshooksproduction-gatesh)
+- [assets/hooks/plan-sync-check.sh](#assetshooksplan-sync-checksh)
+- [assets/hooks/test-protection.sh](#assetshookstest-protectionsh)
+- [assets/config/hook-settings.example.json](#assetsconfighook-settingsexamplejson)
+- [assets/config/managed-settings.example.json](#assetsconfigmanaged-settingsexamplejson)
+- [assets/templates/PULL_REQUEST_TEMPLATE.md](#assetstemplatespull_request_templatemd)
+- [scripts/hitl-audit.mjs](#scriptshitl-auditmjs)
+- [scripts/auto-fix-loop.mjs](#scriptsauto-fix-loopmjs)
+- [scripts/multi-agent-gate.mjs](#scriptsmulti-agent-gatemjs)
+
 ## scripts/init-workflow.mjs
 
 **用途**：初始化 AI-Native Iteration Cycle 工作流骨架
