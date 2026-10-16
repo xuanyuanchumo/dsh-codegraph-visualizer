@@ -56,7 +56,7 @@ export function registerSkillGatewayTools(
     name: 'anic_install',
     description: 'Install or update the ai-native-iteration-cycle skill from the plugin bundle into the workspace .dsh/skills/ (idempotent by version)',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
@@ -64,7 +64,7 @@ export function registerSkillGatewayTools(
     },
     presentCall: (args) => genericCall('anic_install', 'edit', { workspace: args.workspace }),
     presentResult: () => ({ card: 'generic' as const, title: 'anic_install ✓' }),
-    handler: safeHandler(async (args) => {
+    execute: safeHandler(async (args) => {
       const root = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!root) return { error: 'no workspace' };
       // 只做形状校验（拒绝路径遍历），不要求目录已存在——安装本身就是
@@ -93,7 +93,7 @@ export function registerSkillGatewayTools(
     description: 'Natively invoke any whitelisted ai-native-iteration-cycle skill script '
       + `(${listSkillScripts().join(', ')}). Project dir is passed as the first positional arg per script convention.`,
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         script: {
@@ -113,7 +113,7 @@ export function registerSkillGatewayTools(
     },
     presentCall: skillPresentCall,
     presentResult: skillPresentResult,
-    handler: safeHandler(async (args) => {
+    execute: safeHandler(async (args) => {
       const script = String(args.script ?? '');
       if (!isAllowedScript(script)) {
         return { error: `script not whitelisted: ${script}`, allowed: listSkillScripts() };
@@ -160,7 +160,7 @@ export function registerSkillGatewayTools(
     description: 'Run a full self-bootstrap cycle (eval → gate → fix → repeat) on the workspace. '
       + 'Each step is tracked by FlowTracker. Returns final state, per-round details, and convergence status.',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
@@ -170,7 +170,7 @@ export function registerSkillGatewayTools(
     },
     presentCall: bootstrapCyclePresentCall,
     presentResult: () => ({ card: 'generic' as const, title: 'anic_bootstrap_cycle ✓' }),
-    handler: safeHandler(async (args) => {
+    execute: safeHandler(async (args) => {
       const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!ws) return { error: 'no workspace' };
       if (ws.includes('..')) return { error: 'path traversal not allowed' };
@@ -196,7 +196,7 @@ export function registerSkillGatewayTools(
     description: 'Run a full self-bootstrap cycle with module engine analysis (tech-debt + HITL + fact-base + risk score). '
       + 'Returns cycle results plus engine insights for developer review.',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
@@ -206,7 +206,7 @@ export function registerSkillGatewayTools(
     },
     presentCall: bootstrapAnalyzePresentCall,
     presentResult: () => ({ card: 'generic' as const, title: 'anic_bootstrap_analyze ✓' }),
-    handler: safeHandler(async (args) => {
+    execute: safeHandler(async (args) => {
       const ws = (args.workspace as string) ?? deps.getRoot() ?? '';
       if (!ws) return { error: 'no workspace' };
       if (ws.includes('..')) return { error: 'path traversal not allowed' };

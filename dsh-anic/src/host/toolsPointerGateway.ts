@@ -21,13 +21,13 @@ export function registerPointerTools(
     name: 'anic_snapshot',
     description: 'Get the workflow snapshot (nodes, edges, cycles, ledger) for a project',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
       },
     },
-    handler: async (args) => {
+    execute: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
       const check = validateWorkspace(root);
       if (!check.ok) return { error: check.error };
@@ -40,13 +40,13 @@ export function registerPointerTools(
     name: 'anic_self_check',
     description: 'Run runtime invariant probes (INV-13/18/21/25/26) on a project',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
       },
     },
-    handler: async (args) => {
+    execute: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
       return { selfCheckUrl: `/anic/api/self-check?workspace=${encodeURIComponent(root)}` };
     },
@@ -57,13 +57,13 @@ export function registerPointerTools(
     name: 'anic_hitl',
     description: 'Run HITL audit (H1 sensitive files / H2 gitignore / H3 destructive / H4 ledger integrity) on a project',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
       },
     },
-    handler: async (args) => {
+    execute: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
       return { hitlUrl: `/anic/hitl-audit?workspace=${encodeURIComponent(root)}` };
     },

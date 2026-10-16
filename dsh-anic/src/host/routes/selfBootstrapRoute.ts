@@ -19,6 +19,9 @@ import {
   resolveSkillScriptsDir,
   invokeSkillScript,
 } from '../skillInvoker.ts';
+// cycle-96：解析器移至 runtime/scriptParsers.ts 单一实现
+// （本文件原有一份重复实现，与 bootstrapOrchestrator 的旧版一样按虚构格式解析）
+import { parseEvalScore, parseGateVerdict } from '../runtime/scriptParsers.ts';
 
 type SendFn = (res: unknown, code: number, body: unknown, requestId?: string) => void;
 
@@ -30,18 +33,6 @@ function getLatestCycleDir(cyclesDir: string): string | null {
     .map(d => ({ name: d, num: parseInt(d.replace('cycle-', ''), 10) }))
     .sort((a, b) => b.num - a.num);
   return dirs.length > 0 ? path.join(cyclesRoot, dirs[0]!.name) : null;
-}
-
-function parseEvalScore(stdout: string): number {
-  // eval-runner outputs a score line like "Overall score: 0.875"
-  const m = stdout.match(/(?:Overall\s+)?score[:\s]+([0-9.]+)/i);
-  return m?.[1] ? parseFloat(m[1]) : 0;
-}
-
-function parseGateVerdict(stdout: string): string {
-  // gate-check outputs verdict like "GATE: PASS" or "Overall: PASS"
-  const m = stdout.match(/(?:Overall|GATE|Verdict)[:\s]+(PASS|FAIL|doubt|SKIP)/i);
-  return m?.[1] ?? 'unknown';
 }
 
 /** 注册自举路由（evaluate/gate-check/iterate/status）。 */
@@ -67,7 +58,7 @@ export function registerSelfBootstrapRoutes(
       if (!scriptsDir) { send(res, 404, { error: 'skill scripts not found' }); return; }
 
       const result = invokeSkillScript(scriptsDir, 'eval-runner', [], roots, 60000);
-      const score = parseEvalScore(result.stdout);
+      const score = parseEvalScore(result);
 
       // Update bootstrap state
       const state = loadBootstrapState(cyclesDir);
@@ -101,7 +92,7 @@ export function registerSelfBootstrapRoutes(
         ['--gate', 'all', '--quality', '--record'],
         roots, 60000,
       );
-      const verdict = parseGateVerdict(result.stdout);
+      const verdict = parseGateVerdict(result);
 
       const state = loadBootstrapState(cyclesDir);
       const newState: BootstrapState = {
@@ -141,7 +132,7 @@ export function registerSelfBootstrapRoutes(
       state.status = 'EVALUATING';
       saveBootstrapState(cyclesDir, state);
       const evalResult = invokeSkillScript(scriptsDir, 'eval-runner', [], roots, 60000);
-      const evalScore = parseEvalScore(evalResult.stdout);
+      const evalScore = parseEvalScore(evalResult);
 
       // Step 2: Gate check
       state.status = 'GATE_CHECKING';
@@ -151,7 +142,7 @@ export function registerSelfBootstrapRoutes(
         ['--gate', 'all', '--quality', '--record'],
         roots, 60000,
       );
-      const gateVerdict = parseGateVerdict(gateResult.stdout);
+      const gateVerdict = parseGateVerdict(gateResult);
 
       // Step 3: If FAIL, produce tech-debt proposal (do NOT self-modify code — R-31)
       let fixApplied: string | null = null;

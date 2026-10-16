@@ -22,24 +22,12 @@ import {
   startFlow,
   finishFlow,
 } from './flowTracker.ts';
-
-/** eval-runner 输出解析：提取分数（如 "Overall score: 0.875"）。 */
-export function parseEvalScore(stdout: string): number {
-  const m = stdout.match(/(?:Overall\s+)?score[:\s]+([0-9.]+)/i);
-  return m?.[1] ? parseFloat(m[1]) : 0;
-}
-
-/** gate-check 输出解析：提取裁决（如 "GATE: PASS" / "Overall: FAIL"）。 */
-export function parseGateVerdict(stdout: string): string {
-  const m = stdout.match(/(?:Overall|GATE|Verdict)[:\s]+(PASS|FAIL|doubt|SKIP)/i);
-  return m?.[1] ?? 'unknown';
-}
-
-/** auto-fix-loop 输出解析：提取应用的修复描述（如 "Applied: fix-typecheck"）。 */
-export function parseFixApplied(stdout: string): string | null {
-  const m = stdout.match(/(?:Applied|Fixed|Patch)[:\s]+(.+)/i);
-  return m?.[1]?.trim() ?? null;
-}
+// cycle-96：解析器移至 scriptParsers.ts 单一实现（旧版按虚构格式解析，恒 0/'unknown'/null）
+import {
+  parseEvalScore,
+  parseGateVerdict,
+  parseFixApplied,
+} from './scriptParsers.ts';
 
 export interface BootstrapCycleResult {
   state: BootstrapState;
@@ -91,7 +79,8 @@ export function runSelfBootstrapCycle(
       evalFlowId = flowId;
       const evalResult = invokeSkillScript(scriptsDir, 'eval-runner', [], workspace, timeoutMs);
       trackerState = finishFlow(cyclesDir, trackerState, flowId, evalResult);
-      evalScore = parseEvalScore(evalResult.stdout);
+      // cycle-96：传入完整结果（失败清单在 stderr，只喂 stdout 会丢失裁决证据）
+      evalScore = parseEvalScore(evalResult);
     }
 
     // ── 步骤 2：gate-check ──
@@ -107,7 +96,8 @@ export function runSelfBootstrapCycle(
         workspace, timeoutMs,
       );
       trackerState = finishFlow(cyclesDir, trackerState, flowId, gateResult);
-      gateVerdict = parseGateVerdict(gateResult.stdout);
+      // cycle-96：同上——FAILED 总裁决行在 stderr（gate-check.mjs:225）
+      gateVerdict = parseGateVerdict(gateResult);
     }
 
     // ── 步骤 3：fix（仅当门禁未通过）──
@@ -120,7 +110,7 @@ export function runSelfBootstrapCycle(
       fixFlowId = flowId;
       const fixResult = invokeSkillScript(scriptsDir, 'auto-fix-loop', [], workspace, timeoutMs);
       trackerState = finishFlow(cyclesDir, trackerState, flowId, fixResult);
-      fixApplied = parseFixApplied(fixResult.stdout);
+      fixApplied = parseFixApplied(fixResult);
     }
 
     // ── 推进状态机 ──

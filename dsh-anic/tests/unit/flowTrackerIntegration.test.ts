@@ -27,7 +27,7 @@ afterEach(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-/** Stub ToolsSlot：收集注册的工具，供测试直接调用 handler。 */
+/** Stub ToolsSlot：收集注册的工具，供测试直接调用 execute。 */
 function makeStubTools(): { tools: ToolsSlot; registrations: Map<string, any> } {
   const registrations = new Map<string, any>();
   const tools: ToolsSlot = {
@@ -55,7 +55,7 @@ describe('FlowTracker 集成 — anic_skill → flow-tracker.json → anic_statu
     expect(skillTool).toBeDefined();
 
     // 调用 anic_skill 执行 init-workflow
-    const result = await skillTool.handler({
+    const result = await skillTool.execute({
       script: 'init-workflow',
       workspace,
       args: ['--name', 'flow-test-project'],
@@ -89,9 +89,9 @@ describe('FlowTracker 集成 — anic_skill → flow-tracker.json → anic_statu
     const skillTool = registrations.get('anic_skill');
 
     // 调用两次 init-workflow（幂等）+ 一次 workflow-state
-    await skillTool.handler({ script: 'init-workflow', workspace, args: ['--name', 'p1'], timeout: 30000 });
-    await skillTool.handler({ script: 'init-workflow', workspace, args: ['--name', 'p1'], timeout: 30000 });
-    await skillTool.handler({ script: 'workflow-state', workspace, args: ['status'], timeout: 10000 });
+    await skillTool.execute({ script: 'init-workflow', workspace, args: ['--name', 'p1'], timeout: 30000 });
+    await skillTool.execute({ script: 'init-workflow', workspace, args: ['--name', 'p1'], timeout: 30000 });
+    await skillTool.execute({ script: 'workflow-state', workspace, args: ['status'], timeout: 10000 });
 
     // 查询 flowStats
     const cyclesDir = join(workspace, '.cycles');
@@ -117,7 +117,7 @@ describe('FlowTracker 集成 — anic_skill → flow-tracker.json → anic_statu
     const disposers = registerSkillGatewayTools(tools, { getRoot: () => workspace, register: tools.register });
     const skillTool = registrations.get('anic_skill');
 
-    const result = await skillTool.handler({ script: 'evil-script', workspace, args: [] });
+    const result = await skillTool.execute({ script: 'evil-script', workspace, args: [] });
     expect(result.error).toContain('not whitelisted');
     expect(result.allowed).toEqual(listSkillScripts());
 

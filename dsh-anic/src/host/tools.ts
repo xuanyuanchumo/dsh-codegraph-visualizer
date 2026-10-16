@@ -53,7 +53,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     name: 'anic_evaluate',
     description: 'Evaluate a project using the ai-native-iteration-cycle skill (eval-runner)',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory (defaults to current workspace)' },
@@ -62,7 +62,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     },
     presentCall: evaluatePresentCall,
     presentResult: (_args, result) => terminalResult(result, 'anic_evaluate ✓'),
-    handler: async (args) => {
+    execute: async (args) => {
       const ws = (args.workspace as string) ?? getRoot() ?? '';
       const check = validateWorkspace(ws);
       if (!check.ok) return { error: check.error };
@@ -84,7 +84,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     name: 'anic_iterate',
     description: 'Run one iteration cycle (eval + gate-check) on a project',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
@@ -92,7 +92,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     },
     presentCall: iteratePresentCall,
     presentResult: () => ({ card: 'generic' as const, title: 'anic_iterate ✓' }),
-    handler: async (args) => {
+    execute: async (args) => {
       const ws = (args.workspace as string) ?? getRoot() ?? '';
       const check = validateWorkspace(ws);
       if (!check.ok) return { error: check.error };
@@ -112,14 +112,14 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     name: 'anic_gate_check',
     description: 'Run gate checks (gate-check --gate all --quality --record) on a project',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
         gate: { type: 'string', description: 'Specific gate (default: all)' },
       },
     },
-    handler: async (args) => {
+    execute: async (args) => {
       const ws = (args.workspace as string) ?? getRoot() ?? '';
       const check = validateWorkspace(ws);
       if (!check.ok) return { error: check.error };
@@ -140,13 +140,13 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     name: 'anic_bootstrap',
     description: 'Self-bootstrap: evaluate dsh-anic itself using the skill (produces tech-debt proposals, does NOT self-modify code)',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         maxRounds: { type: 'number', description: 'Max bootstrap rounds (default 3)' },
       },
     },
-    handler: async (args) => {
+    execute: async (args) => {
       const root = getRoot();
       if (!root) return { error: 'no workspace' };
       const scriptsDir = resolveSkillScriptsDir(root);
@@ -171,7 +171,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
     name: 'anic_status',
     description: 'Get full org status panorama (cycles + ledger + trust + autonomy + band + flows) for a project, plus recent skill invocation flow records',
     output: makeToolOutput(),
-    inputSchema: {
+    parameters: {
       type: 'object',
       properties: {
         workspace: { type: 'string', description: 'Target project directory' },
@@ -179,7 +179,7 @@ export function registerAnicTools(ctx: unknown): (() => void) | null {
       },
     },
     presentCall: statusPresentCall,
-    handler: async (args) => {
+    execute: async (args) => {
       const root = (args.workspace as string) ?? getRoot() ?? '';
       const flowLimit = Math.min(Math.max(typeof args.flowLimit === 'number' ? args.flowLimit : 10, 1), 50);
       // M10-a/e：FlowTracker 最近记录 + 统计 + 持续学习健康报告

@@ -153,8 +153,8 @@ export function appendEntry(
 
   existing.push(withHash);
   // 与正典写入者 lib/ledger.mjs:71 一致：追加后链头推进为新条目 hash
-  const chainHead = withHash.hash;
-  atomicWriteFileSync(join(cyclesDir, LEDGER_FILE), serializeLedger(existing, file.shape, chainHead));
+  // （用本地 hash 变量而非 withHash.hash —— LedgerEntry.hash 可选，读回是 string|undefined）
+  atomicWriteFileSync(join(cyclesDir, LEDGER_FILE), serializeLedger(existing, file.shape, hash));
   return withHash;
 }
 
