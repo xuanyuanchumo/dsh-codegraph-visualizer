@@ -75,10 +75,16 @@ try {
 if (anicTab) await anicTab.click({ timeout: 5000 }).catch(() => {});
 
 // J0-2 图渲染 + J0-3 遥测（同一 evaluate 拿齐，减少竞态）
+// cycle-96 修正：宿主图标 svg（本轮实测 71 个）排在文档序前面，
+// document.querySelector('svg') 会命中宿主图标而非 ANIC 图——必须以
+// [data-anic-workflow] 为作用域取面板内 svg。面板 svg 在点击标签后才挂载，
+// 所以点击后先等它出现再读数（waitFor 代替拍脑袋 sleep，天然覆盖懒加载验证）。
 try {
+  await page.waitForSelector('[data-anic-workflow] svg', { timeout: 8000 }).catch(() => {});
   const probe = await page.evaluate(() => {
     const t = window.__ANIC_TAB_SPIKE__ ?? null;
-    const svg = document.querySelector('svg');
+    const wf = document.querySelector('[data-anic-workflow]');
+    const svg = wf ? wf.querySelector('svg') : null;
     const circles = svg ? svg.querySelectorAll('circle').length : 0;
     const lines = svg ? svg.querySelectorAll('line').length : 0;
     return { t, circles, lines, hasSvg: !!svg };
@@ -93,9 +99,12 @@ try {
 }
 
 // J0-4 数据来源如实标注（live 或嵌入快照，不得伪装）
+// cycle-96 修正：宿主自身也有含 "snapshot" 字样的叶节点（会话/插件 UI），
+// 全文档扫描会命中宿主文本——同样是作用域问题，收窄到 [data-anic-workflow]。
 try {
   const source = await page.evaluate(() => {
-    const el = [...document.querySelectorAll('*')].find((n) => n.children.length === 0 && /live|嵌入快照|snapshot/i.test(n.textContent ?? ''));
+    const wf = document.querySelector('[data-anic-workflow]');
+    const el = [...(wf?.querySelectorAll('*') ?? [])].find((n) => n.children.length === 0 && /live|嵌入快照|snapshot/i.test(n.textContent ?? ''));
     return el ? (el.textContent ?? '').trim().slice(0, 120) : null;
   });
   record('J0-4 来源如实', !!source && /live|嵌入快照|snapshot/i.test(source), source ?? '未找到来源标注行');
