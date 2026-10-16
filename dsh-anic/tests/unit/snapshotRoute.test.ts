@@ -187,9 +187,11 @@ describe('registerSnapshotRoute', () => {
 });
 
 describe('宿主入口 apply', () => {
-  /** 全部路由（M1 四条 + M2-a 九条 + M2-b 四条 + M4 一条 + M5 四条 + M5-a 四条 + M7 四条 + M8 四条）。 */
+  /** 全部路由（M1 四条 + M2-a 九条 + M2-b 四条 + M4 一条 + M5 四条 + M5-a 四条 + M7 四条 + M8 四条 + cycle-97 一条）。 */
   const ALL_ROUTES = [
     SNAPSHOT_ROUTE, STEP_TRACE_ROUTE, SELF_CHECK_ROUTE, SELF_INIT_ROUTE,
+    // cycle-97 动态白盒数据面
+    '/anic/api/invocations/live',
     '/anic/cycle/init', '/anic/cycle/advance', '/anic/cycle/close', '/anic/cycle/state', '/anic/cycle/list',
     '/anic/api/ledger', '/anic/api/ledger/append', '/anic/api/ledger/verify',
     '/anic/api/stack-probe',
@@ -219,16 +221,20 @@ describe('宿主入口 apply', () => {
     });
     (ctx as Record<string, unknown>).effect = effect;
     apply(ctx);
-    expect(effect).toHaveBeenCalledTimes(2); // routes + tools
-    // label 必须点明是聚合注册（四条路由），否则卸载日志无法定位是哪一层面
-    expect(effect.mock.calls[0]?.[1]).toContain('dsh-anic: routes');
-    expect(effect.mock.calls[0]?.[1]).toContain('snapshot');
+    expect(effect).toHaveBeenCalledTimes(3); // skill(cycle-97) + routes + tools
+    // label 必须点明是聚合注册（少一层即功能面缺失）
+    expect(effect.mock.calls[0]?.[1]).toContain('dsh-anic: runtime skill');
+    expect(effect.mock.calls[1]?.[1]).toContain('dsh-anic: routes');
+    expect(effect.mock.calls[1]?.[1]).toContain('snapshot');
     // M1 全功能面：四条路由一次注册齐（少一条即功能面缺失）
     expect(registered.map((r) => r.path).sort()).toEqual([...ALL_ROUTES].sort());
-    // effect 返回的清理被宿主拿走：调用它必须**逐个**清掉全部四条注册，
-    // 而不是只清第一条（聚合器 filter 掉 null 后逐个调用，见 routes/index.ts:83-85）
-    (effect.mock.results[0]?.value as () => void)();
+    // effect 返回的清理被宿主拿走：调用 ROUTES 层（results[1]）必须**逐个**清掉
+    // 全部注册，而不是只清第一条（聚合器 filter 掉 null 后逐个调用）。
+    // results[0] 是 cycle-97 的技能注册层（stub 宿主无 skills → 空清理，另有断言）。
+    (effect.mock.results[1]?.value as () => void)();
     expect(webServerDisposer).toHaveBeenCalledTimes(ALL_ROUTES.length);
+    // 技能层清理可安全调用（registerRuntimeSkill 返回 null 时不得产生"非函数"爆炸）
+    expect(() => { (effect.mock.results[0]?.value as () => void)(); }).not.toThrow();
   });
 
   it('无 effect：直接注册（不静默丢弃，异常宿主形态兜底）', () => {

@@ -29,13 +29,17 @@ import { registerSkillInstallRoute } from './skillInstallRoute.ts';
 import { registerNativeRoute } from './nativeRoute.ts';
 import { registerDualBootstrapRoute } from './dualBootstrapRoute.ts';
 import { registerTruthAuditRoute } from './truthAuditRoute.ts';
+import { registerInvocationRoute } from './invocationRoute.ts';
 import { buildRouteContext, type SendFn } from './routeContext.ts';
 import { loadAgentCards } from '../agents.ts';
+import type { InvocationFeed } from '../runtime/invocationFeed.ts';
 
 export type { SendFn } from './routeContext.ts';
 
 export interface RegisterRoutesOptions {
   agentCardsDir?: string;
+  /** 实时调用流（cycle-97 动态白盒）；缺省时 /anic/api/invocations/live 显式 500。 */
+  invocationFeed?: InvocationFeed | null;
 }
 
 function defaultAgentCardsDir(): string {
@@ -59,6 +63,8 @@ export function registerAnicRoutes(ctx: unknown, options: RegisterRoutesOptions 
     registerStepTraceRoute(ctx),
     registerSelfCheckRoute(ctx, { send, getWorkspaceRoot, agentCardsDir }),
     registerSelfInitRoute(ctx, { send, getWorkspaceRoot, loadFlows }),
+    // 动态白盒数据面（cycle-97）：无工作区依赖，feed 缺失时显式 500。
+    registerInvocationRoute(ctx, { send, feed: options.invocationFeed ?? null }),
   );
 
   // ── cycle 域 ──

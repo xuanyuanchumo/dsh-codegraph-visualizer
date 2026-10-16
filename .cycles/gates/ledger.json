@@ -642,7 +642,43 @@
       "previousHash": "9580f70c9268195f2fe2e727088022be701ab2ffdc388421c3293c2e25a816a8",
       "hash": "84e4574a6a6d7ddf71acf45ab818e667b96f794e3fbd3c2d174d6ca15d8edd55",
       "cycle": "cycle-96"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-98 评估报告：P0-A/P0-B 根因-修复-验证全链，宿主源码行号级证据齐备",
+      "timestamp": "2026-10-16T06:21:12.660Z",
+      "previousHash": "84e4574a6a6d7ddf71acf45ab818e667b96f794e3fbd3c2d174d6ca15d8edd55",
+      "hash": "42fc3ae348fd67cfb7859f7a3c58a588ece73a47ff11154e174821d5a899ffb7"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-98 任务清单 T1-T10 全部完成，C1-C5 携带",
+      "timestamp": "2026-10-16T06:21:12.738Z",
+      "previousHash": "42fc3ae348fd67cfb7859f7a3c58a588ece73a47ff11154e174821d5a899ffb7",
+      "hash": "09445bebbcbab3ba7f41bab503c6b1c170de13a043f428d3a32bbbeec5a01863"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-98 31 文件 380 用例全绿 + 三组变异探针红→绿 + 真宿主端到端闭环",
+      "timestamp": "2026-10-16T06:21:12.803Z",
+      "previousHash": "09445bebbcbab3ba7f41bab503c6b1c170de13a043f428d3a32bbbeec5a01863",
+      "hash": "a9adde271dc742978fef80a50453221ab862b0b368bdf75e78b4470fb0ef6fec"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-98 typecheck 0 / build OK / 免费模型真调用动态白盒验证通过",
+      "timestamp": "2026-10-16T06:21:12.871Z",
+      "previousHash": "a9adde271dc742978fef80a50453221ab862b0b368bdf75e78b4470fb0ef6fec",
+      "hash": "943b920f1278d2ccf95d3acbf33c416b46039c815a246b6f1fa35dfb8dc1578f"
     }
   ],
-  "chainHead": "84e4574a6a6d7ddf71acf45ab818e667b96f794e3fbd3c2d174d6ca15d8edd55"
+  "chainHead": "943b920f1278d2ccf95d3acbf33c416b46039c815a246b6f1fa35dfb8dc1578f"
 }

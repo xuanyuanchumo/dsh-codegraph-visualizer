@@ -216,7 +216,9 @@ describe('源码形状守卫（slots / disposer / 注入形态）', () => {
 
   it('宿主 inject 只含必需服务且不含可选服务（registry 走探测不进 inject）', () => {
     const indexText = readFileSync(SRC_FILES.find((f) => /src[\\/]index\.ts$/.test(f)) ?? '', 'utf8');
-    expect(indexText).toMatch(/inject\s*=\s*\['tools',\s*'webServer',\s*'sessions'\]/);
+    // cycle-97：skills 进静态 inject（官方 dsh-skill-badge 同形态；ctx.inject 动态
+    // 挂载在真实宿主不触发——见 src/index.ts 文件头）。workspaceRegistry 仍走探测。
+    expect(indexText).toMatch(/inject\s*=\s*\['tools',\s*'webServer',\s*'sessions',\s*'skills'\]/);
     expect(indexText).not.toMatch(/inject\s*=\s*\[[^\]]*workspaceRegistry/);
   });
 });

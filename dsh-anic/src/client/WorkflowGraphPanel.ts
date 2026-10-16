@@ -20,6 +20,7 @@ import { renderStepTrace, type StepTraceJson } from './features/stepTrace/render
 import { renderDiagnostics, type SelfCheckJson } from './features/diagnostics/renderDiagnostics.ts';
 import { renderPrefsDrawer, readPrefsRaw, PREFS_PANEL_ID } from './features/prefs/prefsDrawer.ts';
 import { renderOrgStatus, type OrgStatusJson } from './features/org/renderOrgStatus.ts';
+import { useInvocations, renderInvocations } from './features/live/renderInvocations.ts';
 import { resolveFlows, parseRawPrefs } from '../shared/flows.ts';
 import { renderNodeDetail, type NodeDetail } from './features/graph/gateColors.ts';
 import { resolveShellTheme, observeShellTheme, token, tokenCssBlock, THEME_ATTRIBUTE, type ShellTheme } from '../shared/tokens.ts';
@@ -150,6 +151,8 @@ export function WorkflowGraphPanel(): ReactElement {
   const diagnosticsOn = resolved.flows['flow.diagnostics']?.enabled ?? true;
   useTokenCss();
   const theme = useShellTheme();
+  // 实时调用流（cycle-97 动态白盒）：与静态分区并列，展示"正在发生的调用"。
+  const { data: invocations, pollError: invocationsError } = useInvocations();
 
   return createElement(
     'div',
@@ -179,6 +182,9 @@ export function WorkflowGraphPanel(): ReactElement {
     ),
     prefsOpen ? renderPrefsDrawer({}, () => { setFlowTick((k) => k + 1); }) : null,
     renderGraph(data, buildVerdicts(trace), (n) => { setSelectedNode({ id: n.id, label: n.label, type: n.type, result: n.result }); }),
+    // 实时调用分区紧跟图区：动态白盒是本面板的主叙事（m02733），
+    // 用户展开面板第一眼应看到"模型此刻在怎么调用本插件"。
+    renderInvocations(invocations, invocationsError),
     stepTraceOn
       ? createElement('div', { key: `trace-${String(flowTick)}`, 'data-anic-steptrace-wrap': 'true', style: { borderTop: `1px solid ${token('anic-border')}` } },
           createElement('div', { style: { fontSize: 10, color: token('anic-text-faint'), padding: '4px 10px 0' } }, `步骤流程数据：${traceLine}`),
