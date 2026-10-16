@@ -714,7 +714,43 @@
       "timestamp": "2026-10-16T06:29:32.237Z",
       "previousHash": "64b6cb60393fef072ac007401c8a62a6d8ba277d1b0ff1b457c4a5aa9b7e8f38",
       "hash": "3b72af1ca3c03558d7a5ab2967d47a3244d1253f6944aa6cdb55f8b2525d3f29"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-99 迁移评估收敛：迁移决策矩阵/安全性论证/四问题根因（P1 脚本路径、P1 J0 双假失败源、P2 NTFS flake、P2 smoke 惰性）齐备，事实基座可核",
+      "timestamp": "2026-10-16T08:26:20.894Z",
+      "previousHash": "3b72af1ca3c03558d7a5ab2967d47a3244d1253f6944aa6cdb55f8b2525d3f29",
+      "hash": "dd7602d1baa93739f1716c58800e82570dc1e7ff1bd0ba69014ee5b08238be4c"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-99 任务清单 T1-T15 全部完成（15 行任务行 0 未完成），携带项 C1-C6 如实标注",
+      "timestamp": "2026-10-16T08:26:20.982Z",
+      "previousHash": "dd7602d1baa93739f1716c58800e82570dc1e7ff1bd0ba69014ee5b08238be4c",
+      "hash": "5d7ae74b433fcef74945aa5c8d67931245ef97bd88d5a9b0c43683652ce86c88"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-99 测试报告：独立仓库三层 ALL GREEN（380 用例）+ J0 三场景 8/8 + 宿主 4×200 + 父仓库 5373/5373",
+      "timestamp": "2026-10-16T08:26:21.060Z",
+      "previousHash": "5d7ae74b433fcef74945aa5c8d67931245ef97bd88d5a9b0c43683652ce86c88",
+      "hash": "440396756b826d9b10202bbcec19b1e8907b3807f825a9029e1785f8942f6006"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-99 交付清单：新仓库 d9b560f + 父仓库 8893355 + 双 profile 重指 + 度量表 + 携带项 CO-8/CO-7/CO-1..CO-4",
+      "timestamp": "2026-10-16T08:26:21.140Z",
+      "previousHash": "440396756b826d9b10202bbcec19b1e8907b3807f825a9029e1785f8942f6006",
+      "hash": "b2f420148a3a12c7ee1cd40281e8cd60a8d507b7f4974c31ae103c28aeabdbbb"
     }
   ],
-  "chainHead": "3b72af1ca3c03558d7a5ab2967d47a3244d1253f6944aa6cdb55f8b2525d3f29"
+  "chainHead": "b2f420148a3a12c7ee1cd40281e8cd60a8d507b7f4974c31ae103c28aeabdbbb"
 }
