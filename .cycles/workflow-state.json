@@ -1,7 +1,13 @@
 {
-  "currentPhase": "test",
-  "currentCycle": "cycle-92",
+  "currentPhase": "complete",
+  "currentCycle": "cycle-100",
   "phaseHistory": [
+    {
+      "cycle": "cycle-100",
+      "phase": "complete",
+      "result": "cycle-100 P0-7 斜杠命令真机关闭 + ETag 决策矩阵收口： (a) T100-1 P0-7（/ 面板列出零条插件命令，cycle-83 起挂账 17 轮）关闭——上游 v0.2.1-rc.2 dsh-client-ui-commands ensureReady（client.js:927-935）已从粘性 failed 重抛改为 while 循环 + epoch 守卫重拉（refresh :899-917 失败可自愈）；J0 真机证据（scripts/start-dsh-test.mjs start --force，DSH PID 14352/端口 3080 + Chrome DevTools MCP 9222）：console “commandUi contributions registered {count: 5}”，/ 面板 listbox 列出全部 5 条 codegraph-* 命令，点击 codegraph-toggle 端到端分发成功（bootstrap data set）；§(f) input-trigger 绕行方案撤销；docs/需求分析.md §59.22(e) 关闭裁决 + §2200 状态表行更新。 (b) T100-2（P3-R27-04/CO-2 升级 P1）ETag 决策矩阵收口：/dependencies 加内容哈希 etag（workspace+三个 manifest 内容拼接哈希，复用 computeContentHash，与图槽 revision 解耦——图槽 revision 是 graph 域，dependencies 载荷来自磁盘 manifest 域，混用即 P0-R16-02 家族复发）；新建 tests/unit/etagCoverageContract.test.ts 8 用例（18 条路由全分类 RouteClass：etag-guarded×6/content-etag×1/post×6/sse×1/diagnostic×3/static-worker×1，新增路由不表态即红，含反向自检）；routes.test.ts +4 行为用例（200 带 etag/回放 304/manifest 内容变化/工作区切换/ENOENT 翻转各得不同 etag）；POST/SSE/诊断/worker 四类 12 条不挂 etag 的理由固化为 §59.32（流转项固化错误框架分析）；docs/测试体系.md:1693 ❌→✅。 (c) T100-3 账本漂移（probe-c8 G0 PASS + band-history）随 commit 78fb6fc 入库。 (d) T100-4 基线漂移登记关闭：P3-R17-01（e2eSelectorContract 10 用例绿）与 performance CI（test:performance script + ci.yml Performance Gates job 均已存在）不再作为待办携带。 (e) 验证：typecheck 0；oxlint 0/0 @247 文件；vitest 198 文件/5385 用例全绿（基线 5347 +38）；build exit 0（client 2.47MB/3MB、worker 1528568B、host 210KB/512KB）；perf-gate 3 PASS；gate-check --record G0-G3 + Q1-Q8 全 PASS。 (f) J0 备案：better-sidebar agent-opens WebSocket 405（web profile 上游限制）、测试宿主未扫描工作区→图谱诚实空态——均非本插件缺陷。 流转 cycle-101+：visual-linux 基线入库（需 ubuntu CI artifact）、CO-3 跨源 etag 真机验证、CO-4 desktop profile bundles 补 dsh-anic（用户动作）。",
+      "timestamp": "2026-10-19T06:30:00.000Z"
+    },
     {
       "cycle": "cycle-92",
       "phase": "complete",
@@ -236,17 +242,9 @@
       "cycle": "cycle-56",
       "phase": "complete",
       "result": "P0 删除误创建nul文件+Toolbar.tsx配置/类型抽取到toolbarConfig.ts+toolbarTypes.ts(566→397行减少30%)+P1 CSS模块化拆分(analysis-panels.css 1155行→6个独立文件:health-score-card/rule-config-panel/hotspot-godmodule-panel/impact-panel/cycle-panel/tour-panel). 4463测试通过, lint零错误, typecheck通过, build成功. Chrome DevTools MCP视觉验证: 代码图谱面板在sidebarRightTabs正确打开, 工具栏22+按钮全正确渲染, L0-L3层级选择器(概览/目录/文件/符号)正常, Dropdown菜单(工具/导出/更多)正常, 控制台零error(3warn因前置插件未安装)"
-    },
-    {
-      "phase": "test",
-      "exitedAt": "2026-10-14T05:57:26.542Z"
-    },
-    {
-      "phase": "deploy",
-      "exitedAt": "2026-10-14T05:57:26.616Z"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-18T21:36:52.806Z"
+  "updatedAt": "2026-10-18T22:28:18.445Z"
 }
