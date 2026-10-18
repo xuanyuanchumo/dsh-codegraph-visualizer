@@ -1474,6 +1474,102 @@ describe('GET /dependencies (additional)', () => {
   });
 });
 
+// ---- CO-3 跨源条件请求闭环（cycle-101）----
+// J0 真机已证明（127.0.0.1:3080 页面 → localhost:3080 API）：跨源 200 的 etag 可读
+// （expose-headers 生效）、if-none-match 触发的预检通过（allow-headers 含 if-none-match）、
+// 跨源 304 的 etag 仍可读、白名单外 origin 被浏览器拦截。这里把同一契约钉进单测：
+// 若 checkEtag 的 304 分支或 sendJson 的 200 分支丢掉 buildCorsHeaders，跨源消费方
+// （desktop 壳之外的一切嵌入方）会静默失去条件请求能力，而现有测试全绿——
+// 「校验器可达 ≠ 校验值可达」的跨源变体：CORS 头可达 ≠ JS 可读。
+describe('cross-origin conditional requests (CO-3)', () => {
+  const ALLOWED = 'http://localhost:3080';
+  const FOREIGN = 'http://evil.example';
+  let ctx: MockCtx;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    // 白名单与生产同形（cordis.patch.yml 注入 localhost + 127.0.0.1）。
+    deps = makeDeps(ctx, makeConfig({ allowedOrigins: [ALLOWED] }));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      if (String(filePath).endsWith('package.json')) return Promise.resolve('{"name":"cg"}');
+      return Promise.reject(new Error('not found'));
+    });
+  });
+
+  it('200 echoes allow-origin and exposes etag for an allowlisted origin (sendJson merge)', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { origin: ALLOWED }), res);
+    expect(state.code).toBe(200);
+    expect(state.headers['access-control-allow-origin']).toBe(ALLOWED);
+    // etag 不在 CORS 安全响应头清单里：没有 expose-headers，跨源 JS 读到的就是 null。
+    expect(state.headers['access-control-expose-headers']).toContain('etag');
+    expect(state.headers['etag']).toMatch(/^W\/"/);
+  });
+
+  it('200 omits allow-origin for a foreign origin (whitelist is exact match)', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { origin: FOREIGN }), res);
+    expect(state.code).toBe(200);
+    expect(state.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('304 carries the CORS echo, expose-headers and the etag itself (checkEtag branch)', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const first = makeRes();
+    await handler(makeReq('GET', undefined, { origin: ALLOWED }), first.res);
+    const etag = first.state.headers['etag'];
+    expect(etag).toMatch(/^W\/"/);
+    // 回放：304 分支必须带全套 CORS 头。丢了它们，跨源客户端的缓存回放会在浏览器层
+    // 被判为失败，条件请求整个机制对跨源消费方静默死亡（CO-3 的核心回归点）。
+    const replay = makeRes();
+    await handler(makeReq('GET', undefined, { origin: ALLOWED, 'if-none-match': etag! }), replay.res);
+    expect(replay.state.code).toBe(304);
+    expect(replay.state.headers['etag']).toBe(etag);
+    expect(replay.state.headers['access-control-allow-origin']).toBe(ALLOWED);
+    expect(replay.state.headers['access-control-expose-headers']).toContain('etag');
+  });
+
+  it('304 omits the echo for a foreign origin but still answers 304 (defense is browser-side)', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const first = makeRes();
+    await handler(makeReq('GET'), first.res);
+    const etag = first.state.headers['etag'];
+    // 服务端语义不受白名单影响（仍是 304），但没有 allow-origin 时浏览器会拦截 JS 读取——
+    // 防线在浏览器，不在服务端 4xx 化。
+    const replay = makeRes();
+    await handler(makeReq('GET', undefined, { origin: FOREIGN, 'if-none-match': etag! }), replay.res);
+    expect(replay.state.code).toBe(304);
+    expect(replay.state.headers['etag']).toBe(etag);
+    expect(replay.state.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('preflight echoes allow-origin and allows if-none-match (conditional GET needs the preflight)', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    // if-none-match 不在 CORS 安全请求头清单里：跨源条件 GET 会先发预检，
+    // 预检拒绝 = 条件请求对跨源消费方整个不可用。
+    await handler(makeReq('OPTIONS', undefined, {
+      origin: ALLOWED,
+      'access-control-request-headers': 'if-none-match',
+    }), res);
+    expect(state.code).toBe(204);
+    expect(state.headers['access-control-allow-origin']).toBe(ALLOWED);
+    expect(state.headers['access-control-allow-headers']).toContain('if-none-match');
+  });
+});
+
 describe('registerRoutes - rate limiting', () => {
   let ctx: MockCtx;
   let config: VisualizerConfig;

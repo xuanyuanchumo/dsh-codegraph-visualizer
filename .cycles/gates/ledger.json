@@ -813,7 +813,52 @@
       "timestamp": "2026-10-18T22:22:18.267Z",
       "previousHash": "ecc39b6ec9078148c1f329a543adb5c7f0038ca56474b26aba0168cc4312bffd",
       "hash": "c0cbc3fce285d8ab6565b2fdd1c0c9008e7922912615c5f012326ea19f7086ca"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-101 (8 dimension rows)",
+      "timestamp": "2026-10-18T23:14:13.764Z",
+      "previousHash": "c0cbc3fce285d8ab6565b2fdd1c0c9008e7922912615c5f012326ea19f7086ca",
+      "hash": "77d44c53676a995eff2f98a1ce7f339359b80830118da066f327aacef71fcf5f"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "All 3 tasks completed",
+      "timestamp": "2026-10-18T23:14:13.776Z",
+      "previousHash": "77d44c53676a995eff2f98a1ce7f339359b80830118da066f327aacef71fcf5f",
+      "hash": "8292c9654088c2bcbbadf331ef987bcdf746211651b0195f27eb2cf03243e333"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "FAIL",
+      "detail": "Test report summary not recognized: 测试报告.md has no 通过/失败 rows (expected the §2 汇总 table)",
+      "timestamp": "2026-10-18T23:14:13.785Z",
+      "previousHash": "8292c9654088c2bcbbadf331ef987bcdf746211651b0195f27eb2cf03243e333",
+      "hash": "51a7c55fae23cbe4f21393c89ba512ac37ce3b99edcc2a8f65cdd2de40d0ce33"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-101 (16 dimension rows)",
+      "timestamp": "2026-10-18T23:15:36.347Z",
+      "previousHash": "51a7c55fae23cbe4f21393c89ba512ac37ce3b99edcc2a8f65cdd2de40d0ce33",
+      "hash": "1af1a6f6953609c481c9e291db889eefd60ca576e92255acbb7937f74eb5406a"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "Zero failures, zero errors (测试报告.md)",
+      "timestamp": "2026-10-18T23:15:36.361Z",
+      "previousHash": "1af1a6f6953609c481c9e291db889eefd60ca576e92255acbb7937f74eb5406a",
+      "hash": "84bea41e3ee170ae9c9130b3c81b883cd7ebe276b37c5071bf2c062617db0c2a"
     }
   ],
-  "chainHead": "c0cbc3fce285d8ab6565b2fdd1c0c9008e7922912615c5f012326ea19f7086ca"
+  "chainHead": "84bea41e3ee170ae9c9130b3c81b883cd7ebe276b37c5071bf2c062617db0c2a"
 }

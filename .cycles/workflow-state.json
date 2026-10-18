@@ -1,12 +1,17 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-100",
+  "currentCycle": "cycle-101",
   "phaseHistory": [
+    {
+      "cycle": "cycle-101",
+      "phase": "complete",
+      "result": "cycle-101 CO-3 跨源条件请求闭环（自 cycle-91 挂账、cycle-100 §6 流转，P3 升级 P1 处理）： (a) T101-1 J0 真机跨源验证全绿——start-dsh-test.mjs 启 DSH v0.2.1-rc.2（PID 26348/3080）+ Chrome DevTools MCP（9222），页面 origin 127.0.0.1:3080 → API origin localhost:3080 真跨源四探针：跨源 200 etag 可读（W/\"v1:e7d68391ff2015b5\"，expose-headers 生效）、跨源 304 etag 可读 + 隐式预检放行 if-none-match（非安全清单头）、篡改校验值（翻转十六进制字符）回 200+新鲜值（304 非碰巧；早期尾随空格探针回 304 是 Node 头解析剥空白的正确行为）、沙箱 iframe opaque origin 被浏览器拦截（TypeError: Failed to fetch）；PowerShell 白名单探针 localhost/127.0.0.1 回显、evil.example 不回显（白名单根因：cordis.patch.yml:18-20 显式注入双 origin，非 DEFAULT_CONFIG）；桌面 GUI 65518 token 认证 401 在路由层之前=上游设计备案。 (b) T101-2 单测契约钉死：routes.test.ts 新增 describe cross-origin conditional requests (CO-3) 5 例（200 回显+expose/白名单外不回显/304 全套 CORS 头=核心回归点/304 语义不变/预检 if-none-match），197/197；跨源可用性三元组（预检放行×304 头完整×expose 列表）三条各自有红灯。 (c) T101-3 文档双登记：需求分析.md §59.33 新增（J0 证据表+单测契约表+R11 教训 4 条：CORS 头写对≠跨源可读/三元组缺一不可/负例用 opaque origin/上游认证≠插件缺陷）；测试体系.md §2.aj 新增（同源盲区+三元组表+负例构造+R11）。 (d) 全量验证绿：typecheck 3×0、oxlint 0/0@247、vitest 198 文件/5390 用例（基线 5385+5）、build exit 0（client 2.47MB、worker 1528568B）、perf-gate 3 PASS（tests 5390≥5347）；G0-G3 全 PASS（gate-check --record，G0 16 维度行/Q1-Q8；首次 G2 FAIL 因测试报告汇总表格式，按 cycle-100 模式修正后全绿，两轮裁决均诚实入账本）。 (e) 运行时代码零改动：src/ 未动一行——CO-3 本质是源码已正确但无证据无契约，本轮交付全是证据与契约。流转项：visual-linux 基线（需 ubuntu CI 产物）、CO-4（用户动作）、桌面 GUI 401 备案。"
+    },
     {
       "cycle": "cycle-100",
       "phase": "complete",
       "result": "cycle-100 P0-7 斜杠命令真机关闭 + ETag 决策矩阵收口： (a) T100-1 P0-7（/ 面板列出零条插件命令，cycle-83 起挂账 17 轮）关闭——上游 v0.2.1-rc.2 dsh-client-ui-commands ensureReady（client.js:927-935）已从粘性 failed 重抛改为 while 循环 + epoch 守卫重拉（refresh :899-917 失败可自愈）；J0 真机证据（scripts/start-dsh-test.mjs start --force，DSH PID 14352/端口 3080 + Chrome DevTools MCP 9222）：console “commandUi contributions registered {count: 5}”，/ 面板 listbox 列出全部 5 条 codegraph-* 命令，点击 codegraph-toggle 端到端分发成功（bootstrap data set）；§(f) input-trigger 绕行方案撤销；docs/需求分析.md §59.22(e) 关闭裁决 + §2200 状态表行更新。 (b) T100-2（P3-R27-04/CO-2 升级 P1）ETag 决策矩阵收口：/dependencies 加内容哈希 etag（workspace+三个 manifest 内容拼接哈希，复用 computeContentHash，与图槽 revision 解耦——图槽 revision 是 graph 域，dependencies 载荷来自磁盘 manifest 域，混用即 P0-R16-02 家族复发）；新建 tests/unit/etagCoverageContract.test.ts 8 用例（18 条路由全分类 RouteClass：etag-guarded×6/content-etag×1/post×6/sse×1/diagnostic×3/static-worker×1，新增路由不表态即红，含反向自检）；routes.test.ts +4 行为用例（200 带 etag/回放 304/manifest 内容变化/工作区切换/ENOENT 翻转各得不同 etag）；POST/SSE/诊断/worker 四类 12 条不挂 etag 的理由固化为 §59.32（流转项固化错误框架分析）；docs/测试体系.md:1693 ❌→✅。 (c) T100-3 账本漂移（probe-c8 G0 PASS + band-history）随 commit 78fb6fc 入库。 (d) T100-4 基线漂移登记关闭：P3-R17-01（e2eSelectorContract 10 用例绿）与 performance CI（test:performance script + ci.yml Performance Gates job 均已存在）不再作为待办携带。 (e) 验证：typecheck 0；oxlint 0/0 @247 文件；vitest 198 文件/5385 用例全绿（基线 5347 +38）；build exit 0（client 2.47MB/3MB、worker 1528568B、host 210KB/512KB）；perf-gate 3 PASS；gate-check --record G0-G3 + Q1-Q8 全 PASS。 (f) J0 备案：better-sidebar agent-opens WebSocket 405（web profile 上游限制）、测试宿主未扫描工作区→图谱诚实空态——均非本插件缺陷。 流转 cycle-101+：visual-linux 基线入库（需 ubuntu CI artifact）、CO-3 跨源 etag 真机验证、CO-4 desktop profile bundles 补 dsh-anic（用户动作）。",
-      "timestamp": "2026-10-19T06:30:00.000Z"
+      "timestamp": "2026-10-19T06:30:00Z"
     },
     {
       "cycle": "cycle-92",
