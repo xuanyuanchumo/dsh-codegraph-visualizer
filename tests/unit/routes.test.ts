@@ -1384,6 +1384,94 @@ describe('GET /dependencies (additional)', () => {
     expect(state.code).toBe(500);
     expect(JSON.parse(state.body).error).toBe('INTERNAL_ERROR');
   });
+
+  // ---- P3-R27-04 决策矩阵：/dependencies 的内容校验器（cycle-100） ----
+  // 校验器身份 = 请求方工作区 + manifest 原始内容，刻意**不**取缓存图槽（resourceEtag）——
+  // /dependencies 的载荷来自磁盘 manifest，与 lastGraphData 槽不是同一份资源（P0-R16-02 家族）。
+
+  it('carries a content etag on 200 and answers 304 for an unchanged manifest set', async () => {
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      const p = String(filePath);
+      if (p.endsWith('package.json')) return Promise.resolve('{"name":"cg"}');
+      return Promise.reject(new Error('not found'));
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const first = makeRes();
+    await handler(makeReq('GET'), first.res);
+    expect(first.state.code).toBe(200);
+    const etag = first.state.headers['etag'];
+    // 200 必须回写校验值——「校验器可达 ≠ 校验值可达」正是 cycle-91 的原始缺陷形状。
+    expect(etag, '200 response must carry the etag header').toMatch(/^W\/"/);
+    // 回放：同一 manifest 内容 ⇒ 304，且 304 分支也回写同一校验值。
+    const replay = makeRes();
+    await handler(makeReq('GET', undefined, { 'if-none-match': etag! }), replay.res);
+    expect(replay.state.code).toBe(304);
+    expect(replay.state.headers['etag']).toBe(etag);
+  });
+
+  it('changes the etag when manifest content changes (extra 200 is the safe direction)', async () => {
+    let pkg = '{"name":"cg"}';
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      const p = String(filePath);
+      if (p.endsWith('package.json')) return Promise.resolve(pkg);
+      return Promise.reject(new Error('not found'));
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const first = makeRes();
+    await handler(makeReq('GET'), first.res);
+    const etag1 = first.state.headers['etag'];
+    expect(etag1).toBeTruthy();
+    pkg = '{"name":"cg","version":"2.0.0"}';
+    const second = makeRes();
+    await handler(makeReq('GET', undefined, { 'if-none-match': etag1! }), second.res);
+    expect(second.state.code).toBe(200);
+    expect(second.state.headers['etag']).not.toBe(etag1);
+  });
+
+  it('scopes the validator by workspace identity (foreign workspace must not answer 304)', async () => {
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      const p = String(filePath);
+      if (p.endsWith('package.json')) return Promise.resolve('{"name":"cg"}');
+      return Promise.reject(new Error('not found'));
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const first = makeRes();
+    await handler(makeReq('GET'), first.res);
+    const etag = first.state.headers['etag'];
+    expect(etag).toBeTruthy();
+    // 相同 manifest 内容、不同工作区 ⇒ 校验值必须不同，否则 A 工作区的校验值能让 B 工作区
+    // 收到 304，客户端静默保留 A 的依赖图（P0-R16-02 家族的跨工作区变体）。
+    vi.mocked(findWorkspacePath).mockReturnValue('/other/workspace');
+    const foreign = makeRes();
+    await handler(makeReq('GET', undefined, { 'if-none-match': etag! }), foreign.res);
+    expect(foreign.state.code).toBe(200);
+    expect(foreign.state.headers['etag']).not.toBe(etag);
+  });
+
+  it('changes the etag when a manifest file appears (ENOENT is part of the identity)', async () => {
+    let cargoPresent = false;
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      const p = String(filePath);
+      if (p.endsWith('package.json')) return Promise.resolve('{"name":"cg"}');
+      if (p.endsWith('Cargo.toml') && cargoPresent) return Promise.resolve('[package]');
+      return Promise.reject(Object.assign(new Error('not found'), { code: 'ENOENT' }));
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const first = makeRes();
+    await handler(makeReq('GET'), first.res);
+    const etag1 = first.state.headers['etag'];
+    expect(etag1).toBeTruthy();
+    cargoPresent = true;
+    const second = makeRes();
+    await handler(makeReq('GET', undefined, { 'if-none-match': etag1! }), second.res);
+    // 新文件出现 ⇒ 响应载荷会变 ⇒ 旧校验值必须失效。
+    expect(second.state.code).toBe(200);
+    expect(second.state.headers['etag']).not.toBe(etag1);
+  });
 });
 
 describe('registerRoutes - rate limiting', () => {
