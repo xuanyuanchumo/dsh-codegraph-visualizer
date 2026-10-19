@@ -172,6 +172,14 @@ export const PANELS = {
   focusExpand: '.cg-focus-expand-btn',
   focusContract: '.cg-focus-contract-btn',
   overlayBar: '.cg-overlay-bar',
+  /** 节点详情内嵌的边列表（NodeEdgeList.tsx 根，cycle-102 P3-R14-01 视觉基线用）。 */
+  edgeList: '.cg-detail-edges',
+  /** 边列表「已加载 X / Y」计数行（NodeEdgeList.tsx:71，终态判据用）。 */
+  edgeListCount: '.cg-detail-edges-count',
+  /** 边列表 loading/空态提示行（NodeEdgeList.tsx:87，终态判据用）。 */
+  edgeListStatus: '.cg-detail-edges-status',
+  /** 单条边行（NodeEdgeList.tsx:96，终态判据用）。 */
+  edgeItem: '.cg-detail-edge-item',
 } as const;
 
 /**

@@ -713,9 +713,14 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
   //       相同），量化后是整幅图约 10-15px 的平移，而不是子像素噪声。
   //       因此把「面板几何 + 图容器矩形 + zoom/pan/全部节点坐标」合成**一个签名**，
   //       要求它连续 SETTLE_MS 不变才放行；任何一次 resize/fit 都会重置计时。
+  // 注意（cycle-102 教训）：Playwright 的 `waitForFunction` 只透传**一个** arg
+  // —— 4/5 参形态（fn, settle, options, panelSel, containerSel）在 1.62 下
+  // 静默丢失尾部参数，`querySelector(undefined)` 永远返回 null，轮询永远
+  // false，表现为「图明明稳定却 15s 超时」（该形态由 cycle-93 b177ae6 引入，
+  // 直到 cycle-102 重跑视觉套件才暴露）。所有参数必须合并进同一个对象。
   await page.waitForFunction(
-    (settle, panelSel, containerSel) => {
-      const panel = document.querySelector(panelSel);
+    (args: { settle: number; panelSel: string; containerSel: string }) => {
+      const panel = document.querySelector(args.panelSel);
       if (!panel) return false;
 
       const panelTop = panel.getBoundingClientRect().top + window.scrollY;
@@ -728,7 +733,7 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
       const cy = (window as any).__cytoscape;
       if (!cy || cy.nodes().length === 0) return false;
 
-      const container = document.querySelector(containerSel);
+      const container = document.querySelector(args.containerSel);
       const cr = container ? container.getBoundingClientRect() : null;
       const pr = panel.getBoundingClientRect();
       const sig =
@@ -745,12 +750,10 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
         w.__cgVisSigSin = performance.now();
         return false;
       }
-      return performance.now() - (w.__cgVisSigSin ?? 0) >= settle;
+      return performance.now() - (w.__cgVisSigSin ?? 0) >= args.settle;
     },
-    SETTLE_MS,
-    { timeout, polling: 100 },
-    PANEL.root,
-    PANEL.graphContainer
+    { settle: SETTLE_MS, panelSel: PANEL.root, containerSel: PANEL.graphContainer },
+    { timeout, polling: 100 }
   );
 
   // 2) 字体就绪：文字未落定时截图会拍到 fallback 字形。
@@ -761,10 +764,10 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
 
   // 3) 字体就绪后再确认一次签名未变（字体若触发了 resize/fit，上面那轮就白等了）
   await page.waitForFunction(
-    (settle, containerSel) => {
+    (args: { settle: number; containerSel: string }) => {
       const cy = (window as any).__cytoscape;
       if (!cy) return false;
-      const container = document.querySelector(containerSel);
+      const container = document.querySelector(args.containerSel);
       const cr = container ? container.getBoundingClientRect() : null;
       const sig =
         `c${cr ? `${Math.round(cr.width)}x${Math.round(cr.height)}` : 'none'}` +
@@ -778,11 +781,10 @@ export async function waitForVisualStable(page: Page, timeout = 15000): Promise<
         w.__cgVisSigAfterFontsSin = performance.now();
         return false;
       }
-      return performance.now() - (w.__cgVisSigAfterFontsSin ?? 0) >= settle;
+      return performance.now() - (w.__cgVisSigAfterFontsSin ?? 0) >= args.settle;
     },
-    SETTLE_MS,
-    { timeout, polling: 100 },
-    PANEL.graphContainer
+    { settle: SETTLE_MS, containerSel: PANEL.graphContainer },
+    { timeout, polling: 100 }
   );
 }
 

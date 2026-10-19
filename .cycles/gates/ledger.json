@@ -858,7 +858,25 @@
       "timestamp": "2026-10-18T23:15:36.361Z",
       "previousHash": "1af1a6f6953609c481c9e291db889eefd60ca576e92255acbb7937f74eb5406a",
       "hash": "84bea41e3ee170ae9c9130b3c81b883cd7ebe276b37c5071bf2c062617db0c2a"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-102 (16 dimension rows)",
+      "timestamp": "2026-10-19T01:36:41.000Z",
+      "previousHash": "84bea41e3ee170ae9c9130b3c81b883cd7ebe276b37c5071bf2c062617db0c2a",
+      "hash": "3f2276313f868b1df0f7a1776d980a3b8b4c30bf89022c6906cf2ac177206c41"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "All 4 tasks completed",
+      "timestamp": "2026-10-19T01:36:41.013Z",
+      "previousHash": "3f2276313f868b1df0f7a1776d980a3b8b4c30bf89022c6906cf2ac177206c41",
+      "hash": "8ac547ca2c20aa090fd5e2b57df452064d71288d3ea3f3cff967e108061fc66b"
     }
   ],
-  "chainHead": "84bea41e3ee170ae9c9130b3c81b883cd7ebe276b37c5071bf2c062617db0c2a"
+  "chainHead": "8ac547ca2c20aa090fd5e2b57df452064d71288d3ea3f3cff967e108061fc66b"
 }

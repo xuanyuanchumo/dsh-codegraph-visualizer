@@ -1,5 +1,8 @@
 # 02 · 宿主 API 参考
 
+> cycle-102 更新：新增 §3.5 ETag 决策矩阵（cycle-100）、§3.6 跨源条件请求 CO-3（cycle-101）、§13 增量更新层（Round 16 补记）。
+> §3.4 及之前内容对应 cycle-92 时代基线，行号已按 cycle-102 源码复核（`resourceEtag`/`etagGuard`/`etagHeaders` 与 requestKey 构造函数行号未漂移）。
+
 > 面向改 `src/index.ts` / `src/host/**` / `src/tools.ts` / `src/adapters/**` 的开发者。
 > 所有路径与行号基于 `dsh-codegraph-visualizer@0.2.0`。
 > 文档族版本 1.0.0 · 适用宿主 `>=0.2.0-rc.2 <0.4.0`
@@ -151,12 +154,61 @@ handleCorsPreflight → requireMethod → logRequest → checkRate → try { han
    - `etagKeyForChildren(nodeId, cursor, limit)` `:141`
    - `etagKeyForOutline(nodeId)` `:145`
    - `etagKeyForAst(nodeId, cursor, budget)` `:149`
-   - `etagKeyForEdges(fromId, scope, cursor, limit, detail)` `:166`
+   - `etagKeyForEdges(fromId, scope, cursor, limit, detail)` `:170`
    - `resolveAstBudget(raw)` `:161`（两侧**计算**预算，不得各自硬编码）
 3. `repoId` 传**请求方声明的工作区**（`resolveWorkspaceFromRequest()` 的结果），
    revision 取槽的——方向刻意偏保守：多算一次不匹配只多回一次 200，假 304 会静默丢真实更新。
 4. 所有 `sendJson(res, 200, ...)` 都要带 `etagHeaders(etag)`。
    **守卫**：`tests/unit/etagContract.test.ts` 源码扫描全部 20 个调用点。
+
+### 3.5 ETag 决策矩阵——cycle-100 的收口（§59.32）
+
+**每条路由必须对自己的缓存语义表态**。18 条路由按 RouteClass 分类，
+契约由 `tests/unit/etagCoverageContract.test.ts` 钉死（`DECISION_MATRIX` 18 条 + 源码扫描提取路由清单 + 反向自检）：
+
+| RouteClass | 路由 | 为什么 |
+|---|---|---|
+| `etag-guarded`（6） | `/data` `/bootstrap` `/children` `/files/*/outline` `/symbols/*/ast` `/edges` | 图数据族：载荷来自图谱槽/DB，`etagGuard` + `requestKey` 完整条件请求 |
+| `content-etag`（1） | `/dependencies` | 载荷来自**磁盘 manifest**（package.json/Cargo.toml/go.mod 原文），与图谱槽无关——校验器必须同域：`computeDependenciesEtag(workspacePath, manifestInputs)`（`analysisRoutes.ts:30`），`W/"v{fingerprint}:{hash}"` 内容哈希；manifest 变更/工作区切换/文件出现消失都改变 etag |
+| `post`（6） | `/scan` `/init` `/watch` `/diff` `/ast`(POST) `/tree-sitter` | POST 无条件请求语义（GET-only 的 if-none-match 不适用） |
+| `sse`（1） | `/events` | SSE 长连接无 304 概念 |
+| `diagnostic`（3） | `/status` `/health` `/workspace` | 诊断信息要求每次新鲜，缓存反而有害 |
+| `static-worker`（1） | `/worker/layoutWorker.js` | 静态 JS：`cache-control: no-cache` 是它的域，不用 etag |
+
+**给新路由开发者的规则**（两条都由守卫测试强制）：
+1. 新增路由**必须**在 `etagCoverageContract.test.ts` 的 `DECISION_MATRIX` 里登记 RouteClass，否则测试红；
+2. `etag-guarded`/`content-etag` 类的 200 响应必须带 etag 头，`post`/`sse`/`diagnostic`/`static-worker` 类**禁止**出现条件请求机制——往 POST/SSE 上撒 etag 不是优化，是把「无语义」伪装成「有语义」。
+
+**/dependencies 的教训**（§59.32 R10）：校验器与被校验资源**同域**的第三变体——
+第一变体是 `graphEtag`（revision 域，§59.31），第二变体是 requestKey（参数域，cycle-91），
+第三变体是内容哈希域（载荷不经过任何槽，直接对原始输入做指纹）。
+选错域的家族病都是假 304：用图谱槽的 revision 给 manifest 载荷当校验器，
+和当年用 `metadata.timestamp` 当校验器是同一种错。
+
+### 3.6 跨源条件请求（CO-3）——cycle-101 的闭环（§59.33）
+
+**背景**：CORS 头写对了 ≠ 跨源 JS 真的能读到。桌面壳 / dsh-remote-web-ui 场景下，
+页面 origin ≠ API origin，条件请求要跑通需要**三元组**全部成立：
+
+| 元 | 实现 | 位置 |
+|---|---|---|
+| ① 预检放行 `if-none-match` | `allow-headers: 'content-type, if-none-match'` | `HttpHelpers.ts:74-92` `buildCorsHeaders` |
+| ② 304 分支也带 CORS 头 | 304 不是 200，走 `writeHead(304, {...buildCorsHeaders(...), etag})`——**不能**只在 200 分支出 CORS 头，否则浏览器把 304 当错误拦截 | `routes/shared.ts:196-211` `checkEtag` 304 分支 |
+| ③ 响应头对 JS 可读 | `expose-headers: 'etag, x-truncated'`——没有它跨源 JS 读 `res.headers.get('etag')` 得 `null`，条件请求永远发不出去 | `HttpHelpers.ts:81` |
+
+**白名单**：`allow-origin` 只在请求 `Origin` 精确命中 `config.allowedOrigins` 时回写
+（`package` 自带 `cordis.patch.yml` 显式配置 `localhost:3080` + `127.0.0.1:3080`；
+未命中时头缺失，浏览器默认拒绝）。源清单经 `ORIGIN_PATTERN` 校验。
+**负路径**：opaque origin（沙箱 iframe 的 `Origin: null`）被浏览器拦截——这是预期行为。
+
+**铁律**：
+1. etag 头**必须**走 `sendJson` 的 `extraHeaders`（`HttpHelpers.ts:102-106` 注释）——
+   直接 `writeHead` 会绕过 `buildCorsHeaders`，同源测试全绿、跨源静默失效；
+2. 客户端 304 与网络失败必须区分（`EtagSink.notModified`），`if (!res.ok) return null`
+   会把「服务端说没变」吞成「客户端没数据」；
+3. 守卫：`tests/unit/routes.test.ts` describe `cross-origin conditional requests (CO-3)` 5 用例
+   （origin 回显+expose / 白名单拒绝 / **304 带 etag+allow-origin+expose**——核心回归点 /
+   异源 304 语义 / 预检 204 放行 if-none-match）。
 
 ---
 
@@ -377,3 +429,43 @@ codegraph-visualizer/source/open
 `RepoImportedEvent` / `RepoScannedEvent` / `RepoRequestScanEvent` / `SourceOpenEvent` /
 `PrerequisiteStatusEvent` / `GraphInitEvent` / `GraphInitResultEvent` / `WatchToggleEvent` /
 `HealthScoreEvent` / `RuleViolationEvent` / `PathFoundEvent` / `FocusChangedEvent`）。
+
+---
+
+## 13. 增量更新层 `src/host/incrementalUpdate.ts`（Round 16，cycle-102 补记）
+
+文件监听的**更新层**——watcher 检测到文件变更后，不再无条件全量重取，而是做文件级增量 diff：
+
+```ts
+// 契约（src/host/incrementalUpdate.ts:12-33）
+buildIncrementalUpdate(input: IncrementalUpdateInput): IncrementalUpdateResult  // :81，同步函数
+
+interface IncrementalUpdateInput {
+  workspacePath: string;    // 工作区根；索引经 resolveDbPath 从它解析（:14）
+  changedFiles: string[];   // watcher 观察到的 repo 相对路径；空数组 = 无可定向变更（:16）
+  current: GraphData;       // 客户端当前渲染的图；diff 以此为基线（:18）
+  timestamp?: number;       // 产出 revision 的时间戳；默认 Date.now()，可注入对齐事件载荷（:23）
+}
+interface IncrementalUpdateResult {
+  delta: GraphDelta;        // 待发布的结构差；变更未产生图变化时为空（:28）
+  next: GraphData;          // current 折入 delta 后的宿主新权威图（:30）
+  scanned: { nodes: number; edges: number };  // 定向读回的索引行数，仅用于日志/诊断（:32）
+}
+```
+
+**接线**：`src/host/watcher.ts:9`（导入）+ `:51`（调用）——`scanAndPush` 检测到变更后调
+`buildIncrementalUpdate`，产出 delta 下发 `codegraph-visualizer/graph/delta`；
+只有工作区级重置（repo/imported、手动 scan）才走全量 `graph/data`。
+
+**给开发者的三条边界**（对应需求分析 P2-21 的实现注记）：
+1. **外来图不作 diff 基线**——`repo/imported` 导入的图没有 `current` 可比，直接全量；
+2. `changedFiles` 是**检测层**产物（`computeGraphFingerprint` + 文件对比），
+   更新层只信这个清单，不自己再监听一次——两层职责分离是 Round 13/16 分工的延续；
+   节点归属判定 `belongsToChangedFile`（:36-44）按文件路径前缀匹配（含目录级变更）；
+3. delta 合并在客户端走 `applyGraphDelta`（store 侧），宿主侧**不**做合并——
+   `next` 只作为宿主下一次 diff 的基线（:30 注释），不是给客户端的指令。
+
+**状态**：P2-21 登记关闭候选（需求分析.md:3178）；研究报告 §六 #21 已同步 ✅（cycle-102 复核）。
+**教训**：`scanned` 是**计数**不是文件清单（`{nodes, edges}`）——写文档前先读源码字段类型，
+凭名字想象契约正是 §59.20 一族「校验器可达≠值可达」的认知错误。
+

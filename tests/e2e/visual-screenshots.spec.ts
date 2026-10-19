@@ -37,6 +37,7 @@ import {
   clickToolItem,
   clickDataItem,
   openDropdown,
+  selectNodeStrict,
 } from './helpers.ts';
 import {
   PANEL,
@@ -47,6 +48,7 @@ import {
   DATA_ITEM,
   FILTER,
   PANELS,
+  OPTION,
 } from './selectors.ts';
 
 /**
@@ -108,6 +110,9 @@ const SCREENSHOT_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   'e2e-11-filter.png': 60,
   'e2e-12-level-dropdown.png': 60,
   'e2e-13-more-dropdown.png': 60,
+  // cycle-102（P3-R14-01）：边面板新用例。预算沿用同一实测分布值 60——
+  // 四轮观测的噪声不是某张图的属性（见文件头），面板属同一布局族，无独立证据前不单独取值。
+  'e2e-14-edge-panel.png': 60,
 });
 
 /**
@@ -272,4 +277,73 @@ test('more dropdown screenshot', async ({ page }) => {
   await expect(page.locator(OPTION.more('theme'))).toBeVisible({ timeout: 10000 });
   await waitForVisualStable(page);
   await expectSnapshot(page, 'e2e-13-more-dropdown.png');
+});
+
+// cycle-102 新增（P3-R14-01 边面板视觉基线）：选中一个 file-scope 邻居数
+// 超过 PREVIEW_LIMIT(5) 的函数节点，让 NodeDetail 内嵌的 NodeEdgeList 渲染
+// 「边标题 + 计数 + 超出预览的 show-more 提示」。dev-server 桩图里 n2
+// （createGraphTools, src/tools.ts）的 file scope = n2/n9/n10/n11 的关联边
+// 共 13 条（e1..e4/e7..e11/e19..e21/e29），13 > 5 触发折叠预览，13 < 聚合
+// 阈值 20 保持真实分页语义——这正是面板最复杂也最值得像素锚定的状态：
+// 计数行、方向图标、show-more 三者同屏。
+test('edge panel screenshot', async ({ page }) => {
+  await installDeterminism(page);
+  await setupPluginPage(page);
+  await waitForGraphReady(page);
+  // 首屏 clusterDepth=0，符号都收在目录簇里；切到文件级深度让 n2 可见可点。
+  // 纯客户端重算，不发请求（on-demand-loading.spec.ts:58 revealNodes 同款）。
+  //
+  // 关键一：必须**等首屏布局真正跑完**再切深度。waitForGraphReady 只等
+  // 「节点存在」，首屏全量布局挂在 FULL_LAYOUT_DELAY_MS 定时器上；若在它
+  // 触发前切深度，effect cleanup 会取消首屏布局、走「21 节点全量重排」路径，
+  // 若在其后切则走「保留 6 个簇坐标 + 增量摆位 15 个新节点」路径
+  // （useGraphRenderer.ts:196-236）。两条路径各自确定，但**走哪条**取决于竞速
+  // ——实测两次运行坐标铺满整个画布地不同。先 waitForVisualStable 把首屏
+  // 布局钉死，路径就唯一了。
+  await waitForVisualStable(page);
+  // 关键二：切深度触发的布局里 cose `randomize: true` 从 Math.random **当时的
+  // 序列位置**取数，重播种同一个 mulberry32 让它从固定起点开始。src/ 自身
+  // 0 处调用 Math.random（cycle-90 已核实），重播种后到下一次布局之间没有
+  // 其他消费者，序列起点即布局起点。
+  await page.evaluate(() => {
+    let s = 0x9e3779b9 >>> 0;
+    Math.random = function () {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const store = (window as unknown as { __graphStore?: { getState: () => { setClusterDepth: (d: number) => void } } }).__graphStore;
+    store?.getState().setClusterDepth(2);
+  });
+  await selectNodeStrict(page, 'n2');
+  // 边面板标题区（含 loaded/total 计数）渲染出来才算面板真正挂载。
+  await expect(page.locator(PANELS.edgeList)).toBeVisible({ timeout: 10000 });
+  // 等边列表到达**终态**再谈稳定：/edges 请求在选中之后才异步返回，标题先挂载、
+  // 计数行随后从 0/14 变 14/14、行与 show-more 最后落位——`waitForVisualStable`
+  // 只盯 cytoscape 几何签名，看不到这块 DOM，先等「已加载 N/N 且无 loading 提示」。
+  await page.waitForFunction(
+    (sels: { root: string; count: string; status: string; item: string }) => {
+      const root = document.querySelector(sels.root);
+      if (!root) return false;
+      const count = root.querySelector(sels.count);
+      const status = root.querySelector(sels.status);
+      const items = root.querySelectorAll(sels.item);
+      // 终态判据：计数行出现、loading 状态消失、至少一条边行渲染。
+      // loaded/total 两个数由同一次响应更新（NodeEdgeList.tsx:70-74），
+      // 只要格式为「已加载 X / X」即 X === total 的终态。
+      const m = (count?.textContent ?? '').match(/(\d+)\s*\/\s*(\d+)/);
+      return !!m && m[1] === m[2] && !status && items.length > 0;
+    },
+    {
+      root: PANELS.edgeList,
+      count: PANELS.edgeListCount,
+      status: PANELS.edgeListStatus,
+      item: PANELS.edgeItem,
+    },
+    { timeout: 10000 }
+  );
+  await waitForVisualStable(page);
+  await expectSnapshot(page, 'e2e-14-edge-panel.png');
 });
