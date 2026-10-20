@@ -1,5 +1,7 @@
 /**
  * @vitest-environment jsdom
+ *
+ * 旅程覆盖：J4（FR-09 调用链——节点详情面板的关联边列表渲染与 show-more 行为）。
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';

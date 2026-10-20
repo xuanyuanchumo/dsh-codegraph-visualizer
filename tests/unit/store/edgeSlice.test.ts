@@ -1,3 +1,4 @@
+// 旅程覆盖：J4（FR-09 调用链——跨文件调用懒加载的 store 侧实现）。
 // Independent unit tests for the edgeSlice factory (lazy per-node edge loading).
 // Directly imports createEdgeSlice and mocks set/get (Zustand slice factory pattern).
 // Source: tests/unit/store/edgeSlice.test.ts

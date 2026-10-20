@@ -3,8 +3,11 @@ import { createPortal } from 'react-dom';
 
 export interface PortalProps {
   children: ReactNode;
-  /** 挂载目标；缺省 `document.body`。测试可注入容器以免污染 body。 */
-  target?: HTMLElement | null;
+  /** 挂载目标；缺省、null 或 undefined 均回落 `document.body`。测试可注入容器以免污染 body。
+   *  `| undefined` 显式列出是 root tsconfig（exactOptionalPropertyTypes: true）的要求：
+   *  `target?: HTMLElement | null` 只允许「属性缺席」，不允许「显式传 undefined」，
+   *  而 Dropdown 的 `portalTarget?: HTMLElement | null` 解构出来是三态的。 */
+  target?: HTMLElement | null | undefined;
 }
 
 /**
