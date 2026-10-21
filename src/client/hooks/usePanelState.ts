@@ -22,6 +22,7 @@ export interface PanelState {
   showFilterPanel: boolean;
   showTour: boolean;
   showRuntime: boolean;
+  showDiff: boolean;
   toggleSearch: () => void;
   toggleCollapsed: () => void;
   toggleCycles: () => void;
@@ -42,6 +43,7 @@ export interface PanelState {
   toggleFilterPanel: () => void;
   toggleTour: () => void;
   toggleRuntime: () => void;
+  toggleDiff: () => void;
   setShowSearch: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowImport: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCallChain: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -61,6 +63,7 @@ export interface PanelState {
   setShowFilterPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowTour: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowRuntime: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setShowDiff: (v: boolean | ((prev: boolean) => boolean)) => void;
   closeAll: () => void;
   toPanelControls: PanelControls;
 }
@@ -69,7 +72,8 @@ type PanelVisibilityKey =
   | 'showSearch' | 'showCycles' | 'cycleIsolation' | 'showCallChain' | 'showImpact'
   | 'showInheritance' | 'showMiniMap' | 'showImport' | 'showLegend'
   | 'showPathFind' | 'showHealthScore' | 'showRules' | 'showHotspot'
-  | 'showGodModule' | 'showCoreFunction' | 'showDeadCode' | 'showFilterPanel' | 'showTour' | 'showRuntime';
+  | 'showGodModule' | 'showCoreFunction' | 'showDeadCode' | 'showFilterPanel' | 'showTour' | 'showRuntime'
+  | 'showDiff';
 
 interface PanelStateInternal {
   showSearch: boolean;
@@ -92,6 +96,7 @@ interface PanelStateInternal {
   showFilterPanel: boolean;
   showTour: boolean;
   showRuntime: boolean;
+  showDiff: boolean;
 }
 
 type Action =
@@ -103,7 +108,7 @@ const CLOSABLE_PANEL_KEYS: PanelVisibilityKey[] = [
   'showSearch', 'showCallChain', 'showCycles', 'showImpact', 'showInheritance',
   'showImport', 'showLegend', 'showPathFind', 'showHealthScore', 'showRules',
   'showHotspot', 'showGodModule', 'showCoreFunction', 'showFilterPanel', 'showTour',
-  'showRuntime',
+  'showRuntime', 'showDiff',
 ];
 
 const initialState: PanelStateInternal = {
@@ -127,6 +132,7 @@ const initialState: PanelStateInternal = {
   showFilterPanel: false,
   showTour: false,
   showRuntime: false,
+  showDiff: false,
 };
 
 function reducer(state: PanelStateInternal, action: Action): PanelStateInternal {
@@ -177,6 +183,7 @@ export function usePanelState(): PanelState {
   const toggleFilterPanel = useCallback(makeToggle('showFilterPanel'), [makeToggle]);
   const toggleTour = useCallback(makeToggle('showTour'), [makeToggle]);
   const toggleRuntime = useCallback(makeToggle('showRuntime'), [makeToggle]);
+  const toggleDiff = useCallback(makeToggle('showDiff'), [makeToggle]);
 
   const setShowSearch = useCallback(makeSet('showSearch'), [makeSet]);
   const setShowImport = useCallback(makeSet('showImport'), [makeSet]);
@@ -197,6 +204,7 @@ export function usePanelState(): PanelState {
   const setShowFilterPanel = useCallback(makeSet('showFilterPanel'), [makeSet]);
   const setShowTour = useCallback(makeSet('showTour'), [makeSet]);
   const setShowRuntime = useCallback(makeSet('showRuntime'), [makeSet]);
+  const setShowDiff = useCallback(makeSet('showDiff'), [makeSet]);
 
   const closeAll = useCallback(() => dispatch({ type: 'closeAll' }), []);
 
@@ -204,11 +212,12 @@ export function usePanelState(): PanelState {
     ...state,
     toggleSearch, toggleCollapsed, toggleCycles, toggleCycleIsolation, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
     togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction, toggleDeadCode, toggleFilterPanel,
-    toggleTour, toggleRuntime,
+    toggleTour, toggleRuntime, toggleDiff,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowCycleIsolation, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
     setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction, setShowDeadCode, setShowFilterPanel,
     setShowTour,
     setShowRuntime,
+    setShowDiff,
     closeAll,
     toPanelControls: useMemo(() => ({
       showSearch: state.showSearch, showCallChain: state.showCallChain, showCycles: state.showCycles,
@@ -219,6 +228,7 @@ export function usePanelState(): PanelState {
       showGodModule: state.showGodModule, showCoreFunction: state.showCoreFunction, showDeadCode: state.showDeadCode, showFilterPanel: state.showFilterPanel,
       showTour: state.showTour,
       showRuntime: state.showRuntime,
+      showDiff: state.showDiff,
       onToggleSearch: toggleSearch, onToggleCallChain: toggleCallChain, onToggleCycles: toggleCycles,
       onToggleCycleIsolation: toggleCycleIsolation,
       onToggleImpact: toggleImpact, onToggleInheritance: toggleInheritance, onToggleMiniMap: toggleMiniMap,
@@ -227,6 +237,7 @@ export function usePanelState(): PanelState {
       onToggleGodModule: toggleGodModule, onToggleCoreFunction: toggleCoreFunction, onToggleDeadCode: toggleDeadCode, onToggleFilterPanel: toggleFilterPanel,
       onToggleTour: toggleTour,
       onToggleRuntime: toggleRuntime,
+      onToggleDiff: toggleDiff,
     }), [
       state.showSearch, state.showCallChain, state.showCycles, state.cycleIsolation,
       state.showImpact, state.showInheritance, state.showMiniMap, state.showLegend,
@@ -234,12 +245,14 @@ export function usePanelState(): PanelState {
       state.showHotspot, state.showGodModule, state.showCoreFunction, state.showDeadCode, state.showFilterPanel,
       state.showTour,
       state.showRuntime,
+      state.showDiff,
       toggleSearch, toggleCallChain, toggleCycles, toggleCycleIsolation,
       toggleImpact, toggleInheritance, toggleMiniMap, toggleLegend,
       toggleImport, togglePathFind, toggleHealthScore, toggleRules,
       toggleHotspot, toggleGodModule, toggleCoreFunction, toggleDeadCode, toggleFilterPanel,
       toggleTour,
       toggleRuntime,
+      toggleDiff,
     ]),
   };
 }

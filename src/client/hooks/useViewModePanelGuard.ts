@@ -29,6 +29,18 @@ interface PanelGuardApi {
    * 同一个失败模式，能避开就避开。
    */
   showRuntime: boolean; setShowRuntime: (v: boolean) => void;
+  /**
+   * 版本对比面板（研究报告 §六 #13）。
+   *
+   * 它**在**自动关闭清单里（与 `showRuntime` 相反）：`showDiff` 属于结构层/行为层的能力，
+   * 切到运行时层后 `getAvailablePanels('runtime')` 不含它，必须收起——否则用户会停在一张
+   * 空画布上，带着一堆没有落地对象的 diff 标记，且面板里还显示着上一次的计数。
+   *
+   * `showRuntime` 之所以例外，是因为它由 `GraphPanel` 的 `viewMode` effect 单向驱动
+   * （进入运行时层打开、离开关闭），两条规则同时写同一个 key 会互相回滚。`showDiff` 没有
+   * 那条单向驱动，因此放进本清单是唯一写入方，不存在互相回滚。
+   */
+  showDiff: boolean; setShowDiff: (v: boolean) => void;
 }
 
 interface UseViewModePanelGuardOpts {
@@ -59,6 +71,7 @@ export function useViewModePanelGuard(opts: UseViewModePanelGuardOpts): void {
       ['showFilterPanel', opts.panel.showFilterPanel, () => opts.panel.setShowFilterPanel(false)],
       ['showSearch', opts.panel.showSearch, () => opts.panel.setShowSearch(false)],
       ['showPathFind', opts.panel.showPathFind, () => opts.panel.setShowPathFind(false)],
+      ['showDiff', opts.panel.showDiff, () => opts.panel.setShowDiff(false)],
     ];
     for (const [key, isShowing, close] of panelEntries) {
       if (!available.has(key) && isShowing) close();

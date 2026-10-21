@@ -12,6 +12,7 @@ export { useAdjacencyMap } from './useAdjacencyMap.ts';
 export { usePanelSizeApply } from './usePanelSizeApply.ts';
 export { useVisibleNodeCount } from './useVisibleNodeCount.ts';
 export { useDeadCodeMarker } from './useDeadCodeMarker.ts';
+export { useDiffComparison } from './useDiffComparison.ts';
 export { useWorkspaceEventListener } from './useWorkspaceEventListener.ts';
 export { useUrlExpandSync } from './useUrlExpandSync.ts';
 export { usePanelVisibility } from './usePanelVisibility.ts';
@@ -27,7 +28,7 @@ export { useExpandedFunctionBodyCount } from './useExpandedFunctionBodyCount.ts'
 export {
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus,
   useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions,
-  usePanelDimensions, useNodeEdges,
+  usePanelDimensions, useNodeEdges, useGraphDiff,
 } from './useGraphSelectors.ts';
 
 export function usePolling(

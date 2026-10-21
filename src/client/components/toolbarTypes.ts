@@ -33,6 +33,13 @@ export interface ToolbarVisibilityState {
   showTour: boolean;
   /** 运行时层面板（cycle-88，P2-1 三层独立面板） */
   showRuntime: boolean;
+  /**
+   * 版本对比面板（研究报告 §六 #13）。
+   *
+   * 与 `showRuntime` 同族「独立面板开关」，可用性由 `getAvailablePanels` 的层矩阵给出：
+   * 结构层与行为层有图可标，运行时层没有图，因此该面板在运行时层不可用。
+   */
+  showDiff: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -55,6 +62,7 @@ export interface ToolbarToggleHandlers {
   onToggleFilterPanel: () => void;
   onToggleTour: () => void;
   onToggleRuntime: () => void;
+  onToggleDiff: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}

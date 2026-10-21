@@ -162,6 +162,26 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
   usePanelSizeApply: vi.fn(),
   useVisibleNodeCount: vi.fn(() => ({ visibleNodeCount: 0, hasHiddenNodes: true })),
   useDeadCodeMarker: vi.fn(),
+  /**
+   * 版本对比编排 hook（cycle-104）。面板与标记逻辑由 `DiffPanel.test.tsx` /
+   * `useDiffComparison.test.ts` 单独覆盖；GraphPanel 这一层只需要它存在且形状正确，
+   * 否则 `useDiffComparison` 的真实实现会去调 `fetchGraphDiff`（本文件没有该 mock）。
+   */
+  useDiffComparison: vi.fn(() => ({
+    compare: vi.fn(async () => null),
+    clear: vi.fn(),
+    isComparing: false,
+    error: null,
+    markStats: null,
+  })),
+  /**
+   * diff 结果选择器。真实实现读 store；这里返回 store 的当前值，使
+   * `setDiffResult` 的写入能在 GraphPanel 里被观察到（与 `useGraphActions` 同一种做法）。
+   */
+  useGraphDiff: vi.fn(() => {
+    const s = useGraphStore.getState();
+    return { diffResult: s.diffResult };
+  }),
   useWorkspaceEventListener: vi.fn(() => {
     React.useEffect(() => {
       const handler = (e: Event) => {

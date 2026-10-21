@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge, GraphDelta, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
+import type { DiffIndex } from '../../shared/diffStatus.ts';
 import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 import type { LayeredDiagram } from '../diagram/index.ts';
 import { type LayoutType, type ThemeType, type RankDir } from '../../shared/viewModeUtils.ts';
@@ -9,6 +10,25 @@ export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 
 export type GraphType = 'all' | 'call' | 'dependency';
+
+/**
+ * 一次版本对比（diff）在 store 里的形态（研究报告 §六 #13）。
+ *
+ * `nodes` / `edges` 是 `/diff` 返回的**只含变更项**子图；`index` 是按状态分组的 id 索引，
+ * 由 `buildDiffIndex` 从同一份子图算出，缓存下来避免每次渲染重算。
+ *
+ * `from` / `to` 原样回显请求所用的 git 引用，面板据此显示「main → feature」，
+ * 而不是让用户猜「这是哪两个版本的对比」。
+ */
+export interface DiffState {
+  from: string;
+  to: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  index: DiffIndex;
+  /** 请求发起时刻，供面板显示「对比于 12:34」。 */
+  requestedAt: number;
+}
 
 export interface WorkspaceInfo {
   path: string;
@@ -148,6 +168,18 @@ export interface GraphState {
   deadCodeResult: DeadCodeResult | null;
   deadCodeModeActive: boolean;
 
+  /**
+   * 当前生效的版本对比结果（研究报告 §六 #13）。
+   *
+   * `null` 表示「没有在做版本对比」。非 `null` 时 `nodes`/`edges` 是**只含变更项**的子图，
+   * 由 `/diff` 返回，绝不能交给 `setGraphData` —— 那会把画布替换成一张只有变更项的残图。
+   * 它只用于两件事：① 把 diff 索引标到当前画布上；② 面板显示「新增/修改/删除」计数。
+   *
+   * 刻意不持久化（不在 `partialize` 白名单里）：diff 结果绑定的是「这一次请求的两个 git
+   * 引用」，跨会话恢复出一个上次的对比状态只会让用户看到一个自己没发起的标记层。
+   */
+  diffResult: DiffState | null;
+
   panelHeight: number | null;
   panelWidth: number | null;
 
@@ -210,6 +242,15 @@ export interface GraphState {
   setRuleViolations: (violations: RuleViolation[]) => void;
   setDeadCodeResult: (result: DeadCodeResult | null) => void;
   setDeadCodeModeActive: (active: boolean) => void;
+  /**
+   * 保存一次成功的版本对比结果（研究报告 §六 #13）。
+   *
+   * 入参是**已归一化**的 diff 子图；`setDiffResult` 只负责落库，不做网络请求——请求在
+   * `src/client/api/index.ts` 的 `fetchGraphDiff`，编排在 `useDiffComparison`。
+   */
+  setDiffResult: (result: DiffState | null) => void;
+  /** 清空版本对比（面板关闭 / 工作区切换 / 整图替换时调用）。 */
+  clearDiffResult: () => void;
   setSelectedFunction: (fn: { nodeId: string; filePath: string; functionName: string } | null) => void;
   assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence', selectedFunctionOverride?: { nodeId: string; filePath: string; functionName: string } | null) => Promise<void>;
   setPanelSize: (height: number, width: number) => void;

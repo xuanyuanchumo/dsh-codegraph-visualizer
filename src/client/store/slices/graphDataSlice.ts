@@ -7,7 +7,7 @@ import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
 import { applyGraphDelta as applyDeltaToSkeleton, canApplyGraphDelta } from '../../../shared/graphDelta.ts';
 import { assembleDiagram } from '../../diagram/index.ts';
 import { clearEtagCache } from '../../api/index.ts';
-import { emptyEdgeState } from './edgeSlice.ts';
+import { emptyEdgeState, emptyDiffState } from './edgeSlice.ts';
 import {
   diagramCache, clusterCache, internals, clearLoadingFailsafe, log,
   IndexedDBCache, tryIncrementalOrFull, updateIncrementalClusterCtx, computeDataHash,
@@ -96,6 +96,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
             pendingRequests: new Map(),
             loadErrorsByNodeId: new Map(),
             ...emptyEdgeState(),
+            ...emptyDiffState(),
           });
           return;
         }
@@ -122,6 +123,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
           ...emptyEdgeState(),
+          ...emptyDiffState(),
         });
       } catch (err) {
         log.error('setGraphData failed', { err });
@@ -197,6 +199,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
           ...emptyEdgeState(),
+          ...emptyDiffState(),
         });
         log.info('bootstrap data set', { rootNodes: sanitized.nodes.length, totalNodeCount: metadata.totalNodeCount });
       } catch (err) {
@@ -213,7 +216,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       const prevPending = _get().pendingRequests;
       abortAllControllers(prevPending);
       internals.incrementalClusterCtx = null;
-      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, graphEtag: null, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map(), ...emptyEdgeState() });
+      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, graphEtag: null, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map(), ...emptyEdgeState(), ...emptyDiffState() });
     },
     applyGraphDelta: (delta: GraphDelta): boolean => {
       // The delta describes a specific revision. If the store has drifted (a full `graph/data`
@@ -294,6 +297,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
           ...emptyEdgeState(),
+          ...emptyDiffState(),
         });
         log.info('applied graph delta', {
           addedNodes: delta.addedNodes.length,

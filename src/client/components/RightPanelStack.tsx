@@ -8,6 +8,7 @@ import { TourPanel } from './TourPanel.tsx';
 import { ImpactPanel } from './ImpactPanel.tsx';
 import { CyclePanel } from './CyclePanel.tsx';
 import { RuntimePanel } from './RuntimePanel.tsx';
+import { DiffPanel } from './DiffPanel.tsx';
 import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
 import type { HotspotNode, GodModule, ImpactStats } from '../hooks/useAnalysisPanels.ts';
@@ -15,6 +16,8 @@ import type { CoreFunction } from '../../shared/analysis/CoreFunctionAnalyzer.ts
 import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import type { CycleInfo } from '../renderer/CycleDetector.ts';
 import type { Tour } from '../../shared/analysis/TourBuilder.ts';
+import type { DiffMarkStats } from '../../shared/diffStatus.ts';
+import type { DiffState } from '../store/types.ts';
 
 interface RightPanelStackProps {
   panel: PanelState;
@@ -32,6 +35,14 @@ interface RightPanelStackProps {
   tourData: unknown;
   onSelectCoreFunction: (nodeId: string) => void;
   onSelectDeadNode: (nodeId: string) => void;
+  /** 版本对比结果（研究报告 §六 #13）；`null` 表示尚未发起对比。 */
+  diffResult: DiffState | null;
+  diffMarkStats: DiffMarkStats | null;
+  isDiffComparing: boolean;
+  /** 已翻译的对比失败消息；`null` 表示没有错误。 */
+  diffErrorMessage: string | null;
+  onDiffCompare: (from: string, to: string) => void;
+  onDiffClear: () => void;
   labels: {
     hotspot: string;
     godModule: string;
@@ -98,6 +109,22 @@ export function RightPanelStack(props: RightPanelStackProps) {
       // 用户点开开关却看不到任何反馈，会以为入口坏了。
       visible: panel.showRuntime,
       children: <RuntimePanel onClose={() => panel.setShowRuntime(false)} label={props.labels.runtime} />,
+    },
+    {
+      // 版本对比面板（研究报告 §六 #13）。与运行时面板同一条判断：**不**加「有没有结果」
+      // 的前置条件。首次打开时用户必须能看到两个输入框，否则「点开开关什么都没发生」。
+      // 关闭按钮走 clearDiff：关闭面板即结束这次对比，标记必须一起从画布上消失，
+      // 否则用户会看到一堆无法解释的彩色边框。
+      visible: panel.showDiff,
+      children: <DiffPanel
+        diffResult={props.diffResult}
+        markStats={props.diffMarkStats}
+        isComparing={props.isDiffComparing}
+        errorMessage={props.diffErrorMessage}
+        onCompare={props.onDiffCompare}
+        onClear={props.onDiffClear}
+        onClose={() => { props.onDiffClear(); panel.setShowDiff(false); }}
+      />,
     },
   ];
 

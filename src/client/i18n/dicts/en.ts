@@ -338,6 +338,24 @@ export const en: Record<string, string> = {
   // Impact radius
   'impact.total': 'Total impacted nodes',
 
+  // Version diff
+  'diff.title': 'Version diff',
+  'diff.from': 'Base ref',
+  'diff.to': 'Target ref',
+  'diff.compare': 'Compare',
+  'diff.comparing': 'Comparing…',
+  'diff.clear': 'Clear diff',
+  'diff.empty': 'Enter two git refs to compare',
+  'diff.countsLabel': 'Change counts',
+  'diff.status.added': 'Added',
+  'diff.status.modified': 'Modified',
+  'diff.status.removed': 'Removed',
+  'diff.markedAll': '{marked} changes marked',
+  'diff.markedPartial': '{marked} of {total} marked — {missing} outside the current view (expand more directories to reveal)',
+  'diff.noChange': 'No structural graph change between the two refs',
+  'diff.requestFailed': 'Diff request failed — check that both refs exist',
+  'diff.toolbar': 'Version diff',
+
   // Cycles
   'cycles.empty': 'No circular dependencies detected',
 
@@ -360,6 +378,8 @@ export const en: Record<string, string> = {
   'toolbar.viewModeRuntimeSection': 'Runtime views',
   'toolbar.runtime': 'Runtime panel',
   'toolbar.runtimeSection': 'Runtime',
+  'toolbar.diffSection': 'Version diff',
+  'toolbar.diff': 'Version diff',
   'toolbar.microDisabled': 'Select a function node first',
   'viewMode.code': 'Code',
   'viewMode.dependencies': 'Deps',

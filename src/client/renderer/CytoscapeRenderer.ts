@@ -4,6 +4,7 @@ import fcose from 'cytoscape-fcose';
 import type { GraphNode, GraphEdge, NodeId, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { IRenderer, LayoutType, ThemeType, RankDir } from './IRenderer.ts';
+import type { DiffIndex, DiffMarkStats } from '../../shared/diffStatus.ts';
 import type { CycleInfo } from './CycleDetector.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';
@@ -589,6 +590,24 @@ export class CytoscapeRenderer implements IRenderer {
       this.cy!.nodes().removeClass('dead-code dead-code-suspected');
       this.cy!.edges().removeClass('dead-code-edge');
     });
+  }
+
+  /**
+   * diff 标记的渲染器入口（研究报告 §六 #13）。
+   *
+   * 实现全部委托给 `HighlightController`：它已经持有 `cy` 并且是「视图态 class」的归属地，
+   * 把标记逻辑写两份必然漂移（`markDeadCode` 就是直接写在这里的，代价是它没有复用任何
+   * 控制器设施）。渲染器本身只做 `safeCall` 包裹与「控制器不存在时给空统计」的兜底——
+   * 后者很重要：控制器为 `null` 时若返回 `undefined`，调用方读 `.counts.added` 会抛错，
+   * 而这条路径在「渲染器尚未完成 init」时是真实可达的。
+   */
+  applyDiffMarkers(index: DiffIndex): DiffMarkStats {
+    const empty: DiffMarkStats = { counts: { added: 0, modified: 0, removed: 0 }, missing: 0, marked: 0 };
+    return this.safeCall('applyDiffMarkers', () => this.highlightCtrl?.applyDiffMarkers(index) ?? empty, empty);
+  }
+
+  clearDiffMarkers(): void {
+    this.safeCallVoid('clearDiffMarkers', () => this.highlightCtrl?.clearDiffMarkers());
   }
 
   pauseAnimations(): void {

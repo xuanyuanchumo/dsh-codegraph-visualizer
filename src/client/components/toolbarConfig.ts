@@ -6,7 +6,7 @@ import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
   HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  StarIcon, GhostIcon, WatchIcon,
+  StarIcon, GhostIcon, WatchIcon, DiffIcon,
 } from './Icons.tsx';
 import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
@@ -118,10 +118,25 @@ export const RUNTIME_ITEMS: ToolMenuItem[] = [
   { panel: 'showRuntime', Icon: WatchIcon, key: 'toolbar.runtime', btnClass: 'cg-runtime-btn', toggle: 'onToggleRuntime' },
 ];
 
+/**
+ * 版本对比（diff）的工具项（研究报告 §六 #13）。
+ *
+ * 单独一段而不是并进 `QUALITY_ITEMS`：那 6 项都是「对当前图做一次分析并给出结论」
+ * （健康分/规则/热点/上帝模块/核心函数/死代码），而版本对比是**换一个输入**（两个 git 引用）
+ * 再叠加一层视图标记。并进去会让「为什么这一项要填两个输入框」无法从分组标题读出来。
+ *
+ * 由 `availablePanels.has('showDiff')` 门控：结构层与行为层有图可标，运行时层没有图，
+ * 该段在运行时层整体消失（段标题也一并消失，靠 `ToolbarActions` 的 `visibleSections` 过滤）。
+ */
+export const DIFF_ITEMS: ToolMenuItem[] = [
+  { panel: 'showDiff', Icon: DiffIcon, key: 'toolbar.diff', btnClass: 'cg-diff-btn', toggle: 'onToggleDiff' },
+];
+
 export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] }[] = [
   { labelKey: 'toolbar.analysis', items: ANALYSIS_ITEMS },
   { labelKey: 'toolbar.quality', items: QUALITY_ITEMS },
   { labelKey: 'toolbar.runtimeSection', items: RUNTIME_ITEMS },
+  { labelKey: 'toolbar.diffSection', items: DIFF_ITEMS },
 ];
 export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
   { value: 'png', key: 'export.png' },

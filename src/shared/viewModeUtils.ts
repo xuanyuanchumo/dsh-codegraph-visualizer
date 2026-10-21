@@ -102,17 +102,31 @@ export type AnalysisPanelKey =
   | 'showCallChain' | 'showCycles' | 'showImpact' | 'showInheritance' | 'showHotspot' | 'showGodModule' | 'showCoreFunction'
   | 'showDeadCode'
   | 'showRuntime'
+  | 'showDiff'
   | 'showMiniMap' | 'showLegend';
 
+/**
+ * 结构层可用面板。
+ *
+ * `showDiff` 自 cycle-104 起进入本集合（研究报告 §六 #13）：版本对比要在画布上标
+ * 「新增/修改/删除」，因此它需要一层**有图**的视图。结构层与行为层都有图，两层都提供；
+ * 运行时层没有图（`computeViewModeTransition` 的 runtime 分支返回空子图），故不在
+ * `RUNTIME_PANELS` 里——这正是能力矩阵该表达的事实，不需要额外一套门控逻辑。
+ *
+ * 曾经考虑过「按 `hasGraphData` 单独门控」而不入矩阵：那会让「切到运行时层时该不该收起
+ * 对比面板」这个问题没有答案，用户会带着一堆无处落地的标记停在一张空画布上。
+ */
 export const STRUCTURAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showSearch', 'showPathFind', 'showHealthScore', 'showRules', 'showImport', 'showFilterPanel',
   'showDeadCode',
+  'showDiff',
   'showMiniMap', 'showLegend',
 ]);
 
 export const BEHAVIORAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showCallChain', 'showCycles', 'showImpact', 'showInheritance', 'showHotspot', 'showGodModule', 'showCoreFunction',
   'showDeadCode',
+  'showDiff',
   'showSearch', 'showPathFind', 'showMiniMap', 'showLegend',
 ]);
 

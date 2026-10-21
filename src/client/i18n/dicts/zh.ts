@@ -337,6 +337,24 @@ export const zh: Record<string, string> = {
   // 影响半径
   'impact.total': '总影响节点',
 
+  // 版本对比（diff）
+  'diff.title': '版本对比',
+  'diff.from': '基线引用',
+  'diff.to': '目标引用',
+  'diff.compare': '开始对比',
+  'diff.comparing': '对比中…',
+  'diff.clear': '清除对比',
+  'diff.empty': '输入两个 git 引用后开始对比',
+  'diff.countsLabel': '变更计数',
+  'diff.status.added': '新增',
+  'diff.status.modified': '修改',
+  'diff.status.removed': '删除',
+  'diff.markedAll': '已标记 {marked} 处变更',
+  'diff.markedPartial': '已标记 {marked} / {total} 处，另有 {missing} 处不在当前视图（展开更多目录可显示）',
+  'diff.noChange': '两个引用之间没有图结构变更',
+  'diff.requestFailed': '对比请求失败，请检查两个引用是否存在',
+  'diff.toolbar': '版本对比',
+
   // 循环依赖
   'cycles.empty': '未检测到循环依赖',
 
@@ -359,6 +377,8 @@ export const zh: Record<string, string> = {
   'toolbar.viewModeRuntimeSection': '运行时视图',
   'toolbar.runtime': '运行时面板',
   'toolbar.runtimeSection': '运行时',
+  'toolbar.diffSection': '版本对比',
+  'toolbar.diff': '版本对比',
   'toolbar.microDisabled': '请先选中函数节点',
   'viewMode.code': '代码',
   'viewMode.dependencies': '依赖',

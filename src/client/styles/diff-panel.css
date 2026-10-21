@@ -1,0 +1,183 @@
+/* ---- Version diff panel (cycle-104, research report §6 #13) ---------------- */
+/*
+ * 版本对比面板：把 `/diff` 的「新增/修改/删除」三类变更标到画布上，并显示计数。
+ * 外壳复用 `.cg-analysis-panel`（见 hotspot-godmodule-panel.css:3），这里只定义
+ * 本面板特有的内容样式。
+ *
+ * 与 `runtime-panel.css` 同一条约定：**不使用 `color-mix()`**。仓库要求每个
+ * `color-mix()` 用法都在 `color-mix-fallback.css` 里配一条 rgba 回退，而这里的三色
+ * 语义用既有 token（--cg-success / --cg-warning / --cg-error / --cg-accent-soft）
+ * 就能表达，少一处需要成对维护的文件。
+ */
+
+.cg-diff-panel {
+  width: 260px;
+}
+
+/* 输入表单：两个字段上下排（260px 宽度下并排会让 "HEAD~1" 这类引用被截断） */
+.cg-diff-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cg-diff-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cg-diff-field-label {
+  font-size: 10px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-diff-input {
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+.cg-diff-input:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 1px;
+}
+
+.cg-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.cg-diff-run-btn,
+.cg-diff-clear-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface-hover);
+  color: var(--cg-text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cg-diff-run-btn {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: var(--cg-on-accent);
+  font-weight: 600;
+}
+
+.cg-diff-run-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.cg-diff-clear-btn:hover,
+.cg-diff-run-btn:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+/* 失败提示：与「0 处变更」必须视觉可分，因此用 error token 独立成块 */
+.cg-diff-error {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-error);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface-hover);
+  color: var(--cg-error);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.cg-diff-empty {
+  margin-top: 8px;
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+}
+
+.cg-diff-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface-hover);
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+}
+
+.cg-diff-range-from,
+.cg-diff-range-to {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cg-diff-range-arrow {
+  color: var(--cg-text-secondary);
+  flex-shrink: 0;
+}
+
+.cg-diff-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.cg-diff-count-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.cg-diff-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.cg-diff-badge-added { background: var(--cg-success); }
+.cg-diff-badge-modified { background: var(--cg-warning); }
+.cg-diff-badge-removed { background: var(--cg-error); }
+
+.cg-diff-count-label {
+  color: var(--cg-text-secondary);
+}
+
+.cg-diff-count-value {
+  margin-left: auto;
+  font-family: var(--cg-font-mono);
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+/* 「已标记 / 未渲染」披露：这是本面板的诚实性条款，不隐藏、不折叠 */
+.cg-diff-marked {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-accent-soft);
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.cg-diff-nochange {
+  margin-top: 6px;
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  font-style: italic;
+}

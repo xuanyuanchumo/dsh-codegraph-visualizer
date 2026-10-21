@@ -8,7 +8,8 @@ import { NodeId } from '../types/index.ts';
 import { usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
   useGraphDerivedValues, useWorkspaceHandlers,
-  useAdjacencyMap, usePanelSizeApply, useVisibleNodeCount, useDeadCodeMarker, useWorkspaceEventListener, useUrlExpandSync, usePanelVisibility,
+  useAdjacencyMap, usePanelSizeApply, useVisibleNodeCount, useDeadCodeMarker, useDiffComparison, useWorkspaceEventListener, useUrlExpandSync, usePanelVisibility,
+  useGraphDiff,
 } from './hooks/index.ts';
 
 
@@ -59,6 +60,7 @@ import './styles/path-finder.css'; import './styles/health-score-card.css'; impo
 import './styles/hotspot-godmodule-panel.css'; import './styles/impact-panel.css'; import './styles/cycle-panel.css'; import './styles/deadcode-panel.css';
 import './styles/tour-panel.css'; import './styles/responsive.css'; import './styles/misc.css';
 import './styles/runtime-panel.css';
+import './styles/diff-panel.css';
 
 const log = scoped('panel');
 
@@ -90,6 +92,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { currentWorkspace, workspaceList } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
+  const { diffResult } = useGraphDiff();
   const actions = useGraphActions();
   const { panelHeight, panelWidth } = usePanelDimensions();
 
@@ -353,6 +356,19 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   useDeadCodeMarker({ showDeadCode: panel.showDeadCode, deadCodeResult, rendererRef: renderer.rendererRef });
 
+  /**
+   * 版本对比（研究报告 §六 #13）。
+   *
+   * `enabled` 传 `panel.showDiff` 而不是「有没有 diffResult」：面板关闭时即使还留着上次的
+   * 结果，也必须把画布标记清掉——否则用户关掉面板后看到一堆无法解释的彩色边框。
+   * `clearDiffResult` 由 hook 内部负责，这里只把 UI 需要的三样东西接出去。
+   */
+  const diff = useDiffComparison({
+    enabled: panel.showDiff,
+    rendererRef: renderer.rendererRef,
+    workspace: currentWorkspace,
+  });
+
   useAutoBootstrap({
     collapsed: panel.collapsed,
     nodesLength: nodes.length,
@@ -540,6 +556,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           renderer.rendererRef.current?.focusOnNode(nodeId);
           renderer.rendererRef.current?.selectNode(NodeId(nodeId));
         }}
+        diffResult={diffResult}
+        diffMarkStats={diff.markStats}
+        isDiffComparing={diff.isComparing}
+        diffErrorMessage={diff.error ? t('diff.requestFailed') : null}
+        onDiffCompare={(from, to) => { void diff.compare(from, to); }}
+        onDiffClear={diff.clear}
         labels={{
           hotspot: t('toolbar.hotspot'),
           godModule: t('toolbar.godModule'),

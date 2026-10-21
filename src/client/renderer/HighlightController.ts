@@ -1,6 +1,10 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
 import { HIGHLIGHT } from '../../shared/constants.ts';
+import {
+  DIFF_STATUSES, DIFF_STATUS_CLASS, DIFF_STATUS_CLASSES,
+  type DiffIndex, type DiffMarkStats, summarizeDiff,
+} from '../../shared/diffStatus.ts';
 import { buildUndirectedAdjacencyMap } from './AdjacencyMapBuilder.ts';
 
 
@@ -201,5 +205,51 @@ export class HighlightController {
     this.highlightedNodeIds.clear();
     this.selectedNodeId = null;
     this.lastInheritanceRelevant.clear();
+  }
+
+  /**
+   * 把一份 diff 索引标记到当前画布上（研究报告 §六 #13 的渲染层补口）。
+   *
+   * 三条约束：
+   *
+   * 1. **只加 class，不碰数据**。`diffStatus` 是宿主给出的原始事实，渲染层不得改写它；
+   *    标记是「视图状态」，与「数据状态」分离，这样关闭对比时只需移除 class，不会污染
+   *    store 里的 `rawNodes`（那会让下一次整图替换带着残留的 `diffStatus`）。
+   * 2. **先清后加**。`removeClass` 覆盖全部三个 diff class 再按新索引添加，因此反复调用
+   *    不会累积（`diff-added` 的节点第二次被标为 `modified` 时不会同时持有两个 class，
+   *    否则样式规则的优先级会决定最终颜色，而那个优先级没有人显式声明过）。
+   * 3. **找不到的元素静默跳过**。用户只展开了部分目录时，diff 覆盖的其余元素不在画布上——
+   *    这是正常状态，缺失数量由 `summarizeDiff` 单独统计并披露，不在渲染层抛错。
+   *
+   * 返回**实际标记**的统计，供面板显示「已标记 N 处，另有 M 处不在当前视图」。
+   */
+  applyDiffMarkers(index: DiffIndex): DiffMarkStats {
+    const presentNodeIds = new Set<string>();
+    const presentEdgeIds = new Set<string>();
+    this.cy.batch(() => {
+      // 先清：三个 class 全部摘掉，避免状态迁移后残留（见上面第 2 条）。
+      this.cy.elements().removeClass(DIFF_STATUS_CLASSES.join(' '));
+      this.cy.nodes().forEach((node) => { presentNodeIds.add(node.id()); });
+      this.cy.edges().forEach((edge) => { presentEdgeIds.add(edge.id()); });
+      for (const status of DIFF_STATUSES) {
+        const cls = DIFF_STATUS_CLASS[status];
+        for (const id of index.nodes[status]) {
+          const node = this.cy.getElementById(id);
+          if (node.nonempty()) node.addClass(cls);
+        }
+        for (const id of index.edges[status]) {
+          const edge = this.cy.getElementById(id);
+          if (edge.nonempty()) edge.addClass(cls);
+        }
+      }
+    });
+    return summarizeDiff(index, presentNodeIds, presentEdgeIds);
+  }
+
+  /** 移除全部 diff 标记，并把 diff 相关 class 从所有元素上摘干净。 */
+  clearDiffMarkers(): void {
+    this.cy.batch(() => {
+      this.cy.elements().removeClass(DIFF_STATUS_CLASSES.join(' '));
+    });
   }
 }

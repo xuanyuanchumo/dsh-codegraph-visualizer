@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge, NodeId, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
+import type { DiffIndex, DiffMarkStats } from '../../shared/diffStatus.ts';
 import type { PathResult } from './PathFinder.ts';
 import type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 import type { CycleInfo } from './CycleDetector.ts';
@@ -109,6 +110,14 @@ export interface IRenderer {
   onZoomChange(callback: () => void): () => void;
   markDeadCode(nodeIds: Set<string>): void;
   clearDeadCodeMarks(): void;
+  /**
+   * 把一份 diff 索引标记到画布上（研究报告 §六 #13）。
+   *
+   * 与 `markDeadCode` 同一族「视图态标记」：只加 cytoscape class，不改数据。
+   * 返回实际标记统计，让调用方能把「diff 里有、但当前视图没渲染」的差额如实披露出来。
+   */
+  applyDiffMarkers(index: DiffIndex): DiffMarkStats;
+  clearDiffMarkers(): void;
   pauseAnimations(): void;
   resumeAnimations(): void;
 }

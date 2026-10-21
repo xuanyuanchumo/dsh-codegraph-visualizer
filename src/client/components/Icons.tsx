@@ -234,3 +234,11 @@ export const WrenchIcon = memo(({ size = 16, className }: IconProps) => (
     <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5 2.5-2.5Z" />
   </svg>
 ));
+
+/** 版本对比（diff）图标：两条分叉的提交线，右端合并（研究报告 §六 #13）。 */
+export const DiffIcon = memo(({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="12" r="2" />
+    <path d="M6 8v8" /><path d="M8 6h4a4 4 0 0 1 4 4v0" /><path d="M8 18h4a4 4 0 0 0 4-4v0" />
+  </svg>
+));

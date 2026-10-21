@@ -36,6 +36,21 @@ export function emptyEdgeState(): Pick<GraphState,
 }
 
 /**
+ * 整图替换时一并清空的 diff 状态（cycle-104，研究报告 §六 #13）。
+ *
+ * 为什么不并进 `emptyEdgeState()`：那两个容器回答的是两个不同问题。`emptyEdgeState`
+ * 的语义是「这张图的按需分页进度全部作废」，而 diff 作废的理由是**另一条**——diff 索引里
+ * 的 id 是相对「发起对比时那张图」的，换图后这些 id 可能指向语义已变甚至不存在的元素。
+ *
+ * 分成两个函数、各自在需要的地方显式 spread，代价是调用点要写两行；收益是任何一个
+ * 「只想清分页」的新调用点不会顺手把用户正在看的对比结果也抹掉。合并成一个函数的收益是
+ * 少写一行，代价是这种误伤无法避免——按代价不对称原则选前者。
+ */
+export function emptyDiffState(): Pick<GraphState, 'diffResult'> {
+  return { diffResult: null };
+}
+
+/**
  * Lazy per-node edge loading for the detail panel.
  *
  * The graph the client renders only carries the edges reachable from what has

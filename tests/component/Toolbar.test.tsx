@@ -77,6 +77,9 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleTour: noop,
     showRuntime: false,
     onToggleRuntime: noop,
+    // 版本对比面板（cycle-104，研究报告 §六 #13）
+    showDiff: false,
+    onToggleDiff: noop,
     ...overrides,
   };
 }
@@ -1268,5 +1271,88 @@ describe('Toolbar empty-view recovery (J0 Round 11)', () => {
     render(<Toolbar {...makeProps({ hasData: false, hasGraphData: true, statsText: '0 nodes' })} />);
     // Counts describe what is rendered, so they stay hidden while the view is empty.
     expect(document.querySelector('.cg-node-count')).toBeNull();
+  });
+});
+
+/**
+ * 版本对比入口（cycle-104，研究报告 §六 #13）。
+ *
+ * 门控维度是**层**而不是「有没有图」：结构层与行为层都有图可标 diff，运行时层没有
+ * （`computeViewModeTransition` 的 runtime 分支返回空子图）。因此工具下拉里的
+ * 「版本对比」段必须在结构层/行为层出现、在运行时层整体消失（段标题也不得残留——
+ * 空标题是 cycle-88 已经修过一次的同族缺陷）。
+ */
+describe('Toolbar version-diff entry (cycle-104)', () => {
+  /**
+   * 打开工具下拉。
+   *
+   * 必须返回同一个 `user` 实例给后续点击复用：`userEvent.setup()` 每次调用都会新建
+   * 一个带独立指针状态的对象，跨实例点击在 jsdom 里可能因为「指针位置」不一致而落空
+   * （本文件既有用例 `openToolsDropdown(user)` 就是按这个形状写的）。
+   */
+  async function openToolsMenu() {
+    const user = userEvent.setup();
+    await user.click(document.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement);
+    return user;
+  }
+
+  it('offers the diff item on the structural layer', async () => {
+    const onToggleDiff = vi.fn();
+    // `onToggleDiff` 必须经 `makePanelControls` 注入：Toolbar 从 `panelControls` 读它，
+    // 放在 `makeProps` 顶层会被当成一个未知 prop 静默忽略（Toolbar 不转发未知 prop）。
+    render(<Toolbar {...makeProps({
+      viewMode: 'code',
+      panelControls: makePanelControls({ onToggleDiff }),
+    })} />);
+    const user = await openToolsMenu();
+    const diffBtn = document.querySelector('.cg-diff-btn') as HTMLButtonElement;
+    expect(diffBtn).toBeTruthy();
+    await user.click(diffBtn);
+    expect(onToggleDiff).toHaveBeenCalled();
+  });
+
+  it('offers the diff item on the behavioral layer', async () => {
+    render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
+    await openToolsMenu();
+    expect(document.querySelector('.cg-diff-btn')).toBeTruthy();
+  });
+
+  it('hides the diff item on the runtime layer', async () => {
+    // 运行时层没有图可标：入口存在就是「点击无反应」的死入口
+    render(<Toolbar {...makeProps({ viewMode: 'runtime' })} />);
+    await openToolsMenu();
+    expect(document.querySelector('.cg-diff-btn')).toBeNull();
+  });
+
+  it('does not leave an empty section heading behind on the runtime layer', async () => {
+    // cycle-88 的同族缺陷：段标题渲染了、段内容全被过滤掉，用户看到点不动的空标题。
+    render(<Toolbar {...makeProps({ viewMode: 'runtime' })} />);
+    await openToolsMenu();
+    const labels = [...document.querySelectorAll('.cg-dropdown-section-label')].map((el) => el.textContent ?? '');
+    // 运行时层的「版本对比」段标题不得出现
+    expect(labels).not.toContain('版本对比');
+    // 反证：运行时层自己的段标题必须在（否则这个断言对「整个下拉没渲染」也成立）
+    expect(labels).toContain('运行时');
+  });
+
+  it('shows the diff section heading on the structural layer', async () => {
+    // 与上一条成对：证明「版本对比」段标题确实由数据驱动，而不是永远不渲染
+    render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+    await openToolsMenu();
+    const labels = [...document.querySelectorAll('.cg-dropdown-section-label')].map((el) => el.textContent ?? '');
+    expect(labels).toContain('版本对比');
+  });
+
+  it('reflects the active state through aria-checked', async () => {
+    // 同理：`showDiff` 也住在 `panelControls` 里
+    render(<Toolbar {...makeProps({
+      viewMode: 'code',
+      panelControls: makePanelControls({ showDiff: true }),
+    })} />);
+    await openToolsMenu();
+    const diffBtn = document.querySelector('.cg-diff-btn') as HTMLButtonElement;
+    expect(diffBtn).toBeTruthy();
+    expect(diffBtn.getAttribute('aria-checked')).toBe('true');
+    expect(diffBtn.classList.contains('cg-active')).toBe(true);
   });
 });

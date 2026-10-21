@@ -477,10 +477,48 @@ commitEtag(sink);                               // 后登记
 | `fetchFileOutline(...)` | `:353` | `FileOutlineData \| null` |
 | `fetchSymbolAST(...)` | `:395` | `SymbolASTData \| null` |
 | `fetchAst(filePath, signal?, workspace?)` | `:437` | `ASTNode \| null` |
-| `fetchEdges(fromId, scope?, cursor?, limit?, signal?, workspace?, detail?, sink?)` | `:474` | `EdgesData \| null` |
+| `fetchEdges(fromId, scope?, cursor?, limit?, signal?, workspace?, detail?, sink?)` | `:539` | `EdgesData \| null` |
+| `fetchGraphDiff(from, to, signal?, workspace?)` | `:364` | `DiffGraphData \| null` |
 
 > `fetchSymbolAST` **刻意省略**等于 `'.'` 的 `workspace` 参数——
 > 写断言时必须读分支，不能按语义「应该」的样子写。
+
+### 9.3 `fetchGraphDiff` 与版本对比（cycle-104）
+
+`fetchGraphDiff` 是**唯一**调用 `POST /api/v1/codegraph/diff` 的客户端入口。它返回
+`DiffGraphData`（`{ nodes, edges, from, to }`），其中 `nodes`/`edges` 是**只含变更项**的
+子图，每个元素的 `properties.diffStatus` 取 `'added' | 'modified' | 'removed'`。
+
+三条不能违反的契约：
+
+1. **返回类型刻意不是 `GraphData`**。把它交给 `setGraphData` 会把画布替换成一张只有
+   变更项的残图；独立类型让这个误用在编译期就不可能。
+2. **失败返回 `null`，不返回空 diff**。空 diff 会被面板渲染成「两个引用之间没有图结构
+   变更」——那是把一次失败说成事实。`null` 与 `{nodes:[],edges:[]}` 在 UI 上必须不同。
+3. **端点不在本次负载里的边会被丢弃**。留着会让 cytoscape 抛
+   `edge endpoint not found` 并整块渲染失败。
+
+配套模块（纯函数与编排分离，可各自单测）：
+
+| 模块 | 职责 |
+|---|---|
+| `src/shared/diffStatus.ts` | `DiffStatus` 联合、`DIFF_STATUS_CLASS` 类名常量、`buildDiffIndex`、`summarizeDiff` |
+| `src/client/hooks/useDiffComparison.ts` | 编排：取数 → 落 store → 让渲染器加 class；请求归属令牌 + 图变更重放 |
+| `src/client/components/DiffPanel.tsx` | 面板：两个 ref 输入、三态计数、「已标记/未渲染」披露、失败块 |
+| `src/client/renderer/HighlightController.ts` | `applyDiffMarkers(index)` / `clearDiffMarkers()`（只加 class，不改数据） |
+
+**状态生命周期**（`diffResult` 在哪些地方被清空，缺一处就会留下指向旧图的标记）：
+
+| 触发点 | 位置 | 理由 |
+|---|---|---|
+| 整图替换（4 处） | `graphDataSlice.ts` 的 `...emptyDiffState()` | diff 索引相对「发起对比时那张图」 |
+| 工作区切换 / 新增 | `workspaceSlice.ts` `setCurrentWorkspace` / `addWorkspace` | 换图即换 id 空间 |
+| 删除当前工作区 | `workspaceSlice.ts` `removeWorkspace`（仅 `removingActive`） | 与 `graphEtag` 同一条判断 |
+| 面板关闭 | `DiffPanel` 的 onClose → `diff.clear()` | 关闭即结束这次对比 |
+| 切到运行时层 | `useViewModePanelGuard` 的自动关闭清单 | 该层没有图可标 |
+
+守卫：`tests/unit/diffStatusContract.test.ts` 双向扫描——样式侧与渲染侧都不得出现
+裸 `diff-added` 类名字面量，且宿主 `DiffEngine` 写入的词汇表必须与 `DIFF_STATUSES` 完全一致。
 
 ---
 

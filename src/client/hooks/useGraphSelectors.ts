@@ -52,6 +52,20 @@ export function useGraphAnalysis() {
   })));
 }
 
+/**
+ * 版本对比结果（研究报告 §六 #13）。
+ *
+ * 单独一个选择器而不是并进 `useGraphAnalysis`：`diffResult` 在每次对比后整体替换，
+ * 与 `ruleViolations` / `heatmapMode` 这些「分析设置」的更新节奏完全不同。并进去会让
+ * 任何一次 diff 都触发 `useGraphAnalysis` 的整组重渲染，而它的消费者（规则面板、热力图）
+ * 与 diff 毫无关系。
+ */
+export function useGraphDiff() {
+  return useGraphStore(useShallow((s) => ({
+    diffResult: s.diffResult,
+  })));
+}
+
 export function useGraphPerformance() {
   return useGraphStore(useShallow((s) => ({
     performanceDegradations: s.performanceDegradations,

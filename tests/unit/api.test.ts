@@ -13,6 +13,7 @@ import {
   fetchSymbolAST,
   fetchAst,
   fetchEdges,
+  fetchGraphDiff,
   createEtagSink,
   commitEtag,
   clearEtagCache,
@@ -946,6 +947,118 @@ describe('client api', () => {
       vi.advanceTimersByTime(150);
       await expect(promise).rejects.toThrow();
       vi.useRealTimers();
+    });
+  });
+
+  /**
+   * 版本对比取数（cycle-104，研究报告 §六 #13）。
+   *
+   * 这一族用例的重点不是「解析对不对」，而是三条会静默出错的契约：
+   *   1. 请求必须真的是 POST 且带 `{from,to}` —— 用 GET 会 404，而 404 被
+   *      `withAbortGuard` 变成 `null`，用户只看到「对比失败」；
+   *   2. 端点不在本次负载里的边必须被丢弃 —— 留着会让 cytoscape 抛
+   *      「edge endpoint not found」并整块渲染失败；
+   *   3. 失败必须返回 `null` 而不是空 diff —— 空 diff 会被面板显示成
+   *      「两版本没有任何变更」这个虚假结论。
+   */
+  describe('fetchGraphDiff', () => {
+    it('POSTs from/to to the diff endpoint and returns normalized nodes', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          nodes: [
+            { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { diffStatus: 'added' } },
+            { id: 'n2', label: 'B', type: 'function', filePath: 'a.ts', lineNumber: 2, properties: { diffStatus: 'removed' } },
+          ],
+          edges: [],
+        }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await fetchGraphDiff('main', 'feature');
+
+      expect(result).not.toBeNull();
+      expect(result!.from).toBe('main');
+      expect(result!.to).toBe('feature');
+      expect(result!.nodes).toHaveLength(2);
+      // diffStatus 落在 properties 里，必须原样保留（渲染层靠它决定标记）
+      expect(result!.nodes[0]!.properties?.['diffStatus']).toBe('added');
+
+      const [url, init] = mockFetch.mock.calls[0]! as [string, RequestInit];
+      expect(url).toBe('/api/v1/codegraph/diff');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(String(init.body))).toEqual({ from: 'main', to: 'feature' });
+    });
+
+    it('normalizes upstream from/to edge field names into source/target', async () => {
+      // 上游可能给 `from`/`to` 而不是 `source`/`target`；coerceEdge 负责归一化。
+      // 不走归一化的话所有边的端点在后续 nodeIds 过滤里都会落空，整批边消失。
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          nodes: [
+            { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1 },
+            { id: 'n2', label: 'B', type: 'function', filePath: 'a.ts', lineNumber: 2 },
+          ],
+          edges: [{ id: 'e1', from: 'n1', to: 'n2', type: 'call' }],
+        }),
+      }) as unknown as typeof fetch;
+
+      const result = await fetchGraphDiff('HEAD~1', 'HEAD');
+      expect(result!.edges).toHaveLength(1);
+      expect(result!.edges[0]!.source).toBe('n1');
+      expect(result!.edges[0]!.target).toBe('n2');
+    });
+
+    it('drops edges whose endpoints are absent from the payload', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1 }],
+          edges: [
+            { id: 'e-ok', source: 'n1', target: 'n1', type: 'call' },
+            { id: 'e-dangling', source: 'n1', target: 'ghost', type: 'call' },
+          ],
+        }),
+      }) as unknown as typeof fetch;
+
+      const result = await fetchGraphDiff('a', 'b');
+      // 自环边被 coerceEdge 之外的同一条 nodeIds 过滤保留（nodeIds 含 n1），
+      // 但悬空端点边必须消失。
+      expect(result!.edges.map((e) => e.id)).toEqual(['e-ok']);
+    });
+
+    it('sends workspace only when it is not the default "."', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+      await fetchGraphDiff('a', 'b', undefined, '.');
+      expect(JSON.parse(String((mockFetch.mock.calls[0]![1] as RequestInit).body))).toEqual({ from: 'a', to: 'b' });
+
+      await fetchGraphDiff('a', 'b', undefined, 'D:/repo');
+      expect(JSON.parse(String((mockFetch.mock.calls[1]![1] as RequestInit).body))).toEqual({
+        from: 'a', to: 'b', workspace: 'D:/repo',
+      });
+    });
+
+    it('returns null on a non-ok response instead of an empty diff', async () => {
+      // 关键：失败与「无变更」必须可区分。返回空 diff 会让面板显示
+      // 「两个引用之间没有图结构变更」——这是把一次失败说成事实。
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 }) as unknown as typeof fetch;
+      expect(await fetchGraphDiff('a', 'b')).toBeNull();
+    });
+
+    it('returns null when the network throws', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
+      expect(await fetchGraphDiff('a', 'b')).toBeNull();
+    });
+
+    it('tolerates a payload with no nodes/edges arrays', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
+      const result = await fetchGraphDiff('a', 'b');
+      expect(result).not.toBeNull();
+      expect(result!.nodes).toEqual([]);
+      expect(result!.edges).toEqual([]);
     });
   });
 });

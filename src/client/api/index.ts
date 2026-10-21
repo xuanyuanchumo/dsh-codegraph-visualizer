@@ -1,7 +1,7 @@
 import { scoped } from '../../shared/Logger.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
-import { coerceGraphData } from '../../shared/GraphValidator.ts';
+import { coerceGraphData, coerceNode, coerceEdge } from '../../shared/GraphValidator.ts';
 import { isForeignRepo } from '../../shared/graphScope.ts';
 import {
   etagKeyForChildren, etagKeyForOutline, etagKeyForAst, etagKeyForEdges, resolveAstBudget,
@@ -333,6 +333,71 @@ export async function fetchGraphDataIncremental(
     // "画布已是新版、校验值还是旧版"的窗口，下一次请求就会假 304。
     return { data, etag: res.headers?.get('etag') ?? null };
   }, null, { url: '/api/v1/codegraph/data' });
+}
+
+/**
+ * 版本对比（diff）请求的结果。
+ *
+ * `nodes` / `edges` 是**只含变更项**的子图（宿主 `diffToGraphData` 已把 `diffStatus`
+ * 写进每个元素的 `properties`），不是完整图。刻意不复用 `GraphData` 类型：把它当完整图交给
+ * `setGraphData` 会把画布替换成「只有变更项」的残图——这正是本接口返回一个独立类型的原因，
+ * 调用方只能把它交给 `applyDiffResult`，不可能误当作整图负载。
+ */
+export interface DiffGraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  /** 请求所用的基线引用（原样回显，供面板显示「main → feature」）。 */
+  from: string;
+  to: string;
+}
+
+/**
+ * 请求两个 git 引用之间的图差异（`POST /api/v1/codegraph/diff`）。
+ *
+ * 研究报告 §六 #13 指出：数据层早已存在（`DiffEngine.diffToGraphData` + `/diff` 路由），
+ * 但客户端从未调用过它——这条能力长期只有出口没有入口。本函数补上入口。
+ *
+ * 返回 `null` 表示**请求失败或宿主不可用**（上游 codegraph 缺失、git 引用非法、网络错误）。
+ * 刻意不返回「空 diff」来冒充成功：面板必须能区分「两版本完全相同」与「这次对比根本没做成」，
+ * 否则用户会把一次失败读成「没有任何变更」。
+ */
+export async function fetchGraphDiff(
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+  workspace?: string,
+): Promise<DiffGraphData | null> {
+  return withAbortGuard('fetchGraphDiff', async () => {
+    const body: Record<string, string> = { from, to };
+    // 与其它按需路由同形：`workspace` 只在非默认值时才发，避免给「当前工作区」这一
+    // 最常见路径附加一个无意义的参数（也就不会因为参数拼写差异导致缓存键分叉）。
+    if (workspace && workspace !== '.') body.workspace = workspace;
+    const options: RequestInit = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout('/api/v1/codegraph/diff', options);
+    if (!res.ok) return null;
+    const payload = await res.json() as { nodes?: unknown; edges?: unknown };
+    // 复用与整图同一套字段归一化：`diffStatus` 落在 `properties` 里，因此这里不需要
+    // 单独解析它——但必须经过 `coerceNode`/`coerceEdge`，否则上游给的裸 `from`/`to`
+    // 字段名不会被归一化成 `source`/`target`，边的端点会全部丢失。
+    const nodes = Array.isArray(payload.nodes)
+      ? payload.nodes.map(coerceNode).filter((n): n is GraphNode => n !== null)
+      : [];
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    const edges = Array.isArray(payload.edges)
+      ? payload.edges
+        .map(coerceEdge)
+        .filter((e): e is GraphEdge => e !== null)
+        // 与整图路径同一条约束：端点不在本次负载里的边无法渲染，留着只会让
+        // cytoscape 抛「edge endpoint not found」。
+        .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+      : [];
+    return { nodes, edges, from, to };
+  }, null, { from, to });
 }
 
 export async function requestWatch(enabled: boolean, path: string): Promise<boolean> {

@@ -181,6 +181,23 @@ describe('getAvailablePanels', () => {
       expect(panels.has(key)).toBe(false);
     }
   });
+
+  /**
+   * 版本对比（cycle-104，研究报告 §六 #13）。
+   *
+   * 它的门控维度是「这一层有没有图」：结构层与行为层都有图可标 diff，运行时层没有
+   * （`computeViewModeTransition` 的 runtime 分支返回空子图）。这三条一起断言，才能
+   * 同时防住「该出现的层没出现」与「不该出现的层出现了」两个方向。
+   */
+  it('offers the version-diff panel on layers that render a graph', () => {
+    expect(getAvailablePanels('structural').has('showDiff')).toBe(true);
+    expect(getAvailablePanels('behavioral').has('showDiff')).toBe(true);
+  });
+
+  it('does not offer the version-diff panel on the runtime layer', () => {
+    // 运行时层没有图可标；面板在这里出现会让用户带着一堆无处落地的标记停在空画布上
+    expect(getAvailablePanels('runtime').has('showDiff')).toBe(false);
+  });
 });
 
 describe('STRUCTURAL_PANELS and BEHAVIORAL_PANELS', () => {
@@ -196,6 +213,12 @@ describe('STRUCTURAL_PANELS and BEHAVIORAL_PANELS', () => {
     expect(BEHAVIORAL_PANELS.has('showCycles')).toBe(true);
     expect(BEHAVIORAL_PANELS.has('showImpact')).toBe(true);
     expect(BEHAVIORAL_PANELS.has('showHotspot')).toBe(true);
+  });
+
+  it('both graph-rendering layers include showDiff', () => {
+    // 成对断言：只测「behavioral 有」会让「structural 漏了」这个缺陷静默通过
+    expect(STRUCTURAL_PANELS.has('showDiff')).toBe(true);
+    expect(BEHAVIORAL_PANELS.has('showDiff')).toBe(true);
   });
 });
 describe('assertNever branches', () => {

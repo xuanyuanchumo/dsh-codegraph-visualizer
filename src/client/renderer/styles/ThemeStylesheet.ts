@@ -2,10 +2,60 @@ import type cytoscape from 'cytoscape';
 import type { ThemeType } from '../IRenderer.ts';
 import { buildDiagramStyles, type StyleContext } from './diagramStyles.ts';
 import { LAYOUT, LOD, COLORS } from '../../../shared/constants.ts';
+import { DIFF_STATUS_CLASS } from '../../../shared/diffStatus.ts';
 import { type ThemeColors, readCssVar, readCssVarCached } from './styleUtils.ts';
 import { LAYER_COLORS, getLayerColor } from '../../../shared/layerUtils.ts';
 
 export { type ThemeColors, readCssVar, readCssVarCached, invalidateCssVarCache } from './styleUtils.ts';
+
+/**
+ * diff 三态节点样式（研究报告 §六 #13）。
+ *
+ * 独立成函数而不是内联进 `buildStylesheet` 的返回数组：选择器必须由
+ * `DIFF_STATUS_CLASS` 拼出来（见调用点的说明），而内联写法会让「用常量」这件事
+ * 在视觉上被淹没在一百多条规则里，下一个人很容易顺手写成裸字面量。
+ */
+function DIFF_NODE_STYLES(isDark: boolean, isLargeGraph: boolean): cytoscape.StylesheetJson {
+  const success = readCssVarCached('--cg-success', isDark ? '#34d399' : '#10b981');
+  const warning = readCssVarCached('--cg-warning', isDark ? '#fbbf24' : '#f59e0b');
+  const error = readCssVarCached('--cg-error', isDark ? '#f87171' : '#ef4444');
+  const borderWidth = isLargeGraph ? 3 : 4;
+  return [
+    {
+      selector: `node.${DIFF_STATUS_CLASS.added}`,
+      style: { 'border-color': success, 'border-width': borderWidth, 'border-style': 'solid' },
+    },
+    {
+      selector: `node.${DIFF_STATUS_CLASS.modified}`,
+      style: { 'border-color': warning, 'border-width': borderWidth, 'border-style': 'dashed' },
+    },
+    {
+      selector: `node.${DIFF_STATUS_CLASS.removed}`,
+      style: { 'border-color': error, 'border-width': borderWidth, 'border-style': 'double', 'opacity': 0.75 },
+    },
+  ];
+}
+
+/** diff 三态边样式；颜色语义与节点一致（绿=新增 / 琥珀=修改 / 红=删除）。 */
+function DIFF_EDGE_STYLES(isDark: boolean): cytoscape.StylesheetJson {
+  const success = readCssVarCached('--cg-success', isDark ? '#34d399' : '#10b981');
+  const warning = readCssVarCached('--cg-warning', isDark ? '#fbbf24' : '#f59e0b');
+  const error = readCssVarCached('--cg-error', isDark ? '#f87171' : '#ef4444');
+  return [
+    {
+      selector: `edge.${DIFF_STATUS_CLASS.added}`,
+      style: { 'line-color': success, 'target-arrow-color': success, 'width': 2.5, 'opacity': 1 },
+    },
+    {
+      selector: `edge.${DIFF_STATUS_CLASS.modified}`,
+      style: { 'line-color': warning, 'target-arrow-color': warning, 'line-style': 'dashed', 'width': 2.5, 'opacity': 1 },
+    },
+    {
+      selector: `edge.${DIFF_STATUS_CLASS.removed}`,
+      style: { 'line-color': error, 'target-arrow-color': error, 'line-style': 'dotted', 'width': 2, 'opacity': 0.6 },
+    },
+  ];
+}
 
 export function getThemeColors(theme: ThemeType): ThemeColors {
   const isDark = theme === 'dark';
@@ -828,6 +878,23 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'font-weight': 'bold',
       },
     },
+    /**
+     * diff 标记（研究报告 §六 #13）。
+     *
+     * 选择器**由 `DIFF_STATUS_CLASS` 生成**，本文件里不得出现 `diff-added` 之类的裸字面量：
+     * 「写入侧改了名字、样式侧没改」会让标记静默消失，而这类脱节在本仓库已经死过 24 条
+     * 样式规则（见 tests/unit/styleSelectorContract.test.ts）。用常量拼选择器把两侧锁成
+     * 同一个字符串，`tests/unit/diffStatusContract.test.ts` 再做一次源码级反向自检。
+     *
+     * 为什么用 class 而不是 `[diffStatus="added"]`：写入侧确实写字符串，字符串比较能工作，
+     * 但 class 让「清除标记」只需一次 `removeClass` 而不必知道属性名；且 diff 标记与
+     * `dead-code` / `call-chain` 这些既有视图态标记同族，同族就该同形。
+     *
+     * 颜色语义固定为 绿=新增 / 琥珀=修改 / 红=删除，全部走 token：暗色主题下 token 自己切到
+     * 高对比变体，样式文件不需要第二份 dark 分支。
+     */
+    ...DIFF_NODE_STYLES(isDark, isLargeGraph),
+    ...DIFF_EDGE_STYLES(isDark),
     ...buildDiagramStyles(ctx),
   ];
 }
