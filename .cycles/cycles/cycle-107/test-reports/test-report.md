@@ -11,7 +11,7 @@ RuleEngine 早退、AdjacencyCache 增量、`graph_path_enumerate` 工具）。�
 优化方案的 P0–P2：Booth 环去重、多重边键、缓存增量 patch、规则共享遍历、输出敏感
 可达（SCC + bitset）。
 
-**结论：全绿。** 219 文件 / 5838 用例通过，0 失败；typecheck 三配置 0 错误；
+**结论：全绿。** 219 文件 / 5839 用例通过，0 失败；typecheck 三配置 0 错误；
 lint 0 warning / 0 error（272 files）；coverage 四维均 ≥ 86；build / perf-gate /
 hygiene 全过。
 
@@ -20,8 +20,8 @@ hygiene 全过。
 | 项 | 数值 |
 |---|---|
 | 测试文件 | **219 passed**（基线 208，+11） |
-| 测试用例 | **5838 passed**（基线 5555，+283） |
-| 通过 | 5838 |
+| 测试用例 | **5839 passed**（基线 5555，+284） |
+| 通过 | 5839 |
 | 失败 | 0 |
 | 错误 | 0 |
 | 跳过 | 0 |
@@ -53,6 +53,7 @@ hygiene 全过。
 | `tests/unit/RuleEngine.test.ts` | +9（46→55） | 共享邻接只建一次、无环图 detectCyclesDFS 0 次、finally 清空 |
 | `tests/unit/CoreFunctionAnalyzer.test.ts` | +6（26→32） | influenceReach 精确值、legacy 对照 |
 | `tests/unit/tools.test.ts` | +6（116→122） | `graph_path_enumerate` 全链路（路径/过滤/夹紧/截断/渲染/缺端点） |
+| `tests/unit/plugin.test.ts` | +1（18→19） | **注册契约**：入口 `apply()` 注册的集合 == `createGraphTools` 返回的集合（去重、含 `graph_path_enumerate`）；该用例抓出了「工厂返回但入口漏注册」的死工具 |
 | `tests/unit/chaos.test.ts` | 0（超时预算） | 动态 import graphStore 的用例给 30s 预算（见 §6） |
 
 ## §4 核心正确性证据
@@ -99,7 +100,7 @@ rebuild 在 20 组随机边集上逐边一致（含有向邻接项的移除条�
 
 ```
 Test Files  219 passed (219)
-     Tests  5838 passed (5838)
+     Tests  5839 passed (5839)
 
 # typecheck: tsc -p tsconfig.host.json && -p tsconfig.client.json && -p tsconfig.test.json → exit 0
 # lint:     Found 0 warnings and 0 errors. Finished in 45ms on 272 files with 103 rules

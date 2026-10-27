@@ -1,4 +1,4 @@
-﻿// Unit tests for Host plugin entry + createGraphTools — J1/J9/J11/J13 lifecycle
+// Unit tests for Host plugin entry + createGraphTools — J1/J9/J11/J13 lifecycle
 // Note: tools now delegate to dsh-codegraph's codegraph_query/codegraph_impact/
 // codegraph_init/codegraph_status. Tests mock the adapter class so results
 // are deterministic regardless of the live .codegraph DB.
@@ -191,11 +191,11 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 8 tools and 6 event listeners', async () => {
+  it('should register 9 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     await apply(ctx);
-    expect(ctx.tools.register).toHaveBeenCalledTimes(8);
+    expect(ctx.tools.register).toHaveBeenCalledTimes(9);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/scanned', expect.any(Function));
@@ -203,6 +203,32 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/graph/init', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/watch/toggle', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/prerequisite/request', expect.any(Function));
+  });
+
+  // 「createGraphTools 返回了工具」≠「插件注册了它」：入口是手写解构 + 逐条
+  // register，漏一条就是永不执行的死工具，而 tools.test.ts 直接调 execute()
+  // 永远发现不了。这条用例用「返回集合 == 注册集合」钉住两边同时改。
+  it('should register exactly the tools that createGraphTools returns (no dead tool)', async () => {
+    const ctx = makeMockCtx();
+    const { apply } = await import('../../src/index.ts');
+    await apply(ctx);
+
+    const registeredNames = ctx.tools.register.mock.calls
+      .map((call) => (call[0] as { name?: string }).name)
+      .filter((name): name is string => typeof name === 'string')
+      .sort();
+    expect(new Set(registeredNames).size).toBe(registeredNames.length);
+
+    const toolsCtx = makeMockCtx();
+    const tools = await createGraphTools(toolsCtx);
+    const returnedNames = Object.entries(tools)
+      .filter(([key]) => key !== 'dispose')
+      .map(([, tool]) => (tool as { name?: unknown }).name)
+      .filter((name): name is string => typeof name === 'string')
+      .sort();
+
+    expect(registeredNames).toEqual(returnedNames);
+    expect(registeredNames).toContain('graph_path_enumerate');
   });
 
 
