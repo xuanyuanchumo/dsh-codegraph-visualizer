@@ -11,6 +11,7 @@ import { RepoId as makeRepoId, NodeId } from './types/index.ts';
 import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
+import { XuanjiAdapter, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
 import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
@@ -42,6 +43,38 @@ type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string
 
 function toJsonValue<T>(value: T): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
+}
+
+/** `graph_path_enumerate` 允许的边类型全集（Flow — 路径读法可选的 Σ_R）。 */
+const PATH_EDGE_TYPE_DOMAIN: ReadonlySet<string> = new Set<AdapterEdgeType>([
+  'call',
+  'import',
+  'extend',
+  'implement',
+  'dependency',
+  'contains',
+  'association',
+  'aggregation',
+  'composition',
+]);
+
+/**
+ * 解析 `edgeTypes` 逗号列表：只保留域内类型；未提供或全部非法时返回 null（用默认读法）。
+ * 空集规则匹配不到任何边（璇玑图 §八），所以「全部非法」不能静默变成空集过滤。
+ */
+function parseEdgeTypes(raw: string | undefined): readonly AdapterEdgeType[] | null {
+  if (!raw) return null;
+  const parsed = raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part): part is AdapterEdgeType => PATH_EDGE_TYPE_DOMAIN.has(part));
+  return parsed.length > 0 ? parsed : null;
+}
+
+/** 把可选的数字参数夹紧到 [min, max]；缺失/NaN 时用 fallback。 */
+function clampInt(value: number | undefined, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
 export type { UpstreamInvoker } from './adapters/IAdapter.ts';
@@ -342,6 +375,71 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
+  const graphPathEnumerate = defineTool({
+    name: 'graph_path_enumerate',
+    description: 'Enumerate simple call/dependency paths between two symbols with a hop range and edge-type filter (Xuanji path-rule reader: one graph space, many reading rules).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      sourceSymbol: { type: 'string', required: true, description: 'Source symbol id.' },
+      targetSymbol: { type: 'string', required: true, description: 'Target symbol id.' },
+      minHops: { type: 'number', description: 'Minimum path length in edges. Default: 1.' },
+      maxHops: { type: 'number', description: 'Maximum path length in edges. Default: 5, capped at 10.' },
+      limit: { type: 'number', description: 'Maximum number of paths returned. Default: 10, capped at 50.' },
+      edgeTypes: {
+        type: 'string',
+        description: 'Comma-separated edge types to traverse. Default: call,import,extend,implement,dependency.',
+      },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as { paths?: string[][]; truncated?: boolean; total?: number } | null;
+        if (!v || !v.paths || v.paths.length === 0) {
+          return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_PATH_FOUND?.en ?? 'No path found' }];
+        }
+        const lines = v.paths.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.join(' → ')} (${p.length - 1} hops)`);
+        const suffix = v.truncated ? ' (truncated)' : '';
+        return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} path(s)${suffix}\n${lines.join('\n')}` }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { sourceSymbol: string; targetSymbol: string };
+      return { card: 'generic' as const, title: 'Enumerate paths', kind: 'search' as const, rawInput: { from: a.sourceSymbol, to: a.targetSymbol } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Path enumeration failed' : 'Paths enumerated',
+    }),
+    execute: async (args) => {
+      const a = args as {
+        repoId: string;
+        sourceSymbol: string;
+        targetSymbol: string;
+        minHops?: number;
+        maxHops?: number;
+        limit?: number;
+        edgeTypes?: string;
+      };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      const nodeIds = new Set(data.nodes.map((n) => n.id));
+      if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) return null;
+      if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) {
+        return toJsonValue({ paths: [], truncated: true, total: 0 });
+      }
+
+      const adapter = new XuanjiAdapter();
+      adapter.loadGraph(data);
+      const parsedTypes = parseEdgeTypes(a.edgeTypes);
+      const result = adapter.findPathsBetween(a.sourceSymbol, a.targetSymbol, {
+        ...(parsedTypes ? { edgeTypes: parsedTypes } : {}),
+        minHops: clampInt(a.minHops, 1, 10, 1),
+        maxHops: clampInt(a.maxHops, 1, 10, 5),
+        limit: clampInt(a.limit, 1, 50, 10),
+      });
+      return toJsonValue(result);
+    },
+  });
+
   const graphHealth = defineTool({
     name: 'graph_health',
     description: 'Calculate architecture health score (coupling, cohesion, cyclic dependency rate, modularity).',
@@ -464,7 +562,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
-  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: () => graphCache.clear() };
+  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphHealth, graphRulesCheck, graphFocus, dispose: () => graphCache.clear() };
 };
 
 

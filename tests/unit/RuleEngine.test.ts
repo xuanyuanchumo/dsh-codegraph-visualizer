@@ -1,10 +1,38 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RuleEngine, getPresetRules } from '../../src/shared/analysis/RuleEngine.ts';
-import type { RuleDefinition, RuleViolation } from '../../src/shared/analysis/RuleEngine.ts';
-import type { GraphEdge } from '../../src/types/index.ts';
+import type {
+  AdjacencyProvider,
+  RuleDefinition,
+  RuleDetector,
+  RuleViolation,
+} from '../../src/shared/analysis/RuleEngine.ts';
+import type { GraphEdge, GraphNode } from '../../src/types/index.ts';
 import { NodeId } from '../../src/types/index.ts';
 import type { RuleType } from '../../src/types/index.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
+
+// cycle-107 · C-3：既要断言「同 edgeTypes 只建一次邻接」，也要断言「无环时不再枚举环」，
+// 因此把这两个被观测函数换成「委托真实实现」的 spy——而不是替换整个模块：
+// 仍然覆盖真实实现，只在旁边记调用次数。
+vi.mock('../../src/shared/analysis/AdjacencyList.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/shared/analysis/AdjacencyList.ts')>();
+  return {
+    ...actual,
+    buildFilteredForwardAdjacency: vi.fn(actual.buildFilteredForwardAdjacency),
+  };
+});
+
+vi.mock('../../src/shared/analysis/CycleDFS.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/shared/analysis/CycleDFS.ts')>();
+  return {
+    ...actual,
+    detectCyclesDFS: vi.fn(actual.detectCyclesDFS),
+  };
+});
+
+import { buildFilteredForwardAdjacency } from '../../src/shared/analysis/AdjacencyList.ts';
+import type { AdjacencyMap } from '../../src/shared/analysis/AdjacencyList.ts';
+import { detectCyclesDFS } from '../../src/shared/analysis/CycleDFS.ts';
 
 describe('J18: 规则引擎检测 - RuleEngine', () => {
   const engine = new RuleEngine();
@@ -902,4 +930,184 @@ describe('J18: 规则引擎检测 - RuleEngine', () => {
       expect(violations[0]!.message).toContain('Circular dependency');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // cycle-107 · C-3：共享遍历 + 环存在性早退
+  // ---------------------------------------------------------------------------
+  describe('共享邻接缓存 / 环存在性早退（cycle-107 C-3）', () => {
+    beforeEach(() => {
+      vi.mocked(buildFilteredForwardAdjacency).mockClear();
+      vi.mocked(detectCyclesDFS).mockClear();
+    });
+
+    const dagNodes = [
+      makeNode('a', 'A', 'function', 'src/a.ts', 1),
+      makeNode('b', 'B', 'function', 'src/b.ts', 1),
+      makeNode('c', 'C', 'function', 'src/c.ts', 1),
+    ];
+    const dagEdges = [
+      makeEdge('e1', 'a', 'b', 'call'),
+      makeEdge('e2', 'b', 'c', 'call'),
+    ];
+
+    const forbiddenRule = (id: string, edgeTypes: string[]): RuleDefinition => ({
+      id,
+      name: id,
+      type: 'forbidden-edge',
+      params: { edgeTypes },
+      severity: 'error',
+      enabled: true,
+    });
+
+    it('returns [] for an acyclic graph and never enumerates cycles', () => {
+      const engine = new RuleEngine();
+      expect(engine.check([forbiddenRule('no-circular', ['call'])], dagNodes, dagEdges)).toEqual([]);
+      // 早退：法环不存在时 detectCyclesDFS 一次都不该被调用
+      expect(vi.mocked(detectCyclesDFS)).not.toHaveBeenCalled();
+      expect(vi.mocked(buildFilteredForwardAdjacency)).toHaveBeenCalledTimes(1);
+    });
+
+    it('still enumerates cycles for a cyclic graph and keeps the exact legacy message', () => {
+      const engine = new RuleEngine();
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+      ];
+      const violations = engine.check([forbiddenRule('no-circular', ['call'])], dagNodes, edges);
+
+      expect(vi.mocked(detectCyclesDFS)).toHaveBeenCalledTimes(1);
+      expect(violations).toHaveLength(1);
+      // 旧实现逐字：cycle.sort() 后按 '→' 连接（a→b→a 排序后为 a/a/b）
+      expect(violations[0]!.message).toBe('Circular dependency detected involving: a→a→b');
+      expect(violations[0]!.ruleId).toBe('no-circular');
+      expect(violations[0]!.nodeId).toBe('a');
+      expect(violations[0]!.severity).toBe('error');
+    });
+
+    it('builds the adjacency only once for two rules with the same edgeTypes', () => {
+      const engine = new RuleEngine();
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+      ];
+      const violations = engine.check(
+        [forbiddenRule('rule-1', ['call', 'import']), forbiddenRule('rule-2', ['call', 'import'])],
+        dagNodes,
+        edges,
+      );
+
+      expect(vi.mocked(buildFilteredForwardAdjacency)).toHaveBeenCalledTimes(1);
+      expect(detectCyclesDFS).toHaveBeenCalledTimes(2);
+      expect(violations.map((v) => v.ruleId)).toEqual(['rule-1', 'rule-2']);
+    });
+
+    it('treats edgeTypes as a set (different order → one build)', () => {
+      const engine = new RuleEngine();
+      engine.check(
+        [forbiddenRule('rule-1', ['call', 'import']), forbiddenRule('rule-2', ['import', 'call'])],
+        dagNodes,
+        dagEdges,
+      );
+      expect(vi.mocked(buildFilteredForwardAdjacency)).toHaveBeenCalledTimes(1);
+    });
+
+    it('builds one adjacency per distinct edgeTypes combination', () => {
+      const engine = new RuleEngine();
+      engine.check(
+        [
+          forbiddenRule('rule-1', ['call']),
+          forbiddenRule('rule-2', ['call']),
+          forbiddenRule('rule-3', ['import']),
+        ],
+        dagNodes,
+        dagEdges,
+      );
+      expect(vi.mocked(buildFilteredForwardAdjacency)).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not build any adjacency when no forbidden-edge rule is enabled', () => {
+      const engine = new RuleEngine();
+      const disabled = { ...forbiddenRule('rule-1', ['call']), enabled: false };
+      expect(engine.check([disabled], dagNodes, dagEdges)).toEqual([]);
+      expect(vi.mocked(buildFilteredForwardAdjacency)).not.toHaveBeenCalled();
+    });
+
+    it('injects a shared provider and clears it after the check (FIFO for two detectors)', () => {
+      const engine = new RuleEngine();
+      const first = new RecordingDetector();
+      const second = new RecordingDetector();
+      engine.registerDetector('forbidden-edge', first);
+      engine.registerDetector('max-indegree', second);
+
+      const edges = [makeEdge('e1', 'a', 'b', 'call'), makeEdge('e2', 'b', 'a', 'call')];
+      engine.check(
+        [forbiddenRule('rule-1', ['call']), {
+          id: 'rule-2',
+          name: 'rule-2',
+          type: 'max-indegree',
+          params: { threshold: 99 },
+          severity: 'warning',
+          enabled: true,
+        }],
+        dagNodes,
+        edges,
+      );
+
+      // 两条规则拿到的是同一个 Map 实例（共享缓存生效）
+      expect(first.adjacencies).toHaveLength(1);
+      expect(second.adjacencies).toHaveLength(1);
+      expect(first.adjacencies[0]).toBe(second.adjacencies[0]);
+
+      // 结束时注入 null 清空上下文
+      expect(first.contexts.map((c) => c === null)).toEqual([false, true]);
+      expect(second.contexts.map((c) => c === null)).toEqual([false, true]);
+    });
+
+    it('clears the injected context even when a detector throws', () => {
+      const engine = new RuleEngine();
+      const throwing = new ThrowingDetector();
+      engine.registerDetector('forbidden-edge', throwing);
+
+      expect(() => engine.check([forbiddenRule('rule-1', ['call'])], dagNodes, dagEdges)).toThrow('boom');
+      expect(throwing.contexts.map((c) => c === null)).toEqual([false, true]);
+    });
+
+    it('leaves detectors without setContext untouched (third-party compatibility)', () => {
+      const engine = new RuleEngine();
+      const plainDetector: RuleDetector = {
+        detect: () => [],
+      };
+      engine.registerDetector('forbidden-edge', plainDetector);
+      expect(engine.check([forbiddenRule('rule-1', ['call'])], dagNodes, dagEdges)).toEqual([]);
+    });
+  });
+
+  class RecordingDetector implements RuleDetector {
+    readonly contexts: Array<AdjacencyProvider | null> = [];
+    readonly adjacencies: AdjacencyMap[] = [];
+
+    setContext(context: AdjacencyProvider | null): void {
+      this.contexts.push(context);
+    }
+
+    detect(rule: RuleDefinition, _nodes: GraphNode[], _edges: GraphEdge[]): RuleViolation[] {
+      const context = this.contexts[this.contexts.length - 1];
+      if (context) {
+        this.adjacencies.push(context.adjacencyFor((rule.params.edgeTypes as string[]) ?? ['call']));
+      }
+      return [];
+    }
+  }
+
+  class ThrowingDetector implements RuleDetector {
+    readonly contexts: Array<AdjacencyProvider | null> = [];
+
+    setContext(context: AdjacencyProvider | null): void {
+      this.contexts.push(context);
+    }
+
+    detect(): RuleViolation[] {
+      throw new Error('boom');
+    }
+  }
 });

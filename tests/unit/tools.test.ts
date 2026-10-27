@@ -331,13 +331,14 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 8 tools with correct names', async () => {
+  it('should create 9 tools with correct names', async () => {
     const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
     expect(tools.graphSymbol.name).toBe('graph_symbol');
     expect(tools.graphImpact.name).toBe('graph_impact');
     expect(tools.graphPathFind.name).toBe('graph_path_find');
+    expect(tools.graphPathEnumerate.name).toBe('graph_path_enumerate');
     expect(tools.graphHealth.name).toBe('graph_health');
     expect(tools.graphRulesCheck.name).toBe('graph_rules_check');
     expect(tools.graphFocus.name).toBe('graph_focus');
@@ -854,6 +855,124 @@ describe('createGraphTools - additional tools', () => {
     expect(output[0]!.text).toContain('No path');
   });
 
+  // ── graph_path_enumerate (Xuanji path-rule reader) ───────────────────
+
+  it('graph_path_enumerate should enumerate every simple path between two symbols', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'b.ts', lineNumber: 2, properties: {} },
+        { id: 'n3', label: 'C', type: 'function', filePath: 'c.ts', lineNumber: 3, properties: {} },
+        { id: 'n4', label: 'D', type: 'function', filePath: 'd.ts', lineNumber: 4, properties: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
+        { id: 'e2', source: 'n1', target: 'n3', type: 'call', properties: {} },
+        { id: 'e3', source: 'n2', target: 'n4', type: 'call', properties: {} },
+        { id: 'e4', source: 'n3', target: 'n4', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n4' },
+      mockExec,
+    ) as { paths: string[][]; truncated: boolean; total: number };
+    expect(result.total).toBe(2);
+    expect(result.paths.map((p) => p.join('>')).sort()).toEqual(['n1>n2>n4', 'n1>n3>n4']);
+  });
+
+  it('graph_path_enumerate should return null when an endpoint is missing', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'ghost' },
+      mockExec,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('graph_path_enumerate should clamp hop budget and honour edge-type filter', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'b.ts', lineNumber: 2, properties: {} },
+        { id: 'n3', label: 'C', type: 'function', filePath: 'c.ts', lineNumber: 3, properties: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'import', properties: {} },
+        { id: 'e2', source: 'n2', target: 'n3', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const all = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n3', maxHops: 99 },
+      mockExec,
+    ) as { total: number };
+    expect(all.total).toBe(1);
+
+    const callOnly = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n3', edgeTypes: 'call' },
+      mockExec,
+    ) as { total: number };
+    expect(callOnly.total).toBe(0);
+
+    const oneHop = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n3', maxHops: 1 },
+      mockExec,
+    ) as { total: number };
+    expect(oneHop.total).toBe(0);
+  });
+
+  it('graph_path_enumerate should report truncation when limit is hit', async () => {
+    const nodes = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6'].map((id, i) => ({
+      id, label: id, type: 'function' as const, filePath: `${id}.ts`, lineNumber: i + 1, properties: {},
+    }));
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes,
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
+        { id: 'e2', source: 'n1', target: 'n3', type: 'call', properties: {} },
+        { id: 'e3', source: 'n2', target: 'n6', type: 'call', properties: {} },
+        { id: 'e4', source: 'n3', target: 'n6', type: 'call', properties: {} },
+        { id: 'e5', source: 'n1', target: 'n4', type: 'call', properties: {} },
+        { id: 'e6', source: 'n4', target: 'n6', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n6', limit: 2 },
+      mockExec,
+    ) as { total: number; truncated: boolean };
+    expect(result.total).toBe(2);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('graph_path_enumerate render should list paths and truncation', async () => {
+    const tools = await createGraphTools(ctx);
+    const renderFn = tools.graphPathEnumerate.output.render!;
+    const output = renderFn({}, { paths: [['n1', 'n2']], truncated: true, total: 1 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('n1 → n2');
+    expect(output[0]!.text).toContain('truncated');
+  });
+
+  it('graph_path_enumerate render should show no-path message', async () => {
+    const tools = await createGraphTools(ctx);
+    const renderFn = tools.graphPathEnumerate.output.render!;
+    const output = renderFn({}, { paths: [], truncated: false, total: 0 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('No path');
+  });
+
   it('graph_health should return health score', async () => {
     getMockFetchData('codegraph').mockResolvedValue({
       nodes: [
@@ -1069,6 +1188,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphSymbol: { symbolId: 'sym-1' },
   graphImpact: { symbolId: 'sym-1' },
   graphPathFind: { repoId: 'repo-1', sourceSymbol: 'sym-a', targetSymbol: 'sym-b' },
+  graphPathEnumerate: { repoId: 'repo-1', sourceSymbol: 'sym-a', targetSymbol: 'sym-b' },
   graphHealth: { repoId: 'repo-1' },
   graphRulesCheck: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 },
   graphFocus: { repoId: 'repo-1', symbolId: 'sym-1' },
@@ -1080,6 +1200,7 @@ const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawI
   { key: 'graphSymbol', title: 'Resolve symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
   { key: 'graphImpact', title: 'Analyze impact', kind: 'search', rawInput: { symbolId: 'sym-1' } },
   { key: 'graphPathFind', title: 'Find call path', kind: 'search', rawInput: { from: 'sym-a', to: 'sym-b' } },
+  { key: 'graphPathEnumerate', title: 'Enumerate paths', kind: 'search', rawInput: { from: 'sym-a', to: 'sym-b' } },
   { key: 'graphHealth', title: 'Calculate health score', kind: 'other', rawInput: { repoId: 'repo-1' } },
   { key: 'graphRulesCheck', title: 'Check architecture rules', kind: 'other', rawInput: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 } },
   { key: 'graphFocus', title: 'Focus on symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
@@ -1091,6 +1212,7 @@ const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = 
   { key: 'graphSymbol', ok: 'Symbol resolved', fail: 'Symbol resolution failed' },
   { key: 'graphImpact', ok: 'Impact analyzed', fail: 'Impact analysis failed' },
   { key: 'graphPathFind', ok: 'Call path', fail: 'Path search failed' },
+  { key: 'graphPathEnumerate', ok: 'Paths enumerated', fail: 'Path enumeration failed' },
   { key: 'graphHealth', ok: 'Health score', fail: 'Health scoring failed' },
   { key: 'graphRulesCheck', ok: 'Rules checked', fail: 'Rules check failed' },
   { key: 'graphFocus', ok: 'Symbol neighborhood', fail: 'Focus failed' },

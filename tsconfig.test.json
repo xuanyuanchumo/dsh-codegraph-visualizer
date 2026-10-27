@@ -16,6 +16,6 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/client/**/*", "src/shared/**/*", "src/types/**/*", "src/generated/**/*", "tests/unit/**/*", "tests/component/**/*", "tests/helpers.ts"],
+  "include": ["src/client/**/*", "src/shared/**/*", "src/xuanji/**/*", "src/types/**/*", "src/generated/**/*", "tests/unit/**/*", "tests/component/**/*", "tests/helpers.ts"],
   "exclude": ["node_modules", "dist", "dist-test"]
 }

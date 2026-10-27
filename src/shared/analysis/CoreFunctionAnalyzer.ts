@@ -2,6 +2,7 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
 import { CORE_FUNCTION, CORE_FUNCTION_ANALYZER } from '../constants.ts';
 import { bfsReachCount } from './GraphBFS.ts';
+import { computeReachCounts } from './batchReach.ts';
 
 export interface CoreFunction {
   nodeId: NodeId;
@@ -42,6 +43,29 @@ const MIN_INFLUENCE_REACH = CORE_FUNCTION.MIN_INFLUENCE_REACH;
 const MIN_CALL_CHAIN_DEPTH = CORE_FUNCTION.MIN_CALL_CHAIN_DEPTH;
 const MAX_BFS_NODES = CORE_FUNCTION.MAX_BFS_NODES;
 
+/**
+ * 旧实现（截断 BFS）的逐节点可达计数，**仅供对照测试与外部兼容**。
+ *
+ * 语义（必须如实理解）：旧 `bfsReachCount` 在 `visited.size < MAX_BFS_NODES` 时停止扩张，
+ * 而截断检查发生在取出下一个节点之前，因此它可能一次性把大出度节点的邻居全部计入，
+ * 返回值**不受 500 严格约束**，具体停在哪里取决于 BFS 的邻居顺序。
+ *
+ * 与 `computeInfluenceReach`（精确值）的关系：
+ * - 旧值 ≤ 精确值；
+ * - 精确值 < MAX_BFS_NODES 时两者逐节点相等；
+ * - 精确值 ≥ MAX_BFS_NODES 时旧值是顺序相关的近似值，新值更准确。
+ *
+ * 生产路径已不再使用本函数（保留是为了让「新旧对照」可被测试直接调用）。
+ *
+ * @deprecated 生产代码请使用 `computeInfluenceReach`（SCC + bitset 精确可达）。
+ */
+export function legacyTruncatedReach(
+  nodeId: string,
+  outEdges: Map<string, string[]>,
+  maxNodes: number = MAX_BFS_NODES,
+): number {
+  return bfsReachCount(outEdges, nodeId, maxNodes);
+}
 
 export class CoreFunctionAnalyzer {
   analyze(nodes: GraphNode[], edges: GraphEdge[]): CoreFunction[] {
@@ -179,15 +203,24 @@ export class CoreFunctionAnalyzer {
     return 'critical';
   }
 
+  /**
+   * 每个函数节点的**精确**可达节点数（不含自身）。
+   *
+   * 实现：`computeReachCounts` —— Tarjan SCC 缩点 + 逆拓扑序 bitset 传递闭包，
+   * 复杂度 O((V+E)·V/32)，整张图只算一趟；旧实现是「每个节点各跑一次截断 BFS」，
+   * 复杂度 O(V·(V+E)) 且结果被 `MAX_BFS_NODES` 截断。
+   *
+   * 语义差异（契约，见 batchReach.ts 的模块注释与 `legacyTruncatedReach`）：
+   * `influenceReach` 现在是精确值；旧值是顺序相关的近似值，且对精确值 ≥ MAX_BFS_NODES
+   * 的节点可能明显偏小（长链 0→1→…→600 上旧值为 499，精确值为 600）。
+   * 对精确值 < MAX_BFS_NODES 的节点，新旧逐节点相等，因此评分 `large-influence`
+   * 的阈值判定（≥ MIN_INFLUENCE_REACH = 10）在常规规模图上不会改变。
+   */
   private computeInfluenceReach(
     nodes: GraphNode[],
     outEdges: Map<string, string[]>,
   ): Map<string, number> {
-    const reach = new Map<string, number>();
-    for (const n of nodes) {
-      reach.set(n.id, bfsReachCount(outEdges, n.id, MAX_BFS_NODES));
-    }
-    return reach;
+    return computeReachCounts(outEdges, nodes.map((n) => n.id));
   }
 
   private computeCallChainDepth(

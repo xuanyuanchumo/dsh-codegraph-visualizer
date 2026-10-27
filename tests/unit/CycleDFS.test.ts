@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { detectCyclesDFS } from '../../src/shared/analysis/CycleDFS.ts';
+import {
+  boothMinimalRotation,
+  detectCyclesDFS,
+  hasCycle,
+  isMinimalRotation,
+  minimalRotationIndex,
+} from '../../src/shared/analysis/CycleDFS.ts';
 import type { AdjacencyMap } from '../../src/shared/analysis/AdjacencyList.ts';
+import {
+  boothMinimalRotation as libBoothMinimalRotation,
+  isMinimalRotation as libIsMinimalRotation,
+  minimalRotationIndex as libMinimalRotationIndex,
+} from '../../src/xuanji/ops/booth.ts';
+import { hasCycleInAdjacency } from '../../src/xuanji/ops/cycle-existence.ts';
 
 function makeAdjacency(entries: [string, string[]][]): AdjacencyMap {
   const map: AdjacencyMap = new Map();
@@ -166,5 +178,90 @@ describe('detectCyclesDFS', () => {
     ]);
     const cycles = detectCyclesDFS(adjacency, 0);
     expect(cycles.length).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // cycle-107 · C-1：库必须真正被执行（不是复制一份实现）
+  // ---------------------------------------------------------------------------
+  describe('璇玑库复用（引用相等，证明没有复制实现）', () => {
+    it('re-exports the SAME boothMinimalRotation function object from xuanji/ops/booth', () => {
+      // 引用相等：如果宿主又内联了一份 Booth，这里会是两个不同的函数对象
+      expect(boothMinimalRotation).toBe(libBoothMinimalRotation);
+    });
+
+    it('re-exports the SAME minimalRotationIndex function object', () => {
+      expect(minimalRotationIndex).toBe(libMinimalRotationIndex);
+    });
+
+    it('re-exports the SAME isMinimalRotation function object', () => {
+      expect(isMinimalRotation).toBe(libIsMinimalRotation);
+    });
+
+    it('re-exports hasCycleInAdjacency as hasCycle (same function object)', () => {
+      expect(hasCycle).toBe(hasCycleInAdjacency);
+    });
+
+    it('booth re-export keeps library behaviour (idempotent, rotation invariant)', () => {
+      expect(boothMinimalRotation(['b', 'c', 'a'])).toEqual(['a', 'b', 'c']);
+      expect(boothMinimalRotation(boothMinimalRotation(['b', 'c', 'a']))).toEqual(['a', 'b', 'c']);
+      expect(isMinimalRotation(['a', 'b', 'c'])).toBe(true);
+      expect(minimalRotationIndex(['b', 'c', 'a'])).toBe(2);
+      expect(boothMinimalRotation([])).toEqual([]);
+    });
+  });
+
+  describe('hasCycle (库的早终止存在性判定)', () => {
+    it('returns false for an empty adjacency map', () => {
+      expect(hasCycle(makeAdjacency([]))).toBe(false);
+    });
+
+    it('returns false for a DAG', () => {
+      const adjacency = makeAdjacency([
+        ['a', ['b', 'c']],
+        ['b', ['d']],
+        ['c', ['d']],
+        ['d', []],
+      ]);
+      expect(hasCycle(adjacency)).toBe(false);
+    });
+
+    it('returns true for a self loop', () => {
+      expect(hasCycle(makeAdjacency([['a', ['a']]]))).toBe(true);
+    });
+
+    it('returns true for a multi-node cycle', () => {
+      expect(hasCycle(makeAdjacency([
+        ['a', ['b']],
+        ['b', ['c']],
+        ['c', ['a']],
+      ]))).toBe(true);
+    });
+
+    it('agrees with detectCyclesDFS on 200 random graphs', () => {
+      // 确定性 PRNG：随机对照必须可复现
+      let state = 0x1234abcd;
+      const random = (): number => {
+        state = (state * 1664525 + 1013904223) >>> 0;
+        return state / 4294967296;
+      };
+
+      for (let group = 0; group < 200; group++) {
+        const nodeCount = 2 + Math.floor(random() * 6);
+        const ids: string[] = [];
+        for (let i = 0; i < nodeCount; i++) ids.push(`v${i}`);
+
+        const entries: [string, string[]][] = [];
+        for (const id of ids) {
+          const targets: string[] = [];
+          for (const target of ids) {
+            if (random() < 0.25) targets.push(target);
+          }
+          entries.push([id, targets]);
+        }
+        const adjacency = makeAdjacency(entries);
+
+        expect(hasCycle(adjacency), `group ${group}`).toBe(detectCyclesDFS(adjacency).length > 0);
+      }
+    });
   });
 });

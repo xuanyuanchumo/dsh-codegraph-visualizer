@@ -33,6 +33,13 @@ export class CycleDetector {
     return adjacency;
   }
 
+  /**
+   * 节点对 → 边 id。
+   *
+   * AdjacencyCache 返回的是**双键**表：旧键 `${s}->${t}`（同端最后写入的边）与
+   * 精确键 `${s}->${t}->${type}`。环检测只按节点对回查边，沿用旧键即可，
+   * 因此这里无需感知边类型（同端多重边取最后一条，与旧行为一致）。
+   */
   private getEdgeIdMap(): Map<string, string> {
     if (this.adjacencyCache) {
       return this.adjacencyCache.getEdgeIdMap(this.cy);

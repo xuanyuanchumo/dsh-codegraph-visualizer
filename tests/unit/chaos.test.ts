@@ -217,5 +217,8 @@ describe('Chaos: graphStore error recovery', () => {
     useGraphStore.getState().setGraphData(nodes, [], 'recovered');
     expect(useGraphStore.getState().error).toBeNull();
     expect(useGraphStore.getState().nodes).toHaveLength(1);
-  });
+    // 动态 import 的 graphStore 会把「store 模块 + slices」的 transform 成本记在本用例里
+    // (~1.9s solo)。整仓并行跑时 transform 竞争曾令它越过全局 10s —— 这不是死锁，
+    // 而是模块编译预算太紧，所以给这条用例单独的 30s 预算（2026-10-27 两次超时观察）。
+  }, 30_000);
 });

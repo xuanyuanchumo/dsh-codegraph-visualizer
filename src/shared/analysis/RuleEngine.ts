@@ -1,13 +1,37 @@
 import type { GraphNode, GraphEdge, RuleType, RuleDefinition, RuleViolation } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
+import type { AdjacencyMap } from './AdjacencyList.ts';
 import { buildFilteredForwardAdjacency } from './AdjacencyList.ts';
-import { detectCyclesDFS } from './CycleDFS.ts';
+import { detectCyclesDFS, hasCycle } from './CycleDFS.ts';
 
 export type { RuleType, RuleDefinition, RuleViolation };
 
+/**
+ * 一次 `RuleEngine.check()` 内共享的邻接表提供者。
+ *
+ * 同一组 edgeTypes 的多条规则只会构建一次邻接表（键 = 排序后的
+ * `edgeTypes.join('|')`），避免「N 条规则各建一遍全图邻接」的重复遍历。
+ */
+export interface AdjacencyProvider {
+  /**
+   * 取（并在本次 check 内缓存）按边类型过滤的前向邻接表。
+   * 邻接表只读使用：检测器不得就地修改它（同一对象会被多条规则共享）。
+   */
+  adjacencyFor(edgeTypes: readonly string[]): AdjacencyMap;
+}
+
 export interface RuleDetector {
   detect(rule: RuleDefinition, nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[];
+  /**
+   * 可选：由 `RuleEngine.check` 在调用 `detect` 前注入共享上下文，调用结束后以 `null` 清空。
+   *
+   * 这是**可选**方法，既有第三方检测器无需实现即可继续工作；未实现时检测器自己建邻接表，
+   * 行为与旧实现完全一致。实现方必须容忍 `null`（表示「本次 check 已结束」）。
+   */
+  setContext?(context: AdjacencyProvider | null): void;
 }
+
+const DEFAULT_FORBIDDEN_EDGE_TYPES: readonly string[] = ['call', 'import', 'dependency'];
 
 const PRESET_RULES: RuleDefinition[] = [
   {
@@ -74,25 +98,68 @@ export class RuleEngine {
     this.detectors.set(type, detector);
   }
 
+  /**
+   * 跑一遍启用中的规则。
+   *
+   * 本次调用内共享一张邻接缓存（同 edgeTypes 组合只构建一次），并把提供者注入给
+   * 实现了可选 `setContext` 的检测器；无论正常返回还是抛错，都会在 finally 里清空上下文，
+   * 避免检测器跨调用持有上一次的图（那会让后续 check 读到旧邻接表）。
+   */
   check(rules: RuleDefinition[], nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[] {
+    const adjacencyCache = new Map<string, AdjacencyMap>();
+    const provider: AdjacencyProvider = {
+      adjacencyFor: (edgeTypes: readonly string[]): AdjacencyMap => {
+        const key = [...edgeTypes].sort().join('|');
+        let adjacency = adjacencyCache.get(key);
+        if (!adjacency) {
+          adjacency = buildFilteredForwardAdjacency(edges, [...edgeTypes]);
+          adjacencyCache.set(key, adjacency);
+        }
+        return adjacency;
+      },
+    };
+
     const violations: RuleViolation[] = [];
-    for (const rule of rules) {
-      if (!rule.enabled) continue;
-      const detector = this.detectors.get(rule.type);
-      if (detector) {
+    const injected: RuleDetector[] = [];
+
+    try {
+      for (const rule of rules) {
+        if (!rule.enabled) continue;
+        const detector = this.detectors.get(rule.type);
+        if (!detector) continue;
+        if (detector.setContext) {
+          detector.setContext(provider);
+          injected.push(detector);
+        }
         violations.push(...detector.detect(rule, nodes, edges));
       }
+    } finally {
+      for (const detector of injected) detector.setContext?.(null);
     }
+
     return violations;
   }
 }
 
 class ForbiddenEdgeDetector implements RuleDetector {
+  private context: AdjacencyProvider | null = null;
+
+  setContext(context: AdjacencyProvider | null): void {
+    this.context = context;
+  }
+
   detect(rule: RuleDefinition, _nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[] {
     const violations: RuleViolation[] = [];
-    const edgeTypes = (rule.params.edgeTypes as string[]) ?? ['call', 'import', 'dependency'];
+    const edgeTypes = (rule.params.edgeTypes as string[] | undefined) ?? [...DEFAULT_FORBIDDEN_EDGE_TYPES];
 
-    const adjacency = buildFilteredForwardAdjacency(edges, edgeTypes);
+    const adjacency = this.context
+      ? this.context.adjacencyFor(edgeTypes)
+      : buildFilteredForwardAdjacency(edges, edgeTypes);
+
+    // 无环即早退：环存在性 O(V+E) 且遇到第一个 back edge 立刻返回，
+    // 无环图上省掉一次「枚举所有环 + booth 去重」的全量 DFS。
+    if (!hasCycle(adjacency)) return violations;
+
     const cycles = detectCyclesDFS(adjacency);
 
     for (const cycle of cycles) {

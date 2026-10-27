@@ -13,6 +13,7 @@
     "src/merger/**/*",
     "src/types/**/*",
     "src/shared/**/*",
+    "src/xuanji/**/*",
     "src/host/**/*",
     "src/generated/**/*"
   ],

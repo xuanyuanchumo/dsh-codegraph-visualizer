@@ -1,7 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { CoreFunctionAnalyzer } from '../../src/shared/analysis/CoreFunctionAnalyzer.ts';
+import {
+  CoreFunctionAnalyzer,
+  legacyTruncatedReach,
+} from '../../src/shared/analysis/CoreFunctionAnalyzer.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { NodeId, EdgeId } from '../../src/types/index.ts';
+import { CORE_FUNCTION } from '../../src/shared/constants.ts';
+
+/** 从边集合构造前向邻接表（与分析器内部的 outEdges 同构，供旧实现对照）。 */
+function outEdgesOf(edges: GraphEdge[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (edge.source === edge.target) continue;
+    const list = out.get(edge.source) ?? [];
+    list.push(edge.target);
+    out.set(edge.source, list);
+  }
+  return out;
+}
 
 function makeFunction(id: string, label: string, filePath = 'src/app.ts', props: Record<string, unknown> = {}): GraphNode {
   return {
@@ -440,5 +456,95 @@ describe('CoreFunctionAnalyzer', () => {
     expect(mainFn).toHaveProperty('category');
     expect(mainFn!.label).toBe('main');
     expect(mainFn!.filePath).toBe('src/app.ts');
+  });
+
+  // ---------------------------------------------------------------------------
+  // cycle-107 · C-4：精确可达（SCC + bitset）与旧截断 BFS 的语义差异
+  // ---------------------------------------------------------------------------
+  describe('influence reach · exact vs truncated (cycle-107 C-4)', () => {
+    it('reports the exact fan-out (600) instead of a truncated value', () => {
+      const analyzer = new CoreFunctionAnalyzer();
+      const nodes = [
+        makeFunction('root', 'root'),
+        ...Array.from({ length: 600 }, (_, i) => makeFunction(`leaf${i}`, `leaf${i}`)),
+      ];
+      const edges = Array.from({ length: 600 }, (_, i) => makeCall('root', `leaf${i}`));
+      const result = analyzer.analyze(nodes, edges);
+      const rootFn = result.find((r) => r.nodeId === 'root');
+      expect(rootFn).toBeDefined();
+      expect(rootFn!.influenceReach).toBe(600);
+    });
+
+    it('is exact on a 601-node chain while the legacy value stays an under-estimate (old ≤ new)', () => {
+      const analyzer = new CoreFunctionAnalyzer();
+      const nodes = Array.from({ length: 601 }, (_, i) => makeFunction(`n${i}`, `n${i}`));
+      const edges = Array.from({ length: 600 }, (_, i) => makeCall(`n${i}`, `n${i + 1}`));
+
+      const result = analyzer.analyze(nodes, edges);
+      const head = result.find((r) => r.nodeId === 'n0');
+      expect(head).toBeDefined();
+      expect(head!.influenceReach).toBe(600);
+
+      const legacy = legacyTruncatedReach('n0', outEdgesOf(edges));
+      expect(legacy).toBeLessThanOrEqual(head!.influenceReach);
+      // 旧实现截断在 visited.size == MAX_BFS_NODES，长链上恰好返回 499
+      expect(legacy).toBe(CORE_FUNCTION.MAX_BFS_NODES - 1);
+    });
+
+    it('matches the legacy value node-by-node when the exact value is below MAX_BFS_NODES', () => {
+      const analyzer = new CoreFunctionAnalyzer();
+      const ids = ['main', 'b', 'c', 'd', 'e'];
+      const nodes = ids.map((id) => makeFunction(id, id === 'main' ? 'main' : id));
+      const edges = [
+        makeCall('main', 'b'),
+        makeCall('b', 'c'),
+        makeCall('c', 'd'),
+        makeCall('d', 'e'),
+      ];
+
+      const result = analyzer.analyze(nodes, edges);
+      const head = result.find((r) => r.nodeId === 'main');
+      expect(head).toBeDefined();
+      expect(head!.influenceReach).toBe(4);
+      expect(legacyTruncatedReach('main', outEdgesOf(edges))).toBe(head!.influenceReach);
+    });
+
+    it('counts a 2-cycle as one SCC (reach 1 each, no infinite growth)', () => {
+      const analyzer = new CoreFunctionAnalyzer();
+      const nodes = [
+        makeFunction('a', 'main'),
+        makeFunction('b', 'b'),
+      ];
+      const edges = [makeCall('a', 'b'), makeCall('b', 'a')];
+      const result = analyzer.analyze(nodes, edges);
+      const a = result.find((r) => r.nodeId === 'a');
+      expect(a).toBeDefined();
+      expect(a!.influenceReach).toBe(1);
+    });
+
+    it('reports reach 0 for a function with no outgoing call edges', () => {
+      const analyzer = new CoreFunctionAnalyzer();
+      const nodes = [
+        makeFunction('exp', 'someFunc', 'src/api.ts', { isExported: true }),
+      ];
+      const result = analyzer.analyze(nodes, []);
+      const expFn = result.find((r) => r.nodeId === 'exp');
+      expect(expFn).toBeDefined();
+      expect(expFn!.influenceReach).toBe(0);
+    });
+
+    it('keeps the large-influence threshold semantics on a small exact graph', () => {
+      const analyzer = new CoreFunctionAnalyzer();
+      const nodes = [
+        makeFunction('hub', 'hub'),
+        ...Array.from({ length: 12 }, (_, i) => makeFunction(`d${i}`, `d${i}`)),
+      ];
+      const edges = Array.from({ length: 12 }, (_, i) => makeCall('hub', `d${i}`));
+      const result = analyzer.analyze(nodes, edges);
+      const hub = result.find((r) => r.nodeId === 'hub');
+      expect(hub).toBeDefined();
+      expect(hub!.influenceReach).toBe(12);
+      expect(hub!.reasons).toContain('large-influence');
+    });
   });
 });

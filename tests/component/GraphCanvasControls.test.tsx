@@ -154,7 +154,7 @@ describe('GraphCanvasControls', () => {
     );
     const buttons = screen.getAllByRole('button');
     // 第一个按钮是 zoom in
-    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[0]!);
     expect(renderer.zoomBy).toHaveBeenCalledWith(1.3);
   });
 
@@ -175,7 +175,7 @@ describe('GraphCanvasControls', () => {
     );
     const buttons = screen.getAllByRole('button');
     // 第二个按钮是 zoom out
-    fireEvent.click(buttons[1]);
+    fireEvent.click(buttons[1]!);
     expect(renderer.zoomBy).toHaveBeenCalledWith(1 / 1.3);
   });
 
@@ -196,7 +196,7 @@ describe('GraphCanvasControls', () => {
     );
     const buttons = screen.getAllByRole('button');
     // 第三个按钮是 fit
-    fireEvent.click(buttons[2]);
+    fireEvent.click(buttons[2]!);
     expect(renderer.fitToView).toHaveBeenCalledOnce();
   });
 
@@ -217,7 +217,7 @@ describe('GraphCanvasControls', () => {
     );
     const buttons = screen.getAllByRole('button');
     // 第四个按钮是 reset
-    fireEvent.click(buttons[3]);
+    fireEvent.click(buttons[3]!);
     expect(renderer.resetView).toHaveBeenCalledOnce();
   });
 
