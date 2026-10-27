@@ -107,7 +107,7 @@ pnpm run lint           # Lint
 ```
 src/
 ├── index.ts                  # Host 端插件入口（re-export 聚合）
-├── tools.ts                  # 8 个工具定义（graph_status/data/symbol/impact/path_find/health/rules_check/focus）
+├── tools.ts                  # 9 个工具定义（graph_status/data/symbol/impact/path_find/path_enumerate/health/rules_check/focus）
 ├── types/                    # Branded 类型、GraphData、事件声明合并
 ├── adapters/                 # 数据源适配器
 │   ├── CodeGraphAdapter.ts   #   dsh-codegraph 数据源
@@ -165,6 +165,12 @@ src/
 │   ├── hooks/                #   React Hooks
 │   └── worker/               #   Web Worker（布局计算）
 ├── generated/                # 自动生成的代码（版本号等）
+├── xuanji/                   # 璇玑图算法库（零宿主依赖，可提取为独立包）
+│   ├── ops/                  #   Booth 最小旋转 / 滚动哈希 / 环存在性 / 不变量 I1-I5
+│   ├── core/                  #   图空间 / 路径规则与组合代数 / 路径条目 / 长度 NFA
+│   ├── index/                #   路径索引 / 增量引擎 / 局部重组
+│   ├── query/                #   枚举 / 查询回退 / Top-K
+│   └── registry/             #   规则注册与版本热替换
 └── shared/                   # Host/Client 共享模块
     ├── Logger.ts             #   日志工具
     ├── constants.ts          #   常量定义
@@ -176,6 +182,8 @@ src/
     └── analysis/             #   分析算法
         ├── AdjacencyList.ts  #     邻接表
         ├── GraphBFS.ts       #     BFS 遍历
+        ├── XuanjiAdapter.ts  #     璇玑图库的宿主适配层（GraphData ⇄ GraphSpace）
+        ├── batchReach.ts     #     SCC + bitset 批量可达计数
         └── modulePath.ts     #     模块路径分析
 ```
 
