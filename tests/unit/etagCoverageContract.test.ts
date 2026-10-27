@@ -83,8 +83,11 @@ const DECISION_MATRIX: MatrixEntry[] = [
   { method: 'GET', path: '/api/v1/codegraph/files', routeClass: 'etag-guarded', rationale: 'prefix 路由（files/{id}/outline），请求键 etagKeyForOutline' },
   { method: 'GET', path: '/api/v1/codegraph/symbols', routeClass: 'etag-guarded', rationale: 'prefix 路由（symbols/{id}/ast），请求键 etagKeyForAst' },
   { method: 'GET', path: '/api/v1/codegraph/edges', routeClass: 'etag-guarded', rationale: '参数化按需路由，请求键 etagKeyForEdges' },
-  // ---- content-etag（1 条，analysisRoutes；校验值来自磁盘 manifest，不取图槽） ----
+  // ---- content-etag（2 条，analysisRoutes；校验值来自磁盘/git 内容，不取图槽） ----
   { method: 'GET', path: '/api/v1/codegraph/dependencies', routeClass: 'content-etag', rationale: '载荷来自 package.json/Cargo.toml/go.mod 磁盘内容，与图槽不同域' },
+  // /churn 把 available 并入校验值：采集从失败转为成功必须让旧的 304 失效，
+  // 否则「git 恢复可用」这一真实变化会被缓存永久掩盖。
+  { method: 'GET', path: '/api/v1/codegraph/churn', routeClass: 'content-etag', rationale: '载荷来自 git log 输出，校验值 = (工作区, HEAD revision, 可用性) 三元组，与图槽不同域' },
   // ---- post（6 条：条件请求是 GET 语义，POST 载荷由请求体决定） ----
   { method: 'POST', path: '/api/v1/codegraph/diff', routeClass: 'post', rationale: 'from/to 请求体决定载荷，无"同一资源的两次获取"' },
   { method: 'POST', path: '/api/v1/codegraph/ast', routeClass: 'post', rationale: '任意文件内容解析，非缓存资源' },

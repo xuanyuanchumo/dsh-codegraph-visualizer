@@ -4,6 +4,7 @@ import path from 'node:path';
 import { scoped } from '../../shared/Logger.ts';
 import { ERROR_CODES } from '../../shared/constants.ts';
 import { computeGraphEtag, computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
+import { sameRepoId } from '../../shared/pathUtils.ts';
 import type { GraphEtagResource } from '../../shared/graphFingerprint.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
@@ -96,18 +97,107 @@ export function ensureWorkspaceRootsAllowed(ctx: Context, deps: RouteDeps): Work
   return { roots, source, resolved };
 }
 
-export async function resolveWorkspaceFromRequest(req: IncomingMessage, ctx: Context, deps: RouteDeps): Promise<string> {
+/**
+ * 从请求里解析工作区路径。
+ *
+ * ## 为什么必须同时看 query 与 body（P0-E，cycle-105 真机发现）
+ *
+ * 历史实现**只读 `url.searchParams.get('workspace')`**。而 `POST /diff` 的客户端
+ * （`src/client/api/index.ts` 的 `fetchGraphDiff`）把 workspace 放在 **JSON body** 里——
+ * 全仓唯一一处这么做的按需路由。于是：
+ *
+ * - 客户端明确声明「对比 A 工作区」，宿主完全看不见这个声明；
+ * - 回落到 `findWorkspacePath(ctx)`，即宿主工作区列表里的**第一个**；
+ * - 真机实测：请求 `workspace: 'D:\...\dsh-codegraph-visualizer'`，响应的
+ *   `metadata.repoId` 却是 `D:\...\dsh-anic`——**另一个项目**。
+ *
+ * 这与 cycle-105 修的 P0-B 同族但方向相反：P0-B 是「回落读错图槽」，P0-E 是
+ * 「解析错工作区」。两者叠加的效果是「用户以为在对比自己的仓库，实际在对比别人的」。
+ *
+ * ## 安全性不变
+ *
+ * body 里的 workspace **不是**一条新的信任通道：它和 query 参数走完全相同的两道校验
+ * （`isPathAllowed` 允许列表 + `validatePathRealpath` 符号链接解析）。请求方无法通过
+ * 换一个位置传参来读到允许列表之外的路径——这正是本函数把校验放在「取到候选值之后」
+ * 而不是「取 query 之时」的原因。
+ *
+ * ## 优先级
+ *
+ * query > body > 宿主默认。query 优先是刻意的向后兼容：既有 GET 路由的行为一位不变，
+ * 而同时带两处参数的请求（不应存在）也不会因为实现细节改变语义。
+ *
+ * @param bodyWorkspace POST 请求体里已解析出的 `workspace` 字段（GET 路由传 `undefined`）。
+ */
+export async function resolveWorkspaceFromRequest(
+  req: IncomingMessage,
+  ctx: Context,
+  deps: RouteDeps,
+  bodyWorkspace?: string | undefined,
+): Promise<string> {
   ensureWorkspaceRootsAllowed(ctx, deps);
+
+  // 候选值按优先级排列，**校验只做一次**：把「取值」与「验值」分开，避免两个来源
+  // 各自复制一遍校验逻辑（复制出来的第二份迟早会漏掉 `validatePathRealpath`）。
+  let candidate: string | null = null;
   try {
     const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
-    const wsParam = url.searchParams.get('workspace');
-    if (wsParam && wsParam !== '.' && deps.securityManager.isPathAllowed(wsParam)) {
-      if (await validatePathRealpath(wsParam, deps.securityManager)) {
-        return wsParam;
+    candidate = url.searchParams.get('workspace');
+  } catch { /* ignore */ }
+  if (!candidate || candidate === '.') {
+    candidate = typeof bodyWorkspace === 'string' ? bodyWorkspace : null;
+  }
+
+  if (candidate && candidate !== '.') {
+    // 与历史实现同一条判据：允许列表 + 真实路径（防符号链接逃逸）。
+    if (deps.securityManager.isPathAllowed(candidate)) {
+      if (await validatePathRealpath(candidate, deps.securityManager)) {
+        return candidate;
       }
     }
-  } catch { /* ignore */ }
+    // 候选值存在但**未通过校验**时不能静默回落：那会把「请求了一个无权工作区」
+    // 变成「悄悄用了另一个工作区」，正是 P0-E 的危害形态。这里保持既有语义
+    // （回落到默认工作区，由调用方的 403 分支负责拒绝），但把它记下来——
+    // 真机排查时这条日志是唯一能看出「参数被丢弃了」的线索。
+    log.warn('requested workspace rejected, falling back to default', { candidate });
+  }
+
   return findWorkspacePath(ctx);
+}
+
+/**
+ * 取 host 的 `lastGraphData` 单槽，**但只在它确实属于请求方工作区时**才返回（P0-B）。
+ *
+ * 背景：host 只有一个图槽（`deps.getLastGraphData()`），而客户端可以在同一次会话里切换多个
+ * 工作区。此前 `/bootstrap`、`/children`、`/files/:id/outline`、`/symbols/:id/ast`、`/edges`
+ * 五条路由的**内存回落分支**全都无条件读这个槽，于是：
+ *
+ * - 请求工作区 B，槽里是 A 的图 ⇒ `/bootstrap` 把 **A 的顶层节点**连同 `metadata.repoId: A`
+ *   一起发给 B 的客户端。客户端 `setBootstrapData(..., data.metadata.repoId)` 会把这个外来
+ *   repoId 写进 store，等于**用 A 的身份覆盖 B 的画布身份**；
+ * - 更隐蔽的一半：`/children`、`/outline`、`/ast`、`/edges` 用 `nodeId` 在 A 的图里查表，
+ *   大多数情况查不到（返回空），于是 B 表现为「索引已就绪但一个子节点都没有」——
+ *   一个**静默的空画布**，没有任何错误可看。
+ *
+ * 修法刻意与 `incrementalUpdate.ts` / `watcher.ts` 的既有防护共用 `sameRepoId` 判据：
+ * 跨工作区防护在三个地方出现过，判据必须只有一份实现，否则三处会各自漂移。
+ *
+ * `workspacePath` 为空（`findWorkspacePath` 也没解析出工作区）时返回 `null`：没有身份就没有
+ * 「同源」可言，宁可退化成空响应，也不能让一个无身份的请求拿到任意工作区的图。
+ */
+export function getWorkspaceScopedGraphData(
+  deps: RouteDeps,
+  workspacePath: string | null | undefined,
+): GraphData | null {
+  const slot = deps.getLastGraphData();
+  if (!slot || !workspacePath) return null;
+  if (!sameRepoId(slot.metadata.repoId, workspacePath)) {
+    log.info('in-memory graph slot belongs to another workspace, ignoring fallback', {
+      requested: workspacePath,
+      slotRepoId: slot.metadata.repoId,
+    });
+    return null;
+  }
+  return slot;
 }
 
 export async function resolveAndValidatePath(
@@ -167,10 +257,11 @@ export async function validateWorkspacePath(
   ctx: Context,
   deps: RouteDeps,
   req?: IncomingMessage,
+  bodyWorkspace?: string | undefined,
 ): Promise<string | null> {
   let workspacePath: string;
   if (req) {
-    workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+    workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps, bodyWorkspace);
   } else {
     ensureWorkspaceRootsAllowed(ctx, deps);
     workspacePath = findWorkspacePath(ctx);

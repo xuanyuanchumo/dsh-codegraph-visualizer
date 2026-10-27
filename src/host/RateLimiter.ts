@@ -8,6 +8,9 @@ const HEAVY_ENDPOINTS = new Set([
   '/api/v1/codegraph/scan',
   '/api/v1/codegraph/init',
   '/api/v1/codegraph/diff',
+  // `/churn` 每次冷调用都会 fork 一个 git 子进程（最大 2000 提交的输出）——按重端点限流，
+  // 否则热点面板的重复打开会把子进程数量交给客户端决定。
+  '/api/v1/codegraph/churn',
   '/api/v1/codegraph/ast',
   '/api/v1/codegraph/tree-sitter',
 ]);

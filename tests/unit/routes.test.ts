@@ -52,6 +52,24 @@ vi.mock('node:fs/promises', () => ({
   },
 }));
 
+// `/churn` 会在宿主侧 fork 一个 git 子进程。路由测试**绝不能**真的跑 git：
+// 一是慢（每例几百毫秒到数秒），二是结果取决于本机仓库状态，测试会随环境变红。
+// 只替换 `collectGitChurn`，`clearChurnCache` 等其余导出保持真实。
+const mockCollectGitChurn = vi.fn();
+vi.mock('../../src/host/gitChurn.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/host/gitChurn.ts')>();
+  return { ...actual, collectGitChurn: (...args: unknown[]) => mockCollectGitChurn(...args) };
+});
+
+// `/diff` 同样会在宿主侧 fork git（`git diff --raw`）。与 `/churn` 同一条理由：
+// 路由测试绝不能真的跑 git——慢，且结果取决于本机仓库状态。
+// 只替换 `collectGitFileDiff`；`clearGitDiffCache` 保持真实（其它用例可能要清缓存）。
+const mockCollectGitFileDiff = vi.fn();
+vi.mock('../../src/host/gitDiff.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/host/gitDiff.ts')>();
+  return { ...actual, collectGitFileDiff: (...args: unknown[]) => mockCollectGitFileDiff(...args) };
+});
+
 const mockReadEdgesFromDb = vi.fn();
 const mockReadFileOutlineFromDb = vi.fn();
 const mockReadSymbolASTFromDb = vi.fn();
@@ -102,6 +120,27 @@ import {
   etagKeyForEdges,
   resolveAstBudget,
 } from '../../src/shared/graphFingerprint.ts';
+
+/**
+ * 图槽 fixture：`metadata.repoId` 必须等于宿主解析出的工作区路径。
+ *
+ * 生产里 `triggerBackgroundBuild()` 用 `repoId = workspacePath` 落槽（`src/host/routes/shared.ts:491`），
+ * 所以「槽里是 `/test/workspace` 的图」与「请求 `/test/workspace`」本来就是同源。
+ * 早期 fixture 一律写死 `'test-repo'`，这在本轮 P0-B（内存回落按工作区限定）之后会变成
+ * **跨工作区**——那不是测试抓到的缺陷，而是 fixture 编造了一个生产不可能出现的状态。
+ * 因此这里统一取 `findWorkspacePath()` 的返回值，让默认场景天然同源；
+ * 需要构造「外来工作区」的用例必须显式传第 3 个参数。
+ */
+function makeScopedGraphData(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  repoId: string = WORKSPACE_PATH,
+  timestamp = 1,
+): GraphData {
+  return makeGraphData(nodes, edges, repoId, timestamp);
+}
+
+const WORKSPACE_PATH = '/test/workspace';
 
 type MockCtx = {
   effect: ReturnType<typeof vi.fn>;
@@ -210,15 +249,25 @@ describe('registerRoutes', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
+    mockCollectGitFileDiff.mockReset();
+    // 默认返回「成功但无变更」：让不关心 diff 内容的用例（缺参数 / 非法引用 /
+    // 工作区拒绝）走到各自的早退分支，而不是被 git mock 的返回值绊倒。
+    mockCollectGitFileDiff.mockResolvedValue({
+      changes: [], available: true, error: null, truncated: false,
+      revisions: { from: 'main', to: 'feature' },
+    });
   });
 
-  it('registers all 18 routes', () => {
+  it('registers all 19 routes', () => {
     registerRoutes(deps);
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(18);
+    // 19 = 升级前的 18 条 + 研究报告 §六 #11 的 `/churn`。
+    // 这条断言的价值不在数字本身，而在「新增一条路由必须显式面对它」——
+    // 否则漏注册一条路由不会有任何测试变红（`ctx.effect` 的 disposer 一样能过）。
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(19);
   });
 
   it('serves the layout worker bundle from the plugin HTTP surface', () => {
@@ -294,7 +343,7 @@ describe('registerRoutes', () => {
   });
 
   it('GET /data returns cached graph with etag', () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 3);
@@ -309,7 +358,7 @@ describe('registerRoutes', () => {
   });
 
   it('GET /data returns 304 when etag matches', () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 3);
@@ -323,7 +372,7 @@ describe('registerRoutes', () => {
   // 校验值按资源定域：`/data` 的校验值不能替别的端点回答 304，否则调用方拿到的是
   // "这个资源没变"的假结论，而实际请求的是另一个资源。
   it('GET /data does not accept another resource\'s etag', () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 3);
@@ -336,7 +385,7 @@ describe('registerRoutes', () => {
   // 同一个 revision 但身份不同 ⇒ 必须回 200。假 304 会让客户端把旧工作区的图当成当前版本，
   // 这正是跨工作区污染的另一条路径（P0-R16-02）。
   it('GET /data does not accept the same revision from another workspace', () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 3);
@@ -347,7 +396,7 @@ describe('registerRoutes', () => {
   });
 
   it('POST /scan starts background scan and returns scanning status', async () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 4);
@@ -382,7 +431,7 @@ describe('registerRoutes', () => {
   });
 
   it('POST /scan returns cached data when within TTL', async () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 4);
@@ -402,7 +451,7 @@ describe('registerRoutes', () => {
   });
 
   it('POST /init returns initializing status (non-blocking)', async () => {
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
     registerRoutes(deps);
     const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
@@ -524,16 +573,117 @@ describe('registerRoutes', () => {
     expect(JSON.parse(state.body).error).toBe('INVALID_GIT_REF');
   });
 
-  it('POST /diff returns diff graph', async () => {
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
+  it('POST /diff returns file-level diff nodes in the canvas id namespace', async () => {
+    // cycle-105 P0-D：旧实现把 `workspace@ref` 当仓库路径查 DB，路径永不存在 ⇒
+    // 恒返回空 diff 且 HTTP 200（假成功）。现在数据面改成 git 的变更文件清单，
+    // 节点 id 必须是 `file:<相对路径>`——与画布上文件节点同一命名空间，
+    // 否则 `HighlightController.applyDiffMarkers` 的 getElementById 一个都命中不了。
+    mockCollectGitFileDiff.mockResolvedValue({
+      changes: [
+        { path: 'src/a.ts', status: 'modified' },
+        { path: 'src/new.ts', status: 'added' },
+        { path: 'src/gone.ts', status: 'removed' },
+      ],
+      available: true,
+      error: null,
+      truncated: false,
+      revisions: { from: 'HEAD~1', to: 'HEAD' },
+    });
     registerRoutes(deps);
     const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
-    await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
+    await handler(makeReq('POST', JSON.stringify({ from: 'HEAD~1', to: 'HEAD' })), res);
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
-    expect(parsed).toHaveProperty('nodes');
-    expect(parsed).toHaveProperty('edges');
+    expect(parsed.nodes).toHaveLength(3);
+    // 断言的是**具体的 id 拼法**，不是「有 3 个节点」——后者对任何实现都成立。
+    expect(parsed.nodes.map((n: { id: string }) => n.id).sort()).toEqual([
+      'file:src/a.ts', 'file:src/gone.ts', 'file:src/new.ts',
+    ]);
+    // `diffStatus` 必须落在 properties 里：`readDiffStatus` 只读那个位置，
+    // 写到顶层会被整条忽略（标记不出现且无报错）。
+    expect(parsed.nodes[0].properties.diffStatus).toBe('modified');
+    // 文件级 diff 不产边：`git diff --raw` 不给「哪两个文件之间新增了依赖」，
+    // 硬编一条边等于编造数据。
+    expect(parsed.edges).toEqual([]);
+    // 粒度必须显式回传，面板据此把文案写成「文件变更」。
+    expect(parsed.granularity).toBe('file');
+    expect(parsed.truncated).toBe(false);
+  });
+
+  it('POST /diff accepts git relative refs like HEAD~1 and HEAD^', async () => {
+    // cycle-105 P0-C：`GIT_REF_PATTERN` 曾把 `~`/`^` 排除在外，而 DiffPanel 的两个
+    // 默认值正是 `HEAD~1` / `HEAD` ⇒ 默认路径 100% 被 400 拒绝，用户必须手输 SHA。
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    for (const ref of ['HEAD~1', 'HEAD^', 'HEAD~3', 'main@{1}', 'HEAD~1^2']) {
+      const { res, state } = makeRes();
+      await handler(makeReq('POST', JSON.stringify({ from: ref, to: 'HEAD' })), res);
+      expect(state.code, `ref ${ref} should be accepted`).toBe(200);
+    }
+  });
+
+  it('POST /diff honours the workspace sent in the body, not the host default', async () => {
+    // cycle-105 P0-E：客户端把 workspace 放在 JSON body，而宿主只读 query ⇒
+    // 回落到宿主列表第一个工作区。真机实测请求 A 仓库却拿到 B 仓库的 repoId。
+    // 这里断言**传给 git 的工作区**，而不是响应里的 repoId——后者可以来自任何地方。
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    const bodyWorkspace = '/test/other-workspace';
+    await handler(makeReq('POST', JSON.stringify({ from: 'HEAD~1', to: 'HEAD', workspace: bodyWorkspace })), res);
+    expect(state.code).toBe(200);
+    expect(mockCollectGitFileDiff).toHaveBeenCalledWith(bodyWorkspace, 'HEAD~1', 'HEAD');
+  });
+
+  it('POST /diff prefers the query workspace over the body workspace', async () => {
+    // 成对用例的反面：两处都给了参数时必须有一个确定的优先级（query 优先，
+    // 保持既有 GET 路由的行为不变）。只测 body 生效的话，「body 永远覆盖 query」
+    // 这个实现也能通过。
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    const queryWorkspace = '/test/query-workspace';
+    const bodyWorkspace = '/test/body-workspace';
+    await handler(
+      makeReq('POST', JSON.stringify({ from: 'HEAD~1', to: 'HEAD', workspace: bodyWorkspace }), {}, undefined, `/api/v1/codegraph/diff?workspace=${encodeURIComponent(queryWorkspace)}`),
+      res,
+    );
+    expect(state.code).toBe(200);
+    expect(mockCollectGitFileDiff).toHaveBeenCalledWith(queryWorkspace, 'HEAD~1', 'HEAD');
+  });
+
+  it('POST /diff returns 500 (not an empty 200) when git collection fails', async () => {
+    // 假成功是这条路由历史上最严重的失效形态：失败被渲染成「两版本没有差异」。
+    // 失败必须可见——500 + 原因，而不是空节点 + 200。
+    mockCollectGitFileDiff.mockResolvedValue({
+      changes: [], available: false, error: 'fatal: bad revision \'nope\'',
+      truncated: false, revisions: { from: 'nope', to: 'HEAD' },
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ from: 'nope', to: 'HEAD' })), res);
+    expect(state.code).toBe(500);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.error).toBe('GRAPH_DIFF_FAILED');
+    // 原因要原样带回：只说「失败」而不说为什么，真机上无从排查。
+    expect(parsed.message).toContain('bad revision');
+  });
+
+  it('POST /diff passes through the truncation flag when the list was capped', async () => {
+    mockCollectGitFileDiff.mockResolvedValue({
+      changes: [{ path: 'src/a.ts', status: 'modified' }],
+      available: true, error: null, truncated: true,
+      revisions: { from: 'HEAD~1', to: 'HEAD' },
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ from: 'HEAD~1', to: 'HEAD' })), res);
+    expect(state.code).toBe(200);
+    // 被截断的清单与完整清单一模一样，标志位丢了用户就永远不知道还有更多。
+    expect(JSON.parse(state.body).truncated).toBe(true);
   });
 
   it('POST /diff returns empty when no workspace', async () => {
@@ -608,7 +758,7 @@ describe('registerRoutes - CORS', () => {
     ctx = makeMockCtx();
     config = makeConfig({ allowedOrigins: ['http://localhost:3080'] });
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -655,7 +805,7 @@ describe('registerService', () => {
     const ctx = makeMockCtx();
     const config = makeConfig();
     const deps = makeDeps(ctx, config);
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerService(deps);
     const service = ctx.provide.mock.calls[0]![1];
@@ -666,7 +816,7 @@ describe('registerService', () => {
     const ctx = makeMockCtx();
     const config = makeConfig();
     const deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
     registerService(deps);
     const service = ctx.provide.mock.calls[0]![1];
     const result = await service.getGraphData('repo-1');
@@ -749,7 +899,7 @@ describe('registerService', () => {
 
 describe('slimGraphData (additional)', () => {
   it('preserves all node properties including exported', () => {
-    const data = makeGraphData(
+    const data = makeScopedGraphData(
       [makeNode('n1', 'A', 'function', 'a.ts', 1, { exported: true, other: 'kept' })],
       [],
     );
@@ -769,7 +919,7 @@ describe('slimGraphData (additional)', () => {
       makeEdge('e2', 'n2', 'n3', 'call'),
       makeEdge('e3', 'n1', 'n3', 'call'),
     ];
-    const data = makeGraphData(nodes, edges);
+    const data = makeScopedGraphData(nodes, edges);
     const result = slimGraphData(data, 2);
     expect(result.nodes).toHaveLength(2);
     expect(result.metadata.truncated).toBe(true);
@@ -785,7 +935,7 @@ describe('slimGraphData (additional)', () => {
   });
 
   it('does not truncate when nodes fit within maxNodes', () => {
-    const data = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const data = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     const result = slimGraphData(data, 10);
     expect(result.metadata.truncated).toBe(false);
   });
@@ -800,7 +950,7 @@ describe('POST /ast', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     // Use platform-appropriate workspace path so path.resolve/normalize checks pass
     vi.mocked(findWorkspacePath).mockReturnValue(path.resolve('D:\\test\\workspace'));
@@ -937,7 +1087,7 @@ describe('POST /tree-sitter (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1090,14 +1240,14 @@ describe('POST /scan (additional)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns scanning status when a scan is already running (non-blocking)', async () => {
-    const inFlightData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const inFlightData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     const inFlightPromise = Promise.resolve(inFlightData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 4);
@@ -1112,7 +1262,7 @@ describe('POST /scan (additional)', () => {
   });
 
   it('uses specific path when provided (not ".")', async () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 4);
@@ -1132,7 +1282,7 @@ describe('POST /init (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1169,7 +1319,7 @@ describe('POST /watch (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1205,14 +1355,22 @@ describe('POST /diff (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
+    mockCollectGitFileDiff.mockReset();
+    mockCollectGitFileDiff.mockResolvedValue({
+      changes: [], available: true, error: null, truncated: false,
+      revisions: { from: 'main', to: 'feature' },
+    });
   });
 
-  it('returns 500 on fetch error', async () => {
-    vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('diff fetch failed'));
+  it('returns 500 when the git collector itself throws', async () => {
+    // cycle-105 P0-D 之后 `/diff` 的数据面是 `collectGitFileDiff`，它内部吞掉所有异常
+    // 并返回 `available: false`。但「采集器自己抛了」仍必须被路由的 catch 兜住 ——
+    // 否则一次意外异常会变成未处理的 rejection，客户端拿到的是连接中断而不是 500。
+    mockCollectGitFileDiff.mockRejectedValue(new Error('diff collector exploded'));
     registerRoutes(deps);
     const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
@@ -1248,6 +1406,154 @@ describe('POST /diff (additional)', () => {
   });
 });
 
+describe('GET /churn (研究报告 §六 #11)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  // `/churn` 注册在 `registerRoutes` 的最后一条（索引 18）。
+  // 这条索引断言本身就是一道守卫：若有人把它挪到中间，会连带影响所有
+  // 「第 N 次注册」的用例——那种红一片的改动无法自证正确，所以这里显式钉住。
+  const CHURN_INDEX = 18;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
+    mockCollectGitChurn.mockReset();
+    mockCollectGitChurn.mockResolvedValue({
+      byFile: { 'src/a.ts': 3 },
+      commitCount: 7,
+      revision: 'deadbeef',
+      truncated: false,
+      available: true,
+      error: null,
+    });
+  });
+
+  it('注册在最后一个位置（索引 18）', () => {
+    registerRoutes(deps);
+    const calls = ctx.webServer.register.mock.calls;
+    expect(calls[CHURN_INDEX]![0].path).toBe('/api/v1/codegraph/churn');
+  });
+
+  it('返回采集结果原样，且带 etag 响应头', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, CHURN_INDEX);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.available).toBe(true);
+    expect(body.byFile).toEqual({ 'src/a.ts': 3 });
+    expect(body.commitCount).toBe(7);
+    // 校验器必须出现在 200 响应里，否则客户端永远没有值可以回送
+    // （CLAUDE.md 记过「校验器可达但值不可达」这个死代码形态）。
+    expect(state.headers.etag).toBeTruthy();
+  });
+
+  it('采集失败时仍返回 200 且 available=false，错误原因可见', async () => {
+    // 采集失败**不是** HTTP 错误：宿主答复了，只是它也没拿到 git 数据。
+    // 若这里返回 5xx，客户端只能显示「请求失败」，用户无法区分
+    // 「插件没连上宿主」与「这个目录不是 git 仓库」。
+    mockCollectGitChurn.mockResolvedValue({
+      byFile: {}, commitCount: 0, revision: null, truncated: false,
+      available: false, error: 'not a git repository',
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, CHURN_INDEX);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.available).toBe(false);
+    expect(body.error).toBe('not a git repository');
+  });
+
+  it('命中 if-none-match 时返回 304', async () => {
+    registerRoutes(deps);
+    const first = makeRes();
+    await getHandler(ctx, CHURN_INDEX)(makeReq('GET'), first.res);
+    const etag = first.state.headers.etag!;
+    expect(etag).toBeTruthy();
+
+    const second = makeRes();
+    await getHandler(ctx, CHURN_INDEX)(makeReq('GET', undefined, { 'if-none-match': etag }), second.res);
+    expect(second.state.code).toBe(304);
+    // 304 不应重复发送正文。
+    expect(second.state.body).toBe('');
+  });
+
+  it('校验器随 HEAD 变化：换提交后同一个 if-none-match 必须拿到 200', async () => {
+    // 这是「校验器与被校验资源无关」家族缺陷的反向用例：
+    // 若 etag 里没有 revision 维度，新提交会被假 304 永久吞掉。
+    registerRoutes(deps);
+    const first = makeRes();
+    await getHandler(ctx, CHURN_INDEX)(makeReq('GET'), first.res);
+    const oldEtag = first.state.headers.etag!;
+
+    mockCollectGitChurn.mockResolvedValue({
+      byFile: { 'src/a.ts': 4 }, commitCount: 8, revision: 'cafebabe',
+      truncated: false, available: true, error: null,
+    });
+    const second = makeRes();
+    await getHandler(ctx, CHURN_INDEX)(makeReq('GET', undefined, { 'if-none-match': oldEtag }), second.res);
+    expect(second.state.code).toBe(200);
+    expect(JSON.parse(second.state.body).revision).toBe('cafebabe');
+  });
+
+  it('校验器随工作区变化：不同工作区的同一个 if-none-match 必须拿到 200', async () => {
+    registerRoutes(deps);
+    const first = makeRes();
+    await getHandler(ctx, CHURN_INDEX)(makeReq('GET', undefined, {}, undefined, '/?workspace=/test/workspace'), first.res);
+    const wsAEtag = first.state.headers.etag!;
+
+    // 换一个工作区请求；revision 相同，但工作区维度必须让校验器不同。
+    vi.mocked(findWorkspacePath).mockReturnValue('/other/workspace');
+    const second = makeRes();
+    await getHandler(ctx, CHURN_INDEX)(
+      makeReq('GET', undefined, { 'if-none-match': wsAEtag }, undefined, '/?workspace=/other/workspace'),
+      second.res,
+    );
+    expect(second.state.code).toBe(200);
+  });
+
+  it('无工作区时返回 available=false 且 error=no workspace', async () => {
+    vi.mocked(findWorkspacePath).mockReturnValue(undefined as unknown as string);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, CHURN_INDEX);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.available).toBe(false);
+    expect(body.error).toBe('no workspace');
+    // 没有工作区就不该白跑一次 git 子进程。
+    expect(mockCollectGitChurn).not.toHaveBeenCalled();
+  });
+
+  it('工作区路径被拒时返回 403，且不调用采集器', async () => {
+    mockIsPathAllowed.mockReturnValue(false);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, CHURN_INDEX);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(403);
+    expect(mockCollectGitChurn).not.toHaveBeenCalled();
+  });
+
+  it('处理 CORS 预检', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, CHURN_INDEX);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
 describe('GET /data (additional)', () => {
   let ctx: MockCtx;
   let config: VisualizerConfig;
@@ -1257,7 +1563,7 @@ describe('GET /data (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1274,7 +1580,7 @@ describe('GET /data (additional)', () => {
   });
 
   it('returns full data when if-none-match is older than timestamp', () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 3);
@@ -1303,7 +1609,7 @@ describe('GET /workspace (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1327,7 +1633,7 @@ describe('GET /dependencies (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1491,7 +1797,7 @@ describe('cross-origin conditional requests (CO-3)', () => {
     ctx = makeMockCtx();
     // 白名单与生产同形（cordis.patch.yml 注入 localhost + 127.0.0.1）。
     deps = makeDeps(ctx, makeConfig({ allowedOrigins: [ALLOWED] }));
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1579,7 +1885,7 @@ describe('registerRoutes - rate limiting', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1614,7 +1920,7 @@ describe('registerRoutes - CORS (additional)', () => {
     ctx = makeMockCtx();
     config = makeConfig({ allowedOrigins: ['http://localhost:3080'] });
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1697,7 +2003,7 @@ describe('validatePathRealpath security', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1753,7 +2059,7 @@ describe('GET /health', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1820,7 +2126,7 @@ describe('readBody - body too large', () => {
     ctx = makeMockCtx();
     config = makeConfig({ maxBodyBytes: 10 });
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1854,7 +2160,7 @@ describe('parseJsonBody - invalid body', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1894,7 +2200,7 @@ describe('extractStringField - boundary tests', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -1929,7 +2235,7 @@ describe('rate limiter - cleanup logic', () => {
     ctx = makeMockCtx();
     config = makeConfig();
     deps = makeDeps(ctx, config);
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2012,7 +2318,7 @@ describe('bootstrap route', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2037,7 +2343,7 @@ describe('bootstrap route', () => {
       makeNode('child1', 'Child 1', 'function', '/src/main.ts', 1, {}, 'root1'),
     ];
     const edges = [makeEdge('e1', 'root1', 'root2', 'dependency')];
-    deps.setLastGraphData(makeGraphData(nodes, edges));
+    deps.setLastGraphData(makeScopedGraphData(nodes, edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 11);
@@ -2051,6 +2357,51 @@ describe('bootstrap route', () => {
     expect(body.indexStatus).toBe('ready');
     expect(body.metadata.totalNodeCount).toBe(3);
   });
+
+  // ── P0-B：内存回落必须按请求方工作区限定 ──────────────────────────────────────
+  //
+  // 宿主只有一个图槽，客户端却可以在同一次会话里浏览多个工作区。此前这五条路由
+  // （bootstrap / children / outline / ast / edges）的内存回落分支全都无条件读那个槽。
+  //
+  // 这里刻意写**正向 + 反向成对**的用例：只断言「同源时能拿到数据」会被一个
+  // `getWorkspaceScopedGraphData` 直接返回槽的实现骗过；只有反向用例
+  // （外来工作区必须拿不到）才能证明这道防护在做实事。CLAUDE.md 里
+  // 「on/off 标记必须有反向断言」说的就是这个形态。
+  it('GET /bootstrap ignores the in-memory slot when it belongs to another workspace', async () => {
+    deps.setLastGraphData(makeScopedGraphData(
+      [makeNode('root1', 'Root 1', 'module', '/src', 1)],
+      [],
+      '/some/other/workspace',
+    ));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 11);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    // 关键：不能把别的工作区的顶层节点发给本客户端……
+    expect(body.topLevelNodes).toEqual([]);
+    // ……也不能把它的 repoId 塞进响应（那会让客户端把外来身份写进 store）。
+    expect(body.metadata.repoId).toBe(WORKSPACE_PATH);
+    // 槽里有图但这个工作区没有 ⇒ 表现为「索引正在构建」，触发后台构建。
+    expect(body.indexStatus).toBe('building');
+  });
+
+  it('GET /bootstrap still serves the slot when it belongs to the requested workspace', async () => {
+    // 正向配对：证明上一条的「空」不是被实现无条件返回空导致的。
+    deps.setLastGraphData(makeScopedGraphData(
+      [makeNode('root1', 'Root 1', 'module', '/src', 1)],
+      [],
+    ));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 11);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    const body = JSON.parse(state.body);
+    expect(body.topLevelNodes).toHaveLength(1);
+    expect(body.indexStatus).toBe('ready');
+    expect(body.metadata.repoId).toBe(WORKSPACE_PATH);
+  });
 });
 
 describe('node children route', () => {
@@ -2063,7 +2414,7 @@ describe('node children route', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2075,7 +2426,7 @@ describe('node children route', () => {
     const child2 = makeNode('child2', 'Child 2', 'class', '/src/b.ts', 1, {}, 'parent');
     const otherNode = makeNode('other', 'Other', 'function', '/lib/c.ts', 1, {}, 'different-parent');
 
-    deps.setLastGraphData(makeGraphData([parentNode, child1, child2, otherNode], []));
+    deps.setLastGraphData(makeScopedGraphData([parentNode, child1, child2, otherNode], []));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 12);
@@ -2095,7 +2446,7 @@ describe('file outline route (index 13)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2123,7 +2474,7 @@ describe('file outline route (index 13)', () => {
     const sym2 = makeNode('sym2', 'bar', 'class', '/src/main.ts', 20, {}, 'file1');
     const otherSym = makeNode('sym3', 'baz', 'function', '/src/other.ts', 5, {}, 'file2');
     const edges = [makeEdge('e1', 'sym1', 'sym2', 'call')];
-    deps.setLastGraphData(makeGraphData([fileNode, sym1, sym2, otherSym], edges));
+    deps.setLastGraphData(makeScopedGraphData([fileNode, sym1, sym2, otherSym], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
@@ -2151,7 +2502,7 @@ describe('file outline route (index 13)', () => {
   // 注意 `await`：修正反序后，`returnIfEtagMatch` 必须在 `resolveWorkspaceFromRequest()` 之后
   // 才可能回 304，因此 304 不再在 handler 的同步段里写出。
   it('GET /files/{nodeId}/outline returns 304 when etag matches', async () => {
-    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
@@ -2174,7 +2525,7 @@ describe('file outline route (index 13)', () => {
   // 少了请求键维度，客户端拿 file1 的值问 file2 就会收到"没变"，而它手上没有 file2 的符号 ⇒
   // file2 永远展开不出来，且没有任何错误可见。这与"校验器与被校验资源无关"是同一类缺陷的深一层。
   it('GET /files/{nodeId}/outline rejects a validator for a different node', async () => {
-    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
@@ -2192,7 +2543,7 @@ describe('file outline route (index 13)', () => {
   // 没有请求键的裸校验值（改动前的形状）必须不再匹配任何一条按需路由：否则"带键"与"不带键"
   // 两条构造路径会同时存在，其中一个必然算错。
   it('GET /files/{nodeId}/outline rejects a key-less validator', async () => {
-    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
@@ -2208,7 +2559,7 @@ describe('file outline route (index 13)', () => {
   // 反序（先校验 ETag、后解析工作区）会让校验值缺少身份维度：`?workspace=` 还没被读，
   // 请求方声明的工作区被忽略，另一个工作区的校验值也能让本请求回 304。
   it('GET /files/{nodeId}/outline rejects an etag scoped to another workspace', async () => {
-    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
@@ -2234,7 +2585,7 @@ describe('symbol AST route (index 14)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2262,7 +2613,7 @@ describe('symbol AST route (index 14)', () => {
     const ast2 = makeNode('ast2', 'var2', 'variable', '/src/main.ts', 20, {}, 'sym1');
     const otherAst = makeNode('ast3', 'var3', 'variable', '/src/other.ts', 5, {}, 'sym2');
     const edges = [makeEdge('e1', 'ast1', 'ast2', 'call')];
-    deps.setLastGraphData(makeGraphData([symNode, ast1, ast2, otherAst], edges));
+    deps.setLastGraphData(makeScopedGraphData([symNode, ast1, ast2, otherAst], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2281,7 +2632,7 @@ describe('symbol AST route (index 14)', () => {
     const astNodes = Array.from({ length: 5 }, (_, i) =>
       makeNode(`ast${i}`, `var${i}`, 'variable', '/src/main.ts', 10 + i, {}, 'sym1'),
     );
-    deps.setLastGraphData(makeGraphData([symNode, ...astNodes], []));
+    deps.setLastGraphData(makeScopedGraphData([symNode, ...astNodes], []));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2315,7 +2666,7 @@ describe('symbol AST route (index 14)', () => {
     const astNodes = Array.from({ length: 3 }, (_, i) =>
       makeNode(`ast${i}`, `var${i}`, 'variable', '/src/main.ts', 10 + i, {}, 'sym1'),
     );
-    deps.setLastGraphData(makeGraphData([symNode, ...astNodes], []));
+    deps.setLastGraphData(makeScopedGraphData([symNode, ...astNodes], []));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2342,7 +2693,7 @@ describe('symbol AST route (index 14)', () => {
   });
 
   it('GET /symbols/{nodeId}/ast returns 304 when etag matches', async () => {
-    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2362,7 +2713,7 @@ describe('symbol AST route (index 14)', () => {
 
   // 同一个 revision 下，第一页的校验值不得让第二页请求回 304：cursor 是载荷的一部分。
   it('GET /symbols/{nodeId}/ast rejects a validator for a different page', async () => {
-    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2379,7 +2730,7 @@ describe('symbol AST route (index 14)', () => {
 
   // 同一个 revision 下，`/outline` 的校验值不得让 `/ast` 回 304。
   it('GET /symbols/{nodeId}/ast does not accept another resource\'s etag', async () => {
-    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2397,7 +2748,7 @@ describe('symbol AST route (index 14)', () => {
   // `?budget=-5` 曾原样穿过 `parsed || MAX`（它只挡 NaN 与 0），于是 `slice(cursor, cursor + budget)`
   // 得到空页，且请求键里出现负数——一个所有负数请求共用的校验值。负预算没有合法语义，须回落。
   it('GET /symbols/{nodeId}/ast treats a negative budget as absent', async () => {
-    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
@@ -2426,7 +2777,7 @@ describe('edges route (index 15)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2472,7 +2823,7 @@ describe('edges route (index 15)', () => {
       makeEdge('e2', 'n1', 'n3', 'call'),
       makeEdge('e3', 'n2', 'n3', 'call'),
     ];
-    deps.setLastGraphData(makeGraphData([node1, node2, node3], edges));
+    deps.setLastGraphData(makeScopedGraphData([node1, node2, node3], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2493,7 +2844,7 @@ describe('edges route (index 15)', () => {
       makeEdge('e2', 'n1', 'n3', 'call'),
       makeEdge('e3', 'n2', 'n3', 'call'),
     ];
-    deps.setLastGraphData(makeGraphData([node1, node2, node3], edges));
+    deps.setLastGraphData(makeScopedGraphData([node1, node2, node3], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2507,7 +2858,7 @@ describe('edges route (index 15)', () => {
   });
 
   it('GET /edges returns 304 when etag matches', async () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2528,7 +2879,7 @@ describe('edges route (index 15)', () => {
 
   // 明细请求（`detail=1`）不得被聚合页的校验值命中：两者的载荷完全不同。
   it('GET /edges rejects a validator built for the aggregated view', async () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2546,7 +2897,7 @@ describe('edges route (index 15)', () => {
   // `/children` 与 `/edges` 曾经先校验 ETag、后解析工作区：`?workspace=` 还没被读，
   // 校验值因此缺少身份维度，另一个工作区的校验值也能让本请求回 304。
   it('GET /edges rejects an etag scoped to another workspace', async () => {
-    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
+    const graphData = makeScopedGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2571,7 +2922,7 @@ describe('edges route (index 15)', () => {
     for (let i = 0; i < 14; i++) {
       edges.push(makeEdge(`e${i}`, `n${i}`, `n${i + 1}`, 'call'));
     }
-    deps.setLastGraphData(makeGraphData(nodes, edges));
+    deps.setLastGraphData(makeScopedGraphData(nodes, edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2600,7 +2951,7 @@ describe('edges route (index 15)', () => {
     for (let i = 0; i < 25; i++) {
       edges.push(makeEdge(`e${i}`, `n${i}`, `n${i + 25}`, 'call'));
     }
-    deps.setLastGraphData(makeGraphData(nodes, edges));
+    deps.setLastGraphData(makeScopedGraphData(nodes, edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2627,7 +2978,7 @@ describe('edges route (index 15)', () => {
     for (let i = 0; i < 25; i++) {
       edges.push(makeEdge(`e${i}`, `n${i}`, `n${i + 25}`, 'call'));
     }
-    deps.setLastGraphData(makeGraphData(nodes, edges));
+    deps.setLastGraphData(makeScopedGraphData(nodes, edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2643,7 +2994,7 @@ describe('edges route (index 15)', () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'lib/util.ts', 5);
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
-    deps.setLastGraphData(makeGraphData([node1, node2], edges));
+    deps.setLastGraphData(makeScopedGraphData([node1, node2], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2658,7 +3009,7 @@ describe('edges route (index 15)', () => {
   it('GET /edges returns empty when fromId matches no nodes (scope=symbol)', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
-    deps.setLastGraphData(makeGraphData([node1], edges));
+    deps.setLastGraphData(makeScopedGraphData([node1], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2674,7 +3025,7 @@ describe('edges route (index 15)', () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
-    deps.setLastGraphData(makeGraphData([node1, node2], edges));
+    deps.setLastGraphData(makeScopedGraphData([node1, node2], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2693,7 +3044,7 @@ describe('edges route (index 15)', () => {
       makeEdge('e1', 'n1', 'n2', 'call'),
       makeEdge('e2', 'n2', 'n3', 'call'),
     ];
-    deps.setLastGraphData(makeGraphData([node1, node2, node3], edges));
+    deps.setLastGraphData(makeScopedGraphData([node1, node2, node3], edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2715,7 +3066,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2864,7 +3215,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
   it('GET /edges never aggregates symbol scope even past the threshold', async () => {
     const nodes = [makeNode('nodeA', 'A', 'function', 'src/main.ts', 1)];
     const edges = Array.from({ length: 25 }, (_, i) => makeEdge(`e${i}`, 'nodeA', `n${i}`, 'call'));
-    deps.setLastGraphData(makeGraphData(nodes, edges));
+    deps.setLastGraphData(makeScopedGraphData(nodes, edges));
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
@@ -2920,7 +3271,7 @@ describe('file outline route - DB fallback (index 13)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -2967,7 +3318,7 @@ describe('symbol AST route - DB fallback (index 14)', () => {
     config = makeConfig();
     deps = makeDeps(ctx, config);
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
@@ -3081,7 +3432,7 @@ describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
     graphRepo.init();
     deps.graphRepo = graphRepo;
     vi.mocked(fetchMergedGraph).mockClear();
-    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
   });
 
   afterEach(() => {
@@ -3144,7 +3495,7 @@ describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
 
     const saveSpy = vi.spyOn(graphRepo, 'saveSnapshot');
     vi.mocked(fetchMergedGraph).mockResolvedValue(
-      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], []),
+      makeScopedGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], []),
     );
     deps.setScanInFlight(workspace, null);
     deps.getScanCache().clear();
@@ -3163,7 +3514,7 @@ describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
     const firstHash = graphRepo.getLatestSnapshot(repoId())?.snapshotHash;
 
     vi.mocked(fetchMergedGraph).mockResolvedValue(
-      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], []),
+      makeScopedGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], []),
     );
     deps.setScanInFlight(workspace, null);
     deps.getScanCache().clear();
@@ -3177,14 +3528,14 @@ describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
 
   it('ignores a changed metadata.timestamp when the content is identical', async () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(
-      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], [], 'test-repo', 111),
+      makeScopedGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], [], 'test-repo', 111),
     );
     triggerBackgroundBuild(deps, vi.fn() as never, workspace);
     await settle();
     const firstHash = graphRepo.getLatestSnapshot(repoId())?.snapshotHash;
 
     vi.mocked(fetchMergedGraph).mockResolvedValue(
-      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], [], 'test-repo', 999_999),
+      makeScopedGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], [], 'test-repo', 999_999),
     );
     deps.setScanInFlight(workspace, null);
     deps.getScanCache().clear();
@@ -3214,7 +3565,7 @@ describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
   it('keeps at most FINGERPRINT.SNAPSHOT_KEEP distinct snapshots per repo', async () => {
     for (let i = 0; i < FINGERPRINT.SNAPSHOT_KEEP + 2; i++) {
       vi.mocked(fetchMergedGraph).mockResolvedValue(
-        makeGraphData([makeNode('a', 'alpha', 'function', `src/a${i}.ts`, 1)], []),
+        makeScopedGraphData([makeNode('a', 'alpha', 'function', `src/a${i}.ts`, 1)], []),
       );
       deps.setScanInFlight(workspace, null);
       deps.getScanCache().clear();

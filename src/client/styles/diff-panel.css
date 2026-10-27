@@ -181,3 +181,35 @@
   font-size: 11px;
   font-style: italic;
 }
+
+/*
+  粒度披露（cycle-105 P0-D）。
+  这份 diff 是文件级的，必须常驻可见——它解释「为什么只亮了几个文件节点」。
+  刻意用最轻的视觉重量（次要色、无背景）：它是一条事实说明，不是警告。
+*/
+.cg-diff-granularity {
+  margin-top: 6px;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+/*
+  截断披露。
+  只在真的截断时渲染（JSX 侧已门控），因此这里可以用警告色：出现即意味着
+  「你看到的清单不是全部」，这需要用户主动注意，不能和粒度说明混在一起。
+
+  刻意**不用背景色**：本仓库的设计令牌里没有 `--cg-warning-soft`，而写一个
+  颜色字面色会同时违反 `tokensContract.test.ts`（禁止在非令牌文件里出现颜色字面量）
+  与主题切换（深色主题下该字面色不会跟着变）。左侧 2px 竖线 + 文字本身已经足够
+  把这个提示从周围内容里区分出来。
+*/
+.cg-diff-truncated {
+  margin-top: 6px;
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid var(--cg-warning);
+  color: var(--cg-text);
+  font-size: 10px;
+  line-height: 1.4;
+}

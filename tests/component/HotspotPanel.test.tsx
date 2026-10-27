@@ -10,9 +10,9 @@ import { HotspotPanel } from '../../src/client/components/HotspotPanel.tsx';
 import type { HotspotNode } from '../../src/client/hooks/useAnalysisPanels.ts';
 
 const sampleHotspots: HotspotNode[] = [
-  { nodeId: 'n1', label: 'functionA', indegree: 15, level: 'critical' },
-  { nodeId: 'n2', label: 'functionB', indegree: 10, level: 'warning' },
-  { nodeId: 'n3', label: 'functionC', indegree: 6, level: 'info' },
+  { nodeId: 'n1', label: 'functionA', filePath: 'src/a.ts', indegree: 15, churn: 42, hotspotScore: 57, level: 'critical' },
+  { nodeId: 'n2', label: 'functionB', filePath: 'src/b.ts', indegree: 10, churn: 20, hotspotScore: 30, level: 'warning' },
+  { nodeId: 'n3', label: 'functionC', filePath: 'src/c.ts', indegree: 6, churn: 5, hotspotScore: 11, level: 'info' },
 ];
 
 afterEach(() => {
@@ -86,7 +86,10 @@ describe('HotspotPanel component', () => {
     const manyHotspots: HotspotNode[] = Array.from({ length: 30 }, (_, i) => ({
       nodeId: `n${i}`,
       label: `func${i}`,
+      filePath: `src/f${i}.ts`,
       indegree: i + 1,
+      churn: i,
+      hotspotScore: i + 1,
       level: 'info',
     }));
     render(<HotspotPanel hotspotNodes={manyHotspots} onClose={vi.fn()} label="Hotspots" />);
@@ -103,7 +106,7 @@ describe('HotspotPanel component', () => {
   it('updates when hotspotNodes prop changes', () => {
     const { rerender } = render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
     expect(screen.getByText('functionA')).toBeInTheDocument();
-    rerender(<HotspotPanel hotspotNodes={[{ nodeId: 'new', label: 'newFunc', indegree: 99, level: 'critical' }]} onClose={vi.fn()} label="Hotspots" />);
+    rerender(<HotspotPanel hotspotNodes={[{ nodeId: 'new', label: 'newFunc', filePath: 'src/new.ts', indegree: 99, churn: 10, hotspotScore: 109, level: 'critical' }]} onClose={vi.fn()} label="Hotspots" />);
     expect(screen.getByText('newFunc')).toBeInTheDocument();
     expect(screen.queryByText('functionA')).toBeNull();
   });

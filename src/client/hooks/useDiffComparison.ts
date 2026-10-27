@@ -108,6 +108,8 @@ export function useDiffComparison(params: UseDiffComparisonParams): UseDiffCompa
         edges: payload.edges,
         index,
         requestedAt: Date.now(),
+        granularity: payload.granularity,
+        truncated: payload.truncated,
       };
       setDiffResult(next);
       setIsComparing(false);

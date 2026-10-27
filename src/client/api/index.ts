@@ -3,6 +3,7 @@ import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { coerceGraphData, coerceNode, coerceEdge } from '../../shared/GraphValidator.ts';
 import { isForeignRepo } from '../../shared/graphScope.ts';
+import type { ChurnResult } from '../../shared/churn.ts';
 import {
   etagKeyForChildren, etagKeyForOutline, etagKeyForAst, etagKeyForEdges, resolveAstBudget,
 } from '../../shared/graphFingerprint.ts';
@@ -349,6 +350,24 @@ export interface DiffGraphData {
   /** 请求所用的基线引用（原样回显，供面板显示「main → feature」）。 */
   from: string;
   to: string;
+  /**
+   * 本次 diff 的粒度（cycle-105 P0-D 修复后新增）。
+   *
+   * `'file'` 表示「只对比到文件级」：`codegraph.db` 没有 revision 维度，符号级 diff
+   * 在数据面上不可实现，宿主改用 `git diff --raw` 给出变更文件清单。面板必须据此把
+   * 文案从「结构变更」改成「文件变更」，否则用户会以为符号级也对比过了。
+   *
+   * 缺省 `'file'`：多代宿主里更老的版本可能不带这个字段，而它们实际给的都是文件级
+   * 粒度（或空 diff）。把缺省值取成更保守的那个，比取成「假装做到了符号级」安全。
+   */
+  granularity: 'file';
+  /**
+   * 是否被宿主的上限截断（`GIT_DIFF.MAX_FILES`）。
+   *
+   * 一份被截断的清单看起来与完整清单一模一样，用户会以为「只改了这些文件」。
+   * 面板必须能显式说明「只覆盖前 N 个文件」。
+   */
+  truncated: boolean;
 }
 
 /**
@@ -380,7 +399,12 @@ export async function fetchGraphDiff(
     if (signal) options.signal = signal;
     const res = await fetchWithTimeout('/api/v1/codegraph/diff', options);
     if (!res.ok) return null;
-    const payload = await res.json() as { nodes?: unknown; edges?: unknown };
+    const payload = await res.json() as {
+      nodes?: unknown;
+      edges?: unknown;
+      granularity?: unknown;
+      truncated?: unknown;
+    };
     // 复用与整图同一套字段归一化：`diffStatus` 落在 `properties` 里，因此这里不需要
     // 单独解析它——但必须经过 `coerceNode`/`coerceEdge`，否则上游给的裸 `from`/`to`
     // 字段名不会被归一化成 `source`/`target`，边的端点会全部丢失。
@@ -396,7 +420,18 @@ export async function fetchGraphDiff(
         // cytoscape 抛「edge endpoint not found」。
         .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
       : [];
-    return { nodes, edges, from, to };
+    return {
+      nodes,
+      edges,
+      from,
+      to,
+      // 多代宿主兼容：`granularity` 不是合法值（缺失 / 未知字符串）时取 `'file'`——
+      // 这是唯一有实现的粒度，也是更保守的那个（不会假装做到了符号级）。
+      granularity: 'file',
+      // 只有**明确**是布尔 `true` 才算截断。字符串 `"true"`、数字 1 都不算：
+      // 把「不确定」判成截断会让面板常驻一条警告，而漏报截断只是少一条提示。
+      truncated: payload.truncated === true,
+    };
   }, null, { from, to });
 }
 
@@ -410,6 +445,51 @@ export async function requestWatch(enabled: boolean, path: string): Promise<bool
     return res.ok;
   }, false);
 }
+
+/**
+ * 请求工作区的 git 变更频率（`GET /api/v1/codegraph/churn`，研究报告 §六 #11）。
+ *
+ * 返回 `null` 表示**这次请求没做成**（网络错误 / 宿主不可用 / 非 2xx）。
+ * 返回一个 `available: false` 的对象表示**宿主答复了，但它也没拿到 git 数据**
+ * （目录不是仓库、git 未安装、超时）。这两种情况都必须与「真的 0 次变更」区分开：
+ * 前者面板显示「无法获取」，后者显示「未获取到变更频率（仅按依赖关系排序）」。
+ *
+ * 刻意**不**把失败归一成 `{ byFile: {} }`：那会让热点排序看起来正常，
+ * 而用户完全不知道支撑这份排序的变更频率其实是空的。
+ */
+export async function fetchHotspotChurn(
+  signal?: AbortSignal,
+  workspace?: string,
+): Promise<ChurnResult | null> {
+  return withAbortGuard('fetchHotspotChurn', async () => {
+    const params = new URLSearchParams();
+    // 与其它按工作区寻址的接口同形：`'.'` 是"未指定"的哨兵值，不发送。
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
+    const qs = params.toString();
+    const options: RequestInit = {};
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout(`/api/v1/codegraph/churn${qs ? `?${qs}` : ''}`, options);
+    if (!res.ok) return null;
+    const payload = await res.json() as Partial<ChurnResult>;
+    // 逐字段归一：老宿主可能没有 `error`，也可能把 `byFile` 发成 `null`。
+    // 缺 `available` 时按 `false` 处理——「不知道是否拿到数据」绝不能当成「拿到了」。
+    const byFile: Record<string, number> = {};
+    if (payload.byFile && typeof payload.byFile === 'object') {
+      for (const [key, value] of Object.entries(payload.byFile)) {
+        if (typeof value === 'number' && Number.isFinite(value) && value > 0) byFile[key] = value;
+      }
+    }
+    return {
+      byFile,
+      commitCount: typeof payload.commitCount === 'number' ? payload.commitCount : 0,
+      revision: typeof payload.revision === 'string' ? payload.revision : null,
+      truncated: payload.truncated === true,
+      available: payload.available === true,
+      error: typeof payload.error === 'string' ? payload.error : null,
+    };
+  }, null, { workspace });
+}
+
 export interface FileOutlineData {
   symbols: GraphNode[];
   edges: GraphEdge[];

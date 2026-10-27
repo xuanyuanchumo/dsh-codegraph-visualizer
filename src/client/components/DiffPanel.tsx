@@ -112,6 +112,26 @@ export const DiffPanel = memo(function DiffPanel({
             <span className="cg-diff-range-to">{diffResult.to}</span>
           </div>
 
+          {/*
+            粒度披露（cycle-105 P0-D）。这份 diff 来自 `git diff --raw`，是**文件级**的：
+            `codegraph.db` 没有 revision 维度，符号级对比在数据面上不可实现。不写这一行，
+            用户会理所当然地以为「新增 3」指的是 3 个函数。
+          */}
+
+          {/*
+            截断披露。一份被截断的清单与完整清单长得一模一样，用户会以为「只改了这些文件」。
+            只在真的截断时渲染——无条件渲染会让这条提示退化成装饰，用户学会忽略它。
+          */}
+          <div className="cg-diff-granularity" role="note">
+            {t('diff.granularityFile')}
+          </div>
+
+          {diffResult.truncated && (
+            <div className="cg-diff-truncated" role="alert">
+              {t('diff.truncated')}
+            </div>
+          )}
+
           <div className="cg-diff-counts" role="list" aria-label={t('diff.countsLabel')}>
             {DIFF_STATUSES.map((status) => (
               <div key={status} className={`cg-diff-count-row cg-diff-count-${status}`} role="listitem">
@@ -134,7 +154,7 @@ export const DiffPanel = memo(function DiffPanel({
           </div>
 
           {totalChanges === 0 && (
-            <div className="cg-diff-nochange">{t('diff.noChange')}</div>
+            <div className="cg-diff-nochange">{t('diff.noFileChange')}</div>
           )}
         </>
       )}

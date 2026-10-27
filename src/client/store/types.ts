@@ -28,6 +28,14 @@ export interface DiffState {
   index: DiffIndex;
   /** 请求发起时刻，供面板显示「对比于 12:34」。 */
   requestedAt: number;
+  /**
+   * 本次对比的粒度（cycle-105 P0-D）。恒为 `'file'`：`codegraph.db` 没有 revision
+   * 维度，宿主改用 `git diff --raw` 给出变更文件清单。面板据此把文案写成「文件变更」，
+   * 不让用户以为符号级也对比过了。
+   */
+  granularity: 'file';
+  /** 是否被宿主上限截断（`GIT_DIFF.MAX_FILES`）。截断必须显式披露。 */
+  truncated: boolean;
 }
 
 export interface WorkspaceInfo {

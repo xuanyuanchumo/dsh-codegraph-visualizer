@@ -18,13 +18,16 @@ import { buildDiffIndex } from '../../src/shared/diffStatus.ts';
 import type { DiffState } from '../../src/client/store/types.ts';
 import { NodeId } from '../../src/types/index.ts';
 
-function makeDiffState(from = 'main', to = 'feature'): DiffState {
+function makeDiffState(from = 'main', to = 'feature', truncated = false): DiffState {
   const nodes = [
     { id: NodeId('n1'), label: 'A', type: 'function' as const, filePath: 'a.ts', lineNumber: 1, properties: { diffStatus: 'added' } },
     { id: NodeId('n2'), label: 'B', type: 'function' as const, filePath: 'a.ts', lineNumber: 2, properties: { diffStatus: 'modified' } },
     { id: NodeId('n3'), label: 'C', type: 'function' as const, filePath: 'b.ts', lineNumber: 3, properties: { diffStatus: 'removed' } },
   ];
-  return { from, to, nodes, edges: [], index: buildDiffIndex(nodes, []), requestedAt: 1 };
+  // `granularity` / `truncated` 是 cycle-105 P0-D 新增的两个字段：前者恒为 `'file'`
+  // （数据面只有文件级 diff），后者必须由宿主显式给出。夹具里给出真实形状，
+  // 而不是用 `as DiffState` 强转——强转会让「组件真的读了这两个字段」这件事无法被断言。
+  return { from, to, nodes, edges: [], index: buildDiffIndex(nodes, []), requestedAt: 1, granularity: 'file', truncated };
 }
 
 function renderPanel(overrides: Partial<React.ComponentProps<typeof DiffPanel>> = {}) {
@@ -122,19 +125,63 @@ describe('DiffPanel', () => {
     expect(screen.getByText(/2 outside the current view/)).toBeInTheDocument();
   });
 
+  it('never promises that expanding directories will reveal the remainder', () => {
+    // cycle-105 真机发现：旧文案写「（展开更多目录可显示）」，但 42 个变更文件里只有
+    // 25 个在 codegraph 索引中，其余 17 个（新增文件）**根本没有节点**——展开多少次
+    // 也出不来。承诺一个做不到的动作比不承诺更坏：用户会反复展开目录，然后认为标记丢了。
+    //
+    // 这条断言刻意是**反向**的（"不得出现"）。只断言新文案存在的话，一个「旧文案 + 新文案
+    // 都渲染」的实现照样绿；而「承诺已删除」这件事只有反向断言能钉住。
+    renderPanel({
+      diffResult: makeDiffState(),
+      markStats: { counts: { added: 3, modified: 0, removed: 0 }, missing: 2, marked: 1 },
+    });
+    expect(screen.queryByText(/expand more directories/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/展开更多目录/)).not.toBeInTheDocument();
+  });
+
   it('shows the no-change message when the diff is empty', () => {
     renderPanel({
       diffResult: makeDiffState(),
       markStats: { counts: { added: 0, modified: 0, removed: 0 }, missing: 0, marked: 0 },
     });
-    expect(screen.getByText('No structural graph change between the two refs')).toBeInTheDocument();
+    // cycle-105 P0-D：文案从「没有图结构变更」改成「没有文件变更」——这份 diff 的
+    // 粒度是文件级（`granularity: 'file'`），说「结构」会让用户以为符号级也对比过。
+    expect(screen.getByText('No file changes between the two refs')).toBeInTheDocument();
+  });
+
+  it('always discloses the file-level granularity next to a result', () => {
+    // 粒度披露是常驻的：只要渲染了结果区，用户就必须能看到「这只是文件级」。
+    // 不写这条断言，删掉那一行 JSX 不会让任何既有用例变红。
+    renderPanel({
+      diffResult: makeDiffState(),
+      markStats: { counts: { added: 1, modified: 0, removed: 0 }, missing: 0, marked: 1 },
+    });
+    expect(screen.getByRole('note')).toHaveTextContent('File-level diff');
+  });
+
+  it('shows the truncation notice only when the host truncated the list', () => {
+    // 成对用例：截断时必须提示，未截断时**不能**提示。
+    // 只测前者的话，「无条件渲染」这个实现也能通过。
+    const { unmount } = renderPanel({
+      diffResult: makeDiffState('main', 'feature', true),
+      markStats: { counts: { added: 1, modified: 0, removed: 0 }, missing: 0, marked: 1 },
+    });
+    expect(screen.getByText(/has been truncated/)).toBeInTheDocument();
+    unmount();
+
+    renderPanel({
+      diffResult: makeDiffState('main', 'feature', false),
+      markStats: { counts: { added: 1, modified: 0, removed: 0 }, missing: 0, marked: 1 },
+    });
+    expect(screen.queryByText(/has been truncated/)).toBeNull();
   });
 
   it('shows an error block on failure and keeps it distinct from an empty diff', () => {
     // 关键断言：失败时**不能**出现「没有变更」的文案——那是把失败说成事实。
     renderPanel({ errorMessage: 'Diff request failed — check that both refs exist' });
     expect(screen.getByRole('alert')).toHaveTextContent('Diff request failed');
-    expect(screen.queryByText('No structural graph change between the two refs')).toBeNull();
+    expect(screen.queryByText('No file changes between the two refs')).toBeNull();
   });
 
   it('renders the clear button only when a result exists', () => {

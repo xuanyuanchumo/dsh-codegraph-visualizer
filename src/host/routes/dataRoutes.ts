@@ -12,7 +12,7 @@ import {
 import { buildCorsHeaders, sendJson, sendError } from '../HttpHelpers.ts';
 import {
   withRouteMiddleware, resolveWorkspaceFromRequest, returnIfEtagMatch, etagGuard, etagHeaders, slimGraphData,
-  triggerBackgroundBuild, type RouteContext,
+  triggerBackgroundBuild, getWorkspaceScopedGraphData, type RouteContext,
 } from './shared.ts';
 
 interface GraphIndex {
@@ -142,7 +142,9 @@ export function registerBootstrapRoute(rc: RouteContext): void {
         }
       }
 
-      const lastGraphData = deps.getLastGraphData();
+      // P0-B：内存回落必须按请求方工作区限定。host 只有一个图槽，无条件下落会把
+      // 另一个工作区的顶层节点连同它的 repoId 一起发给本客户端，覆盖画布身份。
+      const lastGraphData = getWorkspaceScopedGraphData(deps, workspacePath);
       if (lastGraphData && lastGraphData.nodes.length > 0) {
         const allRootNodes = getGraphIndex(lastGraphData).rootNodes;
         const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
@@ -238,7 +240,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
         }
       }
 
-      const lastGraphData = deps.getLastGraphData();
+      const lastGraphData = getWorkspaceScopedGraphData(deps, workspacePath);
       if (lastGraphData && lastGraphData.nodes.length > 0) {
         const children = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
         const startIdx = cursor ? Math.max(0, children.findIndex((n) => n.id > cursor)) : 0;
@@ -307,7 +309,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         }
       }
 
-      const lastGraphData = deps.getLastGraphData();
+      const lastGraphData = getWorkspaceScopedGraphData(deps, workspacePath);
       if (!lastGraphData) {
         sendJson(res, 200, { symbols: [], edges: [] }, req, corsConfig, etagHeader);
         return;
@@ -378,7 +380,9 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         }
       }
 
-      const lastGraphData = deps.getLastGraphData();
+      // P0-B：`/ast` 的 `nodeId` 是**另一个工作区**的节点 id 时，在 A 的图里查表只会得到空数组，
+      // 客户端表现为「展开成功但一个符号都没有」。必须按请求方工作区限定回落槽。
+      const lastGraphData = getWorkspaceScopedGraphData(deps, workspacePath);
       if (!lastGraphData) {
         sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig, etagHeader);
         return;
@@ -522,7 +526,10 @@ export function registerEdgesRoute(rc: RouteContext): void {
         }
       }
 
-      const lastGraphData = deps.getLastGraphData();
+      // P0-B：`/edges` 的内存回落同样按请求方工作区限定。`fromId` 属于别的工作区时，
+      // 在 A 的边集里过滤只会得到空列表，客户端表现为「这个文件没有任何边」——
+      // 与「DB 确实没有边」不可区分。
+      const lastGraphData = getWorkspaceScopedGraphData(deps, workspacePath);
       if (lastGraphData && lastGraphData.nodes.length > 0) {
         let filteredEdges: GraphEdge[];
         if (scope === 'symbol') {

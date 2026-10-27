@@ -257,3 +257,55 @@
   color: var(--cg-accent);
 }
 
+/* ---- cycle-105: Hotspot churn 状态行与多列布局 ---- */
+
+.cg-hotspot-churn-status {
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  background: var(--cg-surface-hover);
+  border-bottom: 1px solid var(--cg-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.cg-hotspot-churn-reason {
+  color: var(--cg-text-tertiary);
+  font-size: 10px;
+}
+
+.cg-hotspot-churn-truncated {
+  color: var(--cg-warning);
+  font-size: 10px;
+}
+
+.cg-hotspot-column-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 48px 48px 48px;
+  gap: 4px;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-text-tertiary);
+  border-bottom: 1px solid var(--cg-border);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cg-hotspot-item {
+  display: grid;
+  grid-template-columns: 28px 1fr 48px 48px 48px;
+  gap: 4px;
+  align-items: center;
+}
+
+.cg-hotspot-churn,
+.cg-hotspot-score {
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
+  color: var(--cg-text-tertiary);
+  text-align: right;
+}
+

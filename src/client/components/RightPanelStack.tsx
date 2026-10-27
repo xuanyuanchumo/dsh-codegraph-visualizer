@@ -11,7 +11,7 @@ import { RuntimePanel } from './RuntimePanel.tsx';
 import { DiffPanel } from './DiffPanel.tsx';
 import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
-import type { HotspotNode, GodModule, ImpactStats } from '../hooks/useAnalysisPanels.ts';
+import type { HotspotNode, GodModule, ImpactStats, ChurnStatus } from '../hooks/useAnalysisPanels.ts';
 import type { CoreFunction } from '../../shared/analysis/CoreFunctionAnalyzer.ts';
 import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import type { CycleInfo } from '../renderer/CycleDetector.ts';
@@ -27,6 +27,8 @@ interface RightPanelStackProps {
   viewportInfo: { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
   onFocusArea: (ratioX: number, ratioY: number) => void;
   hotspotNodes: HotspotNode[];
+  /** 变更频率的取数状态；可选，缺省时热点面板退化为「只显示入度」。 */
+  churnStatus?: ChurnStatus;
   godModules: GodModule[];
   coreFunctions: CoreFunction[];
   deadCodeResult: DeadCodeResult | null;
@@ -70,7 +72,7 @@ export function RightPanelStack(props: RightPanelStackProps) {
     },
     {
       visible: panel.showHotspot && props.hotspotNodes.length > 0,
-      children: <HotspotPanel hotspotNodes={props.hotspotNodes} onClose={() => panel.setShowHotspot(false)} label={props.labels.hotspot} />,
+      children: <HotspotPanel hotspotNodes={props.hotspotNodes} churnStatus={props.churnStatus} onClose={() => panel.setShowHotspot(false)} label={props.labels.hotspot} />,
     },
     {
       visible: panel.showGodModule && props.godModules.length > 0,

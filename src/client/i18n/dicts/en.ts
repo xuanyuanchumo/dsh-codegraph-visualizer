@@ -334,6 +334,15 @@ export const en: Record<string, string> = {
 
   // Hotspot panel
   'hotspot.close': 'Close hotspot analysis',
+  'hotspot.title': 'Hotspot Functions',
+  'hotspot.churn.loading': 'Reading git change frequency…',
+  'hotspot.churn.unavailable': 'Change frequency unavailable — ranking by dependency (indegree) only',
+  'hotspot.churn.unavailableReason': 'Reason: {reason}',
+  'hotspot.churn.ready': 'Change frequency from the last {count} commits',
+  'hotspot.churn.truncated': ' (truncated: last {count} commits only)',
+  'hotspot.churn.columnIndegree': 'In-degree',
+  'hotspot.churn.columnChurn': 'Changes',
+  'hotspot.churn.columnScore': 'Score',
 
   // Impact radius
   'impact.total': 'Total impacted nodes',
@@ -351,8 +360,13 @@ export const en: Record<string, string> = {
   'diff.status.modified': 'Modified',
   'diff.status.removed': 'Removed',
   'diff.markedAll': '{marked} changes marked',
-  'diff.markedPartial': '{marked} of {total} marked — {missing} outside the current view (expand more directories to reveal)',
-  'diff.noChange': 'No structural graph change between the two refs',
+  // Deliberately NOT promising "expand more directories": measured live, only 25 of 42
+  // changed files exist in the index, so the other 17 (newly added files) can never be
+  // revealed. Promising an action that cannot work is worse than promising nothing.
+  'diff.markedPartial': '{marked} of {total} marked — {missing} outside the current view',
+  'diff.noFileChange': 'No file changes between the two refs',
+  'diff.granularityFile': 'File-level diff: only changed files are marked, no symbol-level detail',
+  'diff.truncated': 'Too many changed files — the list has been truncated',
   'diff.requestFailed': 'Diff request failed — check that both refs exist',
   'diff.toolbar': 'Version diff',
 

@@ -333,6 +333,17 @@ export const zh: Record<string, string> = {
 
   // Hotspot panel
   'hotspot.close': '关闭热点分析',
+  'hotspot.title': '热点函数',
+  // 变更频率（churn）状态说明。三档必须可区分：
+  // loading 不能说「未获取到」，unavailable 不能显示成「0 次变更」，truncated 要说明覆盖范围。
+  'hotspot.churn.loading': '正在读取 git 变更频率…',
+  'hotspot.churn.unavailable': '未获取到变更频率，当前仅按依赖关系（入度）排序',
+  'hotspot.churn.unavailableReason': '原因：{reason}',
+  'hotspot.churn.ready': '变更频率来自最近 {count} 个提交',
+  'hotspot.churn.truncated': '（已截断，仅统计最近 {count} 个提交）',
+  'hotspot.churn.columnIndegree': '入度',
+  'hotspot.churn.columnChurn': '变更次数',
+  'hotspot.churn.columnScore': '热点分',
 
   // 影响半径
   'impact.total': '总影响节点',
@@ -350,8 +361,13 @@ export const zh: Record<string, string> = {
   'diff.status.modified': '修改',
   'diff.status.removed': '删除',
   'diff.markedAll': '已标记 {marked} 处变更',
-  'diff.markedPartial': '已标记 {marked} / {total} 处，另有 {missing} 处不在当前视图（展开更多目录可显示）',
-  'diff.noChange': '两个引用之间没有图结构变更',
+  // 刻意**不**写「展开更多目录可显示」：真机实测 42 个变更文件里只有 25 个在索引中，
+  // 其余 17 个（新增文件）根本没有节点，展开多少次也出不来。承诺一个做不到的动作，
+  // 比不承诺更坏——用户会反复展开目录，然后认为标记丢了。
+  'diff.markedPartial': '已标记 {marked} / {total} 处，另有 {missing} 处不在当前视图',
+  'diff.noFileChange': '两个引用之间没有文件变更',
+  'diff.granularityFile': '对比粒度为文件级：仅标出发生变更的文件，不含符号级差异',
+  'diff.truncated': '变更文件过多，仅显示前若干条（已截断）',
   'diff.requestFailed': '对比请求失败，请检查两个引用是否存在',
   'diff.toolbar': '版本对比',
 
