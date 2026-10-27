@@ -46,6 +46,7 @@ import { LeftPanelStack } from './components/LeftPanelStack.tsx';
 import { RightPanelStack } from './components/RightPanelStack.tsx';
 
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
+import { GraphCanvasControls } from './components/GraphCanvasControls.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
 import { dispatchCgEvent } from './utils/cgEvents.ts';
@@ -525,6 +526,24 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
               {t('common.noVisibleNodes')}
             </div>
           )}
+          <GraphCanvasControls
+            rendererRef={renderer.rendererRef}
+            visibleNodeCount={visibleNodeCount}
+            visibleEdgeCount={edges.length}
+            totalNodeCount={totalNodeCount || rawNodes.length}
+            totalEdgeCount={rawEdges.length}
+            collapsed={panel.collapsed || isCollapsed}
+            isMicroView={isMicroView}
+            isRuntimeView={isRuntimeView}
+            thumbnail={thumbnail}
+            viewportInfo={viewportInfo}
+            onFocusArea={(ratioX, ratioY) => {
+              const info = renderer.rendererRef.current?.getViewportInfo();
+              if (info) {
+                renderer.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+              }
+            }}
+          />
         </div>
       </GraphErrorBoundary>
       {viewMode === 'sequence' && selectedFunction && !isCollapsed && (

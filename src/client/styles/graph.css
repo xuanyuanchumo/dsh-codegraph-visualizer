@@ -310,3 +310,164 @@
 .cg-graph-container.cg-loading {
   opacity: 0.4;
 }
+
+/* ---- Canvas controls overlay (GraphCanvasControls) ------------------------- */
+/* 浮在画布右下角的交互式控制层：缩放按钮 + 统计信息 + 交互式小地图。
+ * 容器 pointer-events: none，子元素 pointer-events: auto，
+ * 不拦截画布的拖拽/滚轮事件。 */
+
+.cg-canvas-controls-overlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: var(--cg-z-canvas-ui, 10);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* ---- 统计信息浮层 ---- */
+.cg-canvas-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--cg-shadow-sm);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cg-canvas-stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cg-canvas-stat-item svg {
+  opacity: 0.7;
+}
+
+.cg-canvas-stat-sep {
+  color: var(--cg-text-tertiary);
+  opacity: 0.5;
+}
+
+.cg-canvas-stat-ratio {
+  color: var(--cg-accent);
+  font-weight: 500;
+}
+
+/* ---- 缩放按钮组 ---- */
+.cg-canvas-zoom-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius);
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--cg-shadow);
+}
+
+.cg-canvas-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text);
+  cursor: pointer;
+  border-radius: var(--cg-radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--cg-transition, 150ms ease),
+              color var(--cg-transition, 150ms ease);
+  padding: 0;
+}
+
+.cg-canvas-btn:hover {
+  background: var(--cg-surface-hover);
+  color: var(--cg-accent);
+}
+
+.cg-canvas-btn:active {
+  background: var(--cg-surface-active);
+}
+
+.cg-canvas-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: -2px;
+}
+
+/* ---- 交互式小地图 ---- */
+.cg-canvas-minimap {
+  position: relative;
+  width: 140px;
+  height: 100px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  overflow: hidden;
+  cursor: crosshair;
+  pointer-events: auto;
+  background: var(--cg-bg);
+  box-shadow: var(--cg-shadow);
+  transition: border-color var(--cg-transition, 150ms ease);
+}
+
+.cg-canvas-minimap:hover {
+  border-color: var(--cg-accent);
+}
+
+.cg-canvas-minimap-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.cg-canvas-minimap-viewport {
+  position: absolute;
+  border: 2px solid var(--cg-accent);
+  background: var(--cg-accent-soft);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: left 100ms linear, top 100ms linear,
+              width 100ms linear, height 100ms linear;
+}
+
+/* ---- 响应式：小屏隐藏小地图，缩小按钮 ---- */
+@media (max-width: 768px) {
+  .cg-canvas-minimap {
+    display: none;
+  }
+  .cg-canvas-stats {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .cg-canvas-btn {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* ---- 深色主题适配 ---- */
+:where([data-theme='dark'], [data-ds-dark-theme]) {
+  .cg-canvas-minimap-img {
+    opacity: 0.7;
+  }
+}

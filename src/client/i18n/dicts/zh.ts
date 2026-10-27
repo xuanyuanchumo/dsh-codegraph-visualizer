@@ -414,6 +414,23 @@ export const zh: Record<string, string> = {
   'sequence.zoomOut': '缩小',
   'sequence.resetView': '重置视图',
 
+  // 画布交互控制层（GraphCanvasControls）
+  'canvasControls.zoomGroup': '缩放控制',
+  'canvasControls.zoomIn': '放大',
+  'canvasControls.zoomOut': '缩小',
+  'canvasControls.fitView': '适应窗口',
+  'canvasControls.resetLayout': '重置布局',
+  'canvasControls.nodes': '{visible}/{total} 节点',
+  'canvasControls.edges': '{visible}/{total} 边',
+  'canvasControls.zoomLevel': '{level}% 缩放',
+  'canvasControls.visibleRatio': '{ratio}% 可见',
+  'canvasControls.nodesTitle': '可见节点 / 总节点',
+  'canvasControls.edgesTitle': '可见边 / 总边',
+  'canvasControls.zoomTitle': '当前缩放级别',
+  'canvasControls.visibleRatioTitle': '可见节点比例',
+  'canvasControls.minimap': '交互式小地图',
+  'canvasControls.minimapHint': '点击或拖拽以导航到该位置',
+
   'micro.closeView': '关闭微观视图',
   'micro.functionBar': '微观视图工具栏',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',

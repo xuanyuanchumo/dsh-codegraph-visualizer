@@ -413,6 +413,23 @@ export const en: Record<string, string> = {
   'sequence.zoomOut': 'Zoom out',
   'sequence.resetView': 'Reset view',
 
+  // Canvas interactive controls (GraphCanvasControls)
+  'canvasControls.zoomGroup': 'Zoom controls',
+  'canvasControls.zoomIn': 'Zoom in',
+  'canvasControls.zoomOut': 'Zoom out',
+  'canvasControls.fitView': 'Fit to view',
+  'canvasControls.resetLayout': 'Reset layout',
+  'canvasControls.nodes': '{visible}/{total} nodes',
+  'canvasControls.edges': '{visible}/{total} edges',
+  'canvasControls.zoomLevel': '{level}% zoom',
+  'canvasControls.visibleRatio': '{ratio}% visible',
+  'canvasControls.nodesTitle': 'Visible / total nodes',
+  'canvasControls.edgesTitle': 'Visible / total edges',
+  'canvasControls.zoomTitle': 'Current zoom level',
+  'canvasControls.visibleRatioTitle': 'Visible node ratio',
+  'canvasControls.minimap': 'Interactive minimap',
+  'canvasControls.minimapHint': 'Click or drag to navigate',
+
   'micro.closeView': 'Close micro view',
   'micro.functionBar': 'Micro view toolbar',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',

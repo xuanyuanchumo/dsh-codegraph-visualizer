@@ -120,4 +120,10 @@ export interface IRenderer {
   clearDiffMarkers(): void;
   pauseAnimations(): void;
   resumeAnimations(): void;
+  /** 缩放画布：factor > 1 放大，factor < 1 缩小。带动画过渡。 */
+  zoomBy(factor: number): void;
+  /** 适应窗口：所有元素 fit 到视口，带内边距。 */
+  fitToView(): void;
+  /** 重置视图：fit + center，无动画（即时）。 */
+  resetView(): void;
 }

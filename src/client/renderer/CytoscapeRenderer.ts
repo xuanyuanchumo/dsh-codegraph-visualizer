@@ -629,4 +629,36 @@ export class CytoscapeRenderer implements IRenderer {
       log.warn('resumeAnimations failed', e);
     }
   }
+
+  /** 缩放画布：factor > 1 放大，factor < 1 缩小。带 200ms 动画过渡。 */
+  zoomBy(factor: number): void {
+    if (!this.cy) return;
+    this.safeCallVoid('zoomBy', () => {
+      const current = this.cy!.zoom();
+      this.cy!.animate({
+        zoom: current * factor,
+        duration: RENDERER.FOCUS_NODE_ANIMATION_MS,
+      });
+    });
+  }
+
+  /** 适应窗口：所有元素 fit 到视口，带内边距。 */
+  fitToView(): void {
+    if (!this.cy) return;
+    this.safeCallVoid('fitToView', () => {
+      this.cy!.animate({
+        fit: { eles: this.cy!.elements(), padding: RENDERER.FIT_PADDING },
+        duration: RENDERER.FOCUS_NODE_ANIMATION_MS + 100,
+      });
+    });
+  }
+
+  /** 重置视图：fit + center，即时无动画。 */
+  resetView(): void {
+    if (!this.cy) return;
+    this.safeCallVoid('resetView', () => {
+      this.cy!.fit(undefined, RENDERER.FIT_PADDING);
+      this.cy!.center();
+    });
+  }
 }
