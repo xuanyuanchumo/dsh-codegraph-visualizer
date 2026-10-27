@@ -21,7 +21,10 @@ build / perf-gate / hygiene 全过。
 |---|---|
 | 测试文件 | **220 passed**（基线 219，+1） |
 | 测试用例 | **5862 passed**（基线 5839，+23） |
-| 通过 / 失败 / 错误 / 跳过 | 5862 / 0 / 0 / 0 |
+| 通过 | 5862 |
+| 失败 | 0 |
+| 错误 | 0 |
+| 跳过 | 0 |
 | 耗时 | 75.80s（一次全量） |
 | typecheck（host+client+test） | exit 0 |
 | lint（oxlint src/） | 0 warnings / 0 errors（272 files / 103 rules） |
