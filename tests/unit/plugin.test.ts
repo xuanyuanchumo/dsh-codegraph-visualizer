@@ -191,11 +191,11 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 9 tools and 6 event listeners', async () => {
+  it('should register 10 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     await apply(ctx);
-    expect(ctx.tools.register).toHaveBeenCalledTimes(9);
+    expect(ctx.tools.register).toHaveBeenCalledTimes(10);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/scanned', expect.any(Function));
@@ -229,6 +229,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
 
     expect(registeredNames).toEqual(returnedNames);
     expect(registeredNames).toContain('graph_path_enumerate');
+    expect(registeredNames).toContain('graph_cycles');
   });
 
 

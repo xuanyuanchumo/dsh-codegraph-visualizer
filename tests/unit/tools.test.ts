@@ -331,7 +331,7 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 9 tools with correct names', async () => {
+  it('should create 10 tools with correct names', async () => {
     const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
@@ -339,6 +339,7 @@ describe('createGraphTools', () => {
     expect(tools.graphImpact.name).toBe('graph_impact');
     expect(tools.graphPathFind.name).toBe('graph_path_find');
     expect(tools.graphPathEnumerate.name).toBe('graph_path_enumerate');
+    expect(tools.graphCycles.name).toBe('graph_cycles');
     expect(tools.graphHealth.name).toBe('graph_health');
     expect(tools.graphRulesCheck.name).toBe('graph_rules_check');
     expect(tools.graphFocus.name).toBe('graph_focus');
@@ -973,6 +974,106 @@ describe('createGraphTools - additional tools', () => {
     expect(output[0]!.text).toContain('No path');
   });
 
+
+  // ── graph_cycles (Xuanji closed-path reader) ─────────────────────────
+
+  const cycleGraph = (edges: Array<[string, string, string]>) => ({
+    nodes: ['a', 'b', 'c', 'd'].map((id, i) => ({
+      id, label: id, type: 'function' as const, filePath: `${id}.ts`, lineNumber: i + 1, properties: {},
+    })),
+    edges: edges.map(([source, target, type], i) => ({ id: `e${i}`, source, target, type, properties: {} })),
+    source: 'codegraph',
+    timestamp: 1,
+  });
+
+  it('graph_cycles should report a triangle once (canonical rotation dedup)', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(cycleGraph([
+      ['a', 'b', 'call'],
+      ['b', 'c', 'call'],
+      ['c', 'a', 'call'],
+    ]));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphCycles.execute({ repoId: 'r1' }, mockExec) as {
+      paths: string[][]; truncated: boolean; total: number;
+    };
+    expect(result.total).toBe(1);
+    const cycle = result.paths[0]!;
+    expect(cycle[0]).toBe(cycle[cycle.length - 1]);
+    expect(new Set(cycle).size).toBe(3);
+  });
+
+  it('graph_cycles should detect two independent cycles and a self-loop', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(cycleGraph([
+      ['a', 'b', 'call'],
+      ['b', 'a', 'call'],
+      ['c', 'd', 'call'],
+      ['d', 'c', 'call'],
+      ['a', 'a', 'call'],
+    ]));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphCycles.execute({ repoId: 'r1' }, mockExec) as { total: number };
+    expect(result.total).toBe(3);
+  });
+
+  it('graph_cycles should honour maxLength (cycle too long is not reported)', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(cycleGraph([
+      ['a', 'b', 'call'],
+      ['b', 'c', 'call'],
+      ['c', 'd', 'call'],
+      ['d', 'a', 'call'],
+    ]));
+    const tools = await createGraphTools(ctx);
+    const short = await tools.graphCycles.execute({ repoId: 'r1', maxLength: 3 }, mockExec) as { total: number };
+    expect(short.total).toBe(0);
+    const long = await tools.graphCycles.execute({ repoId: 'r1', maxLength: 4 }, mockExec) as { total: number };
+    expect(long.total).toBe(1);
+  });
+
+  it('graph_cycles should clamp limit and report truncation', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(cycleGraph([
+      ['a', 'b', 'call'],
+      ['b', 'a', 'call'],
+      ['c', 'd', 'call'],
+      ['d', 'c', 'call'],
+    ]));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphCycles.execute({ repoId: 'r1', limit: 1 }, mockExec) as {
+      total: number; truncated: boolean;
+    };
+    expect(result.total).toBe(1);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('graph_cycles should honour edge-type filter', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(cycleGraph([
+      ['a', 'b', 'import'],
+      ['b', 'a', 'import'],
+    ]));
+    const tools = await createGraphTools(ctx);
+    const callOnly = await tools.graphCycles.execute({ repoId: 'r1', edgeTypes: 'call' }, mockExec) as { total: number };
+    expect(callOnly.total).toBe(0);
+    const importOnly = await tools.graphCycles.execute({ repoId: 'r1', edgeTypes: 'import' }, mockExec) as { total: number };
+    expect(importOnly.total).toBe(1);
+  });
+
+  it('graph_cycles should return null for an empty graph', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [], edges: [], source: 'codegraph', timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphCycles.execute({ repoId: 'r1' }, mockExec);
+    expect(result).toBeNull();
+  });
+
+  it('graph_cycles render should list cycles and the no-cycle message', async () => {
+    const tools = await createGraphTools(ctx);
+    const renderFn = tools.graphCycles.output.render!;
+    const withCycles = renderFn({}, { paths: [['a', 'b', 'a']], truncated: false, total: 1 }) as Array<{ type: string; text: string }>;
+    expect(withCycles[0]!.text).toContain('a → b → a');
+    const none = renderFn({}, { paths: [], truncated: false, total: 0 }) as Array<{ type: string; text: string }>;
+    expect(none[0]!.text).toContain('No dependency cycles');
+  });
+
   it('graph_health should return health score', async () => {
     getMockFetchData('codegraph').mockResolvedValue({
       nodes: [
@@ -1189,6 +1290,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphImpact: { symbolId: 'sym-1' },
   graphPathFind: { repoId: 'repo-1', sourceSymbol: 'sym-a', targetSymbol: 'sym-b' },
   graphPathEnumerate: { repoId: 'repo-1', sourceSymbol: 'sym-a', targetSymbol: 'sym-b' },
+  graphCycles: { repoId: 'repo-1' },
   graphHealth: { repoId: 'repo-1' },
   graphRulesCheck: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 },
   graphFocus: { repoId: 'repo-1', symbolId: 'sym-1' },
@@ -1201,6 +1303,7 @@ const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawI
   { key: 'graphImpact', title: 'Analyze impact', kind: 'search', rawInput: { symbolId: 'sym-1' } },
   { key: 'graphPathFind', title: 'Find call path', kind: 'search', rawInput: { from: 'sym-a', to: 'sym-b' } },
   { key: 'graphPathEnumerate', title: 'Enumerate paths', kind: 'search', rawInput: { from: 'sym-a', to: 'sym-b' } },
+  { key: 'graphCycles', title: 'Enumerate dependency cycles', kind: 'search', rawInput: { repoId: 'repo-1' } },
   { key: 'graphHealth', title: 'Calculate health score', kind: 'other', rawInput: { repoId: 'repo-1' } },
   { key: 'graphRulesCheck', title: 'Check architecture rules', kind: 'other', rawInput: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 } },
   { key: 'graphFocus', title: 'Focus on symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
@@ -1213,6 +1316,7 @@ const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = 
   { key: 'graphImpact', ok: 'Impact analyzed', fail: 'Impact analysis failed' },
   { key: 'graphPathFind', ok: 'Call path', fail: 'Path search failed' },
   { key: 'graphPathEnumerate', ok: 'Paths enumerated', fail: 'Path enumeration failed' },
+  { key: 'graphCycles', ok: 'Dependency cycles', fail: 'Cycle enumeration failed' },
   { key: 'graphHealth', ok: 'Health score', fail: 'Health scoring failed' },
   { key: 'graphRulesCheck', ok: 'Rules checked', fail: 'Rules check failed' },
   { key: 'graphFocus', ok: 'Symbol neighborhood', fail: 'Focus failed' },

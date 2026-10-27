@@ -63,6 +63,8 @@ export function enumerate(
   if (!(maxPaths > 0) || graph.nodeCount === 0) return results;
 
   const simple = rule.simple === true;
+  // 剪枝用 pruneClosed（组合规则可能与判定用 closed 不同），判定仍由 isLegalPath 负责。
+  const closedForPruning = (rule.pruneClosed ?? rule.closed) === true;
   // 简单路径长度天然 ≤ |V|-1；非 simple 的 walk 可以超过 |V|（如 a↔b 上长度 3 的 walk），
   // 只有有限 lMax 才是它的真实上界。lMax 无界 + 非 simple 属调用方违约（validateRule 已报错），
   // 这里用 |V| 兜底终止而不是让枚举失控。
@@ -72,7 +74,7 @@ export function enumerate(
       : rule.lMax
     : graph.nodeCount;
   if (!(depthCap >= rule.lMin)) return results;
-  const closed = rule.closed === true;
+  const closed = closedForPruning;
   const path: NodeId[] = [];
   const visited = new Set<NodeId>();
 

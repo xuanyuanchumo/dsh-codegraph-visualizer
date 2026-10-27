@@ -440,6 +440,59 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
+
+  const graphCycles = defineTool({
+    name: 'graph_cycles',
+    description: 'Enumerate simple dependency cycles (closed paths) in the code graph with a length bound. Each cycle is canonicalised (Booth minimal rotation) so it is reported once regardless of its starting symbol (Xuanji closed-path reader).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      maxLength: { type: 'number', description: 'Maximum cycle length in edges. Default: 6, capped at 12.' },
+      limit: { type: 'number', description: 'Maximum number of cycles returned. Default: 100, capped at 500.' },
+      edgeTypes: {
+        type: 'string',
+        description: 'Comma-separated edge types to traverse. Default: call,import,extend,implement,dependency.',
+      },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as { paths?: string[][]; truncated?: boolean; total?: number } | null;
+        if (!v || !v.paths || v.paths.length === 0) {
+          return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_CYCLES?.en ?? 'No dependency cycles detected.' }];
+        }
+        const lines = v.paths.slice(0, 10).map((cycle, i) => `  ${i + 1}. ${cycle.join(' → ')}`);
+        const suffix = v.truncated ? ' (truncated)' : '';
+        return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} cycle(s)${suffix}\n${lines.join('\n')}` }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { repoId: string };
+      return { card: 'generic' as const, title: 'Enumerate dependency cycles', kind: 'search' as const, rawInput: { repoId: a.repoId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Cycle enumeration failed' : 'Dependency cycles',
+    }),
+    execute: async (args) => {
+      const a = args as { repoId: string; maxLength?: number; limit?: number; edgeTypes?: string };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      if (data.nodes.length === 0) return null;
+      if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) {
+        return toJsonValue({ paths: [], truncated: true, total: 0 });
+      }
+
+      const adapter = new XuanjiAdapter();
+      adapter.loadGraph(data);
+      const parsedTypes = parseEdgeTypes(a.edgeTypes);
+      const result = adapter.cycles({
+        ...(parsedTypes ? { edgeTypes: parsedTypes } : {}),
+        maxLength: clampInt(a.maxLength, 1, 12, 6),
+        limit: clampInt(a.limit, 1, 500, 100),
+      });
+      return toJsonValue(result);
+    },
+  });
+
   const graphHealth = defineTool({
     name: 'graph_health',
     description: 'Calculate architecture health score (coupling, cohesion, cyclic dependency rate, modularity).',
@@ -562,7 +615,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
-  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphHealth, graphRulesCheck, graphFocus, dispose: () => graphCache.clear() };
+  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, dispose: () => graphCache.clear() };
 };
 
 

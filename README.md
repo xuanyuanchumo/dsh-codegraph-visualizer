@@ -107,7 +107,7 @@ pnpm run lint           # Lint
 ```
 src/
 ├── index.ts                  # Host 端插件入口（re-export 聚合）
-├── tools.ts                  # 9 个工具定义（graph_status/data/symbol/impact/path_find/path_enumerate/health/rules_check/focus）
+├── tools.ts                  # 10 个工具定义（graph_status/data/symbol/impact/path_find/path_enumerate/cycles/health/rules_check/focus）
 ├── types/                    # Branded 类型、GraphData、事件声明合并
 ├── adapters/                 # 数据源适配器
 │   ├── CodeGraphAdapter.ts   #   dsh-codegraph 数据源

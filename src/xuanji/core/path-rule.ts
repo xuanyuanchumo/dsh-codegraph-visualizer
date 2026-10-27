@@ -45,8 +45,17 @@ export interface PathRule {
   /** Ψ：路径上每个节点必须满足。 */
   readonly nodeConstraint?: NodePredicate;
   readonly end?: EndPredicate;
-  /** 路径必须回到起点（环）。 */
+  /** 判定语义：合法路径必须回到起点（环）。 */
   readonly closed?: boolean;
+  /**
+   * 枚举剪枝提示：允许 DFS 走到「回到起点」的那一步。
+   *
+   * 与 `closed` 分离的原因：**组合规则的剪枝与判定必须解耦**。
+   * 并集 `R1(闭合) ∪ R2(开放)` 的合法集合包含开放路径，判定时不能要求闭合（`closed=false`），
+   * 但枚举时必须允许闭合路径收束，否则 R1 的环永远走不到终判（会被 simple 剪枝当成重复节点）。
+   * 缺省等于 `closed`。
+   */
+  readonly pruneClosed?: boolean;
   /** 简单路径（不重复节点；闭合路径允许末节点等于首节点）。 */
   readonly simple?: boolean;
   /** 整路径谓词（组合代数产物，通常不手写）。 */
@@ -136,7 +145,10 @@ export function unionRules(r1: PathRule, r2: PathRule): PathRule {
     lMax: Math.max(r1.lMax, r2.lMax),
     nodeConstraint: combinePredicates(r1.nodeConstraint, r2.nodeConstraint, 'or'),
     ...(bothEnd ? { end: (n: NodeId, a: NodeAttrs, s: NodeId) => r1.end!(n, a, s) || r2.end!(n, a, s) } : {}),
-    closed: r1.closed === true && r2.closed === true,
+    // 判定：并集不要求闭合（R2 的开放路径合法）；剪枝：只要有一侧闭合就必须允许「回到起点」
+    // 收束，否则 R1 的环永远走不到 isLegalPath。精确成员资格由 pathConstraint 决定。
+    closed: false,
+    pruneClosed: r1.closed === true || r2.closed === true,
     simple: r1.simple === true && r2.simple === true,
     pathConstraint: (nodes, graph) => isLegalPath(r1, nodes, graph) || isLegalPath(r2, nodes, graph),
     ...(r1.output ? { output: r1.output } : r2.output ? { output: r2.output } : {}),
@@ -173,6 +185,12 @@ export function intersectRules(r1: PathRule, r2: PathRule): PathRule {
 /**
  * 拼接 R1 · R2：p1 终点 = p2 起点，长度相加。
  * 整路径合法性 = ∃ 切分点 k，使前段合法于 R1、后段合法于 R2（O(L²)，路径短）。
+ *
+ * 剪枝谓词刻意取**超集**：
+ * - nodeConstraint 不取交（也不取并）——两段各自约束不同节点集合，任何单一逐节点
+ *   谓词都会误剪「只在前段合法」或「只在后段合法」的节点。置空 + pathConstraint 精确终判；
+ * - simple=false——两段各自简单不代表拼起来简单（边界节点可在两段内各出现一次），
+ *   取 true 会让 DFS 剪掉这类合法拼接。简单性按段判定，已在 JSDoc 与 spec §2.4 注明。
  */
 export function concatRules(r1: PathRule, r2: PathRule): PathRule {
   return {
@@ -182,12 +200,13 @@ export function concatRules(r1: PathRule, r2: PathRule): PathRule {
     edgeTypes: new Set([...r1.edgeTypes, ...r2.edgeTypes]),
     lMin: r1.lMin + r2.lMin,
     lMax: r1.lMax + r2.lMax,
-    nodeConstraint: combinePredicates(r1.nodeConstraint, r2.nodeConstraint, 'and'),
     ...(r2.end ? { end: r2.end } : {}),
     closed: false,
-    simple: r1.simple === true && r2.simple === true,
+    simple: false,
     pathConstraint: (nodes, graph) => {
-      for (let k = 1; k < nodes.length; k++) {
+      // k 取 1..nodes.length：k=1 覆盖「R1 段是单个节点（0 边）」，
+      // k=nodes.length 覆盖「R2 段是单个节点（0 边）」——lMin=0 的段必须可达。
+      for (let k = 1; k <= nodes.length; k++) {
         const head = nodes.slice(0, k);
         const tail = nodes.slice(k - 1);
         if (isLegalPath(r1, head, graph) && isLegalPath(r2, tail, graph)) return true;
@@ -245,7 +264,9 @@ export function isLegalPath(
   if (rule.closed === true) {
     if (edges < 1 || nodes[0] !== nodes[nodes.length - 1]) return false;
   }
-  if (rule.simple === true && hasDuplicateNodes(nodes, rule.closed === true)) return false;
+  // 闭合返回的放行条件与剪枝一致：组合规则可能 closed=false 但 pruneClosed=true
+  // （并集含闭合与开放两侧），此时逐节点简单性只能是超集，精确性由 pathConstraint 负责。
+  if (rule.simple === true && hasDuplicateNodes(nodes, (rule.pruneClosed ?? rule.closed) === true)) return false;
 
   const startAttrs = graph.getNodeAttrs(nodes[0]!);
   if (!startAttrs || !rule.start(nodes[0]!, startAttrs)) return false;

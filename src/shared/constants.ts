@@ -455,6 +455,7 @@ export const TOOL_MESSAGES: Record<string, { en: string; zh: string }> = {
   INSUFFICIENT_DATA: { en: 'Insufficient data for health scoring.', zh: '数据不足，无法进行健康评分。' },
   NO_VIOLATIONS: { en: 'No rule violations detected.', zh: '未检测到规则违规。' },
   RULE_VIOLATIONS: { en: 'rule violations:', zh: '条规则违规：' },
+  NO_CYCLES: { en: 'No dependency cycles detected.', zh: '未检测到依赖环。' },
 };
 export const ERROR_CODES = {
   PATH_NOT_ALLOWED: 'PATH_NOT_ALLOWED',
