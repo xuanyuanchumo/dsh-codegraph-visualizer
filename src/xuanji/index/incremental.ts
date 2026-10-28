@@ -33,7 +33,7 @@ import type { PathRule } from '../core/path-rule.ts';
 import { isLegalPath } from '../core/path-rule.ts';
 import type { PathEntry } from '../core/path-entry.ts';
 import { makeEntry } from '../core/path-entry.ts';
-import { reviveEntry } from './path-index.ts';
+import { edgePairKey, reviveEntry } from './path-index.ts';
 import type { PathIndex } from './path-index.ts';
 
 /** 增量展开预算（前缀展开 + 后缀展开次数）。超出即触发整索引降级。 */
@@ -233,12 +233,66 @@ export function onEdgeAdded(
 }
 
 /**
- * 删除边 e 之后的增量处理：保守失效经过 (u,v) 的全部条目。
+ * 删除边之后的增量处理：保守失效经过 (u,v) 的全部条目。
  *
  * 只置 stale（不重新枚举），返回**本次新置**的条数；类型不在规则里则不触碰索引。
  * 幂等：重复调用返回 0。
+ *
+ * 这是 XJ-04 之前的**旧入口**，返回 number 的语义被既有调用方（含 `XuanjiAdapter`）
+ * 依赖，因此原样保留；需要「是否该重建」的判定请用 {@link onEdgeRemovedDetailed}。
  */
 export function onEdgeRemoved(edge: XJEdge, rule: PathRule, index: PathIndex): number {
-  if (!rule.edgeTypes.has(edge.type)) return 0;
-  return index.markStale(`${edge.source}->${edge.target}`);
+  return onEdgeRemovedDetailed(edge, rule, index).newlyStale;
+}
+
+/** 删除单条边之后的判定结果（XJ-04）。 */
+export interface EdgeRemovalResult {
+  /** 本次新置 stale 的条目数（幂等：重复调用为 0）。 */
+  readonly newlyStale: number;
+  /** 索引的**全量** stale 比例：counters.stale / counters.total。 */
+  readonly staleRatio: number;
+  /** stale 比例是否已超过阈值，即索引需要全量重建。 */
+  readonly needsRebuild: boolean;
+}
+
+/** stale 比例超过该值即视为索引需要全量重建（与 query-engine 的回退阈值 0.3 一致）。 */
+export const DEFAULT_THETA_STALE = 0.3;
+
+/** {@link onEdgeRemovedDetailed} 的可选参数。 */
+export interface EdgeRemovalOptions {
+  /** 覆盖 stale 阈值（缺省 {@link DEFAULT_THETA_STALE}）；用于测试与按读法调参。 */
+  readonly thetaStale?: number;
+}
+
+function resolveTheta(options?: EdgeRemovalOptions): number {
+  const requested = options?.thetaStale;
+  if (requested === undefined || !Number.isFinite(requested)) return DEFAULT_THETA_STALE;
+  return Math.max(0, requested);
+}
+
+/**
+ * 删除边并**如实报告**索引的失效程度（XJ-04：阈值必须到达动作）。
+ *
+ * 关键分母：`staleRatio` 的分子分母都取自 `index.counters`（**全量**计数，含已 stale 的条目），
+ * 不能用 `queryByStart`/`sample` 过滤后的 live 数当分母——那样一个「全部条目都已失效」的索引
+ * 会被算成 0% 失效，阈值永不触发（同样的坑见 `query-engine.ts` 的 `query()`）。
+ *
+ * 阈值语义是**严格大于**：比例恰等于 theta 时不重建（与 `query-engine.ts` 的 `> 0.3` 一致）。
+ * `total === 0`（空索引）时比例定义为 0、`needsRebuild` 为 false，不谎报。
+ *
+ * 边类型不在规则里时 `newlyStale` 必为 0（这条边与该读法无关），但比例与判定仍如实返回——
+ * 调用方问的是「这个索引还能不能用」，答案不取决于刚删的那条边属不属于这条规则。
+ */
+export function onEdgeRemovedDetailed(
+  edge: XJEdge,
+  rule: PathRule,
+  index: PathIndex,
+  options?: EdgeRemovalOptions,
+): EdgeRemovalResult {
+  const newlyStale = rule.edgeTypes.has(edge.type)
+    ? index.markStale(edgePairKey(edge.source, edge.target))
+    : 0;
+  const total = index.counters.total;
+  const staleRatio = total === 0 ? 0 : index.counters.stale / total;
+  return { newlyStale, staleRatio, needsRebuild: staleRatio > resolveTheta(options) };
 }

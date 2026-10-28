@@ -31,9 +31,11 @@ import { isLegalPath, type PathRule } from '../../../src/xuanji/core/path-rule.t
 import { makeEntry, type PathEntry } from '../../../src/xuanji/core/path-entry.ts';
 import { PathIndex } from '../../../src/xuanji/index/path-index.ts';
 import {
+  DEFAULT_THETA_STALE,
   INCREMENTAL_WORK_BUDGET,
   onEdgeAdded,
   onEdgeRemoved,
+  onEdgeRemovedDetailed,
   wasLastIncrementalDegraded,
 } from '../../../src/xuanji/index/incremental.ts';
 
@@ -578,4 +580,134 @@ function triangleGraphLike(): GraphSpace {
   graph.addEdge(edge('b', 'c'));
   return graph;
 }
+
+/**
+ * 直接播种 N 条**真实** PathEntry（索引只关心 nodes/hash/counters）。
+ *
+ * 阈值边界需要精确的分子分母（例如「10 条里 3 条失效」），从真实图上凑出恰好 0.3 太脆弱，
+ * 因此这里用 makeEntry + index.add 构造可计数的条目；被删除的边对统一是 x→y。
+ */
+function seedIndexWithEdgePair(index: PathIndex, rule: PathRule, containing: number, total: number): void {
+  for (let i = 0; i < containing; i++) {
+    index.add(makeEntry(rule, ['n' + i, 'x', 'y'], 1));
+  }
+  for (let i = containing; i < total; i++) {
+    index.add(makeEntry(rule, ['n' + i, 'p', 'q'], 1));
+  }
+}
+
+describe('onEdgeRemovedDetailed：stale 阈值必须到达动作（XJ-04）', () => {
+  it('默认阈值是 0.3，且旧入口 onEdgeRemoved 的 number 语义不变', () => {
+    expect(DEFAULT_THETA_STALE).toBe(0.3);
+
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+    const index = new PathIndex();
+    seedIndexWithEdgePair(index, rule, 4, 10);
+
+    const detailed = onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+    expect(detailed.newlyStale).toBe(4);
+    expect(detailed.staleRatio).toBe(0.4);
+    expect(detailed.needsRebuild).toBe(true);
+
+    // 旧入口仍然返回 number，并且等于 detailed.newlyStale（幂等 ⇒ 第二次为 0）。
+    const again = new PathIndex();
+    seedIndexWithEdgePair(again, rule, 4, 10);
+    expect(onEdgeRemoved(edge('x', 'y'), rule, again)).toBe(4);
+    expect(onEdgeRemoved(edge('x', 'y'), rule, again)).toBe(0);
+  });
+
+  it('比例恰为 0.3 ⇒ needsRebuild === false（阈值是严格大于）', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+    const index = new PathIndex();
+    seedIndexWithEdgePair(index, rule, 3, 10);
+
+    const result = onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+
+    expect(index.counters).toEqual({ total: 10, stale: 3 });
+    expect(result.staleRatio).toBe(0.3);
+    expect(result.needsRebuild).toBe(false);
+    expect(result.newlyStale).toBe(3);
+  });
+
+  it('略高于 0.3（3.1/10 不可构造，用 4/10 与 7/20=0.35）都要触发', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+    const index = new PathIndex();
+    seedIndexWithEdgePair(index, rule, 7, 20);
+
+    const result = onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+
+    expect(result.staleRatio).toBe(0.35);
+    expect(result.needsRebuild).toBe(true);
+  });
+
+  it('total === 0 ⇒ staleRatio 0、needsRebuild false（不谎报 NaN）', () => {
+    const rule = makeRule();
+    const index = new PathIndex();
+    expect(index.counters.total).toBe(0);
+
+    const result = onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+
+    expect(result).toEqual({ newlyStale: 0, staleRatio: 0, needsRebuild: false });
+    expect(Number.isNaN(result.staleRatio)).toBe(false);
+  });
+
+  it('分母是全量 counters（含已 stale），不是过滤后的 live 数', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+    const index = new PathIndex();
+    seedIndexWithEdgePair(index, rule, 10, 10);
+
+    // 第一轮把 10/10 全部置 stale
+    const first = onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+    expect(first.newlyStale).toBe(10);
+    expect(first.staleRatio).toBe(1);
+    expect(first.needsRebuild).toBe(true);
+
+    // 第二轮幂等（不新增 stale）：如果分母误用 live 数（此时为 0），比例会变成 0/0 ⇒ 0，
+    // 阈值立刻失效。这里必须仍然是 100%。
+    const second = onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+    expect(second.newlyStale).toBe(0);
+    expect(second.staleRatio).toBe(1);
+    expect(second.needsRebuild).toBe(true);
+    expect(index.liveCount()).toBe(0);
+  });
+
+  it('thetaStale 可覆盖：同一比例在不同阈值下结论相反', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+
+    const strictIndex = new PathIndex();
+    seedIndexWithEdgePair(strictIndex, rule, 4, 10);
+    const strict = onEdgeRemovedDetailed(edge('x', 'y'), rule, strictIndex, { thetaStale: 0.2 });
+    expect(strict.staleRatio).toBe(0.4);
+    expect(strict.needsRebuild).toBe(true);
+
+    const looseIndex = new PathIndex();
+    seedIndexWithEdgePair(looseIndex, rule, 4, 10);
+    const loose = onEdgeRemovedDetailed(edge('x', 'y'), rule, looseIndex, { thetaStale: 0.5 });
+    expect(loose.staleRatio).toBe(0.4);
+    expect(loose.needsRebuild).toBe(false);
+
+    // 非法阈值（NaN）回落到默认值，而不是让比较永远为 false。
+    const fallbackIndex = new PathIndex();
+    seedIndexWithEdgePair(fallbackIndex, rule, 4, 10);
+    const fallback = onEdgeRemovedDetailed(edge('x', 'y'), rule, fallbackIndex, { thetaStale: Number.NaN });
+    expect(fallback.needsRebuild).toBe(true);
+  });
+
+  it('边类型不在规则里时 newlyStale 为 0，但比例仍如实反映索引状态', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2, edgeTypes: new Set(['call']) });
+    const index = new PathIndex();
+    seedIndexWithEdgePair(index, rule, 4, 10);
+
+    const other = onEdgeRemovedDetailed(edge('x', 'y', 'data'), rule, index);
+    expect(other.newlyStale).toBe(0);
+    expect(other.staleRatio).toBe(0);
+
+    // 先把索引弄脏，再用无关类型的边问一次：比例照实报（调用方问的是「索引还能不能用」）。
+    onEdgeRemovedDetailed(edge('x', 'y'), rule, index);
+    const after = onEdgeRemovedDetailed(edge('x', 'y', 'data'), rule, index);
+    expect(after.newlyStale).toBe(0);
+    expect(after.staleRatio).toBe(0.4);
+    expect(after.needsRebuild).toBe(true);
+  });
+});
 

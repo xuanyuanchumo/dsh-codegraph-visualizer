@@ -738,8 +738,15 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const result = await adapter.fetchData(tempDir, invoke);
       const callEdge = result.edges.find((e) => e.type === 'call');
       expect(callEdge?.properties.line).toBe(15);
+      // P0-1 归因键：有 line 的边是可定位的，并保留压平前的上游 kind（'call' 本身就是上游写法）
+      expect(callEdge?.properties).toMatchObject({
+        edgeOrigin: 'db', edgeLocatable: true, rawKind: 'call',
+      });
       const containsEdge = result.edges.find((e) => e.type === 'contains');
-      expect(containsEdge?.properties).toEqual({});
+      // `line: null` 的行没有位置证据，所以只有归因键 —— 不得凭空补一个 line 或置信度
+      expect(containsEdge?.properties).toEqual({
+        edgeOrigin: 'db', edgeLocatable: false, rawKind: 'contains',
+      });
     } finally {
       closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });

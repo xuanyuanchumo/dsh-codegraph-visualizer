@@ -4,7 +4,9 @@ import type { LayeredDiagram } from '../../diagram/index.ts';
 import { CYCLE_DETECTION, CLUSTER, RENDERER } from '../../../shared/constants.ts';
 import { sanitizeTypedGraph } from '../../../shared/GraphValidator.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
-import { applyGraphDelta as applyDeltaToSkeleton, canApplyGraphDelta } from '../../../shared/graphDelta.ts';
+import {
+  applyGraphDelta as applyDeltaToSkeleton, canApplyGraphDelta, graphDeltaSize, GRAPH_DELTA_SHRINK,
+} from '../../../shared/graphDelta.ts';
 import { assembleDiagram } from '../../diagram/index.ts';
 import { clearEtagCache } from '../../api/index.ts';
 import { emptyEdgeState, emptyDiffState } from './edgeSlice.ts';
@@ -223,9 +225,13 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       // landed mid-flight, a reconnect skipped events, the graph was cleared) applying it would
       // silently drop or resurrect entries, so refuse and let the caller re-bootstrap instead.
       const { rawNodes, rawEdges } = _get();
-      if (!canApplyGraphDelta({ nodes: rawNodes, edges: rawEdges }, delta)) {
-        log.info('applyGraphDelta refused: delta does not match the current revision', {
-          storedNodes: rawNodes.length, storedEdges: rawEdges.length,
+      // 防缩水阈值与 host 侧共用 `GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO`：一处拦一处放，问题只会
+      // 被推迟到另一条路径上。拒绝的代价是回落到一次全量重取，接受错误缩水的代价是静默丢图。
+      if (!canApplyGraphDelta({ nodes: rawNodes, edges: rawEdges }, delta, {
+        minRetainRatio: GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO,
+      })) {
+        log.info('applyGraphDelta refused: delta does not match the current revision or would shrink the graph', {
+          storedNodes: rawNodes.length, storedEdges: rawEdges.length, ...graphDeltaSize(delta),
         });
         return false;
       }

@@ -279,14 +279,31 @@ export function mapRowsToGraphEdges(
   const edges: GraphEdge[] = [];
   for (const e of kept) {
     if (mapEdgeKind(e.kind) === 'import' && !admittedImportIds.has(e.id)) continue;
+    // 边来源归因：只写**可证明**的三件事，不写置信度。
+    //
+    // 上游 `codegraph.db` 的 edges 表只有 `id/source/target/kind/line`，**没有 confidence 列**
+    // （`DbEdgeRow` 是本文件对它的逐字段转写）。因此这里刻意**不**产出 `EXTRACTED`/`INFERRED`
+    // 之类的取值 —— 那会是凭空编造的证据。能证明的只有：
+    //   - `edgeOrigin: 'db'`：这条边来自 SQLite 索引的 edges 行。`ast` 档位保留给
+    //     TreeSitterAdapter 的 `contains` 边，但本轮尚未在那里标注（写域不含该文件），见
+    //     `EDGE_ORIGIN_RANK` —— 这里不冒充它；
+    //   - `edgeLocatable`：这一行有没有 `line`。有 line 才能回溯到源码位置，`null` 只能信其存在；
+    //   - `rawKind`：被 `EDGE_KIND_MAP` 压平**之前**的上游 kind。`type` 已经丢失了这个信息
+    //     （未知 kind 一律压成 `dependency`），而冲突裁决需要区分"具体关系"与兜底值。
+    // 消费者必须以 `type` 判断关系语义，`rawKind` 只用于归因与裁决（两者可能不一致，
+    // 例如 `uses_var` 在过滤前被丢弃，而 `calls` 会压平成 `call`）。
+    const locatable = typeof e.line === 'number';
     edges.push({
       id: EdgeId(String(e.id)),
       source: NodeId(e.source),
       target: NodeId(e.target),
       type: mapEdgeKind(e.kind),
       properties: {
-        ...(e.line !== null && e.line !== undefined ? { line: e.line } : {}),
+        ...(locatable ? { line: e.line } : {}),
         ...(opts.source ? { __source: opts.source } : {}),
+        edgeOrigin: 'db',
+        edgeLocatable: locatable,
+        rawKind: e.kind,
       },
     });
   }

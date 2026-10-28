@@ -3,7 +3,7 @@ import { INCREMENTAL } from '../shared/constants.ts';
 import { sameRepoId } from '../shared/pathUtils.ts';
 import { readFilesFromDb, resolveDbPath, normalizeRepoPath, mapRowsToGraphNodes, mapRowsToGraphEdges, CODEGRAPH_SOURCE } from '../adapters/CodeGraphAdapter.ts';
 import { computeGraphDiff } from '../merger/DiffEngine.ts';
-import { applyGraphDelta, canApplyGraphDelta, isEmptyGraphDelta, graphDeltaSize } from '../shared/graphDelta.ts';
+import { applyGraphDelta, canApplyGraphDelta, isEmptyGraphDelta, graphDeltaSize, GRAPH_DELTA_SHRINK } from '../shared/graphDelta.ts';
 import type { GraphDelta } from '../shared/graphDelta.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
 
@@ -154,8 +154,17 @@ export function buildIncrementalUpdate(input: IncrementalUpdateInput): Increment
   // An incrementally-built delta must still describe a graph we can apply without inventing or
   // stranding entries; anything else (e.g. an edge into a node the read did not return) is a signal
   // that the targeted view is incomplete, so the caller falls back to a full fetch instead.
-  if (!canApplyGraphDelta(current, delta)) {
-    log.info('incremental update skipped: delta does not apply cleanly', { changedFiles: changedFiles.length, ...graphDeltaSize(delta) });
+  //
+  // 防缩水阈值与 client store 共用 `GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO`：定向读只拿回改动文件
+  // 的行，一旦索引本身不完整（上游重建中途、DB 半写），折叠出的"新图"会把整棵子树删掉。宁可
+  // 让调用方落回全量重取（一次传输），也不静默发布一张缩水的图（用户数据 + 渲染错误）。
+  if (!canApplyGraphDelta(current, delta, { minRetainRatio: GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO })) {
+    log.info('incremental update skipped: delta does not apply cleanly or would shrink the graph', {
+      changedFiles: changedFiles.length,
+      storedNodes: current.nodes.length,
+      storedEdges: current.edges.length,
+      ...graphDeltaSize(delta),
+    });
     return null;
   }
 

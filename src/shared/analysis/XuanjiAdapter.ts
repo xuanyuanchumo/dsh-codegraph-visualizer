@@ -8,14 +8,32 @@
  * 强制边界：`src/xuanji/**` 只依赖自身（见 tests/unit/xuanji/libraryBoundary.test.ts），
  * 所有 `GraphNode` / branded id / GraphDelta 的转换都发生在这里。
  *
+ * cycle-109（XJ-02 / XJ-04 / XJ-05）在这一层补上三件事：
+ * 1. {@link XuanjiAdapterPool}：按 repoId 缓存 adapter（LRU），让「同一个图空间」能被
+ *    反复查询而不是每次重建；{@link XuanjiAdapter.syncGraph} 给出 `'full' | 'delta' | 'none'`
+ *    的判定（判定结果作为返回值暴露，便于测试与观测）。
+ *    判定原则：**不确定就全量重建**——缓存陈旧会直接返回过期路径，宁可慢不可错。
+ * 2. `applyDelta` 在 stale 比例超阈值时清空该规则的索引并把它写进 `degradedRules`，
+ *    「需全量重枚举」从一句注释变成一个可观测的返回值。
+ * 3. 静态校验落地在一条**公共**的 {@link XuanjiAdapter.validateRule} 上：
+ *    `registerRule` 用它做注册闸门（errors 非空 ⇒ 不注册，返回 `{ index, validation }`），
+ *    两条内联读法规则用它做**每次枚举都执行**的闸门（`findPathsBetween` / `cycles` →
+ *    {@link XuanjiAdapter.assertRule}）。生产环境（`src/` 内）的必然校验调用是后者；
+ *    `registerRule` 目前没有生产调用点，保留给宿主程序化注册/测试，不当成「唯一入口」。
+ *
  * @module shared/analysis/XuanjiAdapter
  */
 
 import type { GraphData, GraphDelta, GraphEdge, GraphNode } from '../../types/index.ts';
 import { GraphSpace, type NodeAttrs, type XJEdge } from '../../xuanji/core/graph-space.ts';
-import type { PathRule } from '../../xuanji/core/path-rule.ts';
+import type { PathRule, RuleValidation } from '../../xuanji/core/path-rule.ts';
+import { RuleCompositionError, validateRule as validateRuleSpec } from '../../xuanji/core/path-rule.ts';
 import { PathIndex } from '../../xuanji/index/path-index.ts';
-import { onEdgeAdded, onEdgeRemoved } from '../../xuanji/index/incremental.ts';
+import {
+  onEdgeAdded,
+  onEdgeRemovedDetailed,
+  wasLastIncrementalDegraded,
+} from '../../xuanji/index/incremental.ts';
 import { enumerate } from '../../xuanji/query/query-engine.ts';
 
 /** 允许的边类型（项目 `GraphEdge.type` 的取值域）。 */
@@ -61,6 +79,68 @@ export interface CycleEnumerationOptions {
   readonly limit?: number;
 }
 
+/**
+ * `syncGraph` 能接受的图数据：`GraphData` 的子集 + 可选的 metadata。
+ * 写成结构子集而不是 `GraphData`，是为了让只关心 nodes/edges 的调用方（测试、增量重放）
+ * 不必伪造 `repoId` / `nodeCount` 等字段。
+ */
+export type SyncGraphInput = Pick<GraphData, 'nodes' | 'edges'> & {
+  readonly metadata?: { readonly timestamp?: number };
+};
+
+/**
+ * `syncGraph` 的判定结果：
+ * - `'none'`：适配层已持有同一个图（结构逐节点/逐边一致），既不重载也不动索引；
+ * - `'delta'`：新图是当前图的**纯增补**（旧节点/边全在，且属性未变），只应用增量；
+ * - `'full'`：其余一切情况（首次装载、删除、属性变化、无法确认）——全量重建。
+ *
+ * 三种结果的正确性一律优先于性能：只有能**证明**增量等价时才走 `'delta'`/`'none'`。
+ */
+export type SyncGraphOutcome = 'full' | 'delta' | 'none';
+
+/** `registerRule` 的返回：索引（未注册时为 null）与静态校验结果。 */
+export interface RuleRegistration {
+  /** 索引实例；`validation.errors` 非空时为 null（规则未被注册）。 */
+  readonly index: PathIndex | null;
+  readonly validation: RuleValidation;
+}
+
+/** `applyDelta` 的结果（XJ-04：`degradedRules` 是本轮被降级重建的规则名）。 */
+export interface DeltaApplicationResult {
+  readonly addedPaths: number;
+  readonly stalePaths: number;
+  /** stale 超阈值 / 增量超预算而**被清空**的规则名：这些索引需全量重枚举。 */
+  readonly degradedRules: readonly string[];
+}
+
+/** {@link XuanjiAdapterPool.applyDelta} 的结果。 */
+export interface PoolDeltaResult extends DeltaApplicationResult {
+  /** delta 是否真的被应用到缓存的适配层（基线不匹配 / 尚未装载时为 false）。 */
+  readonly applied: boolean;
+}
+
+/** 未应用 delta 的固定返回（不可变，避免调用方误改共享对象）。 */
+const DELTA_SKIPPED: PoolDeltaResult = Object.freeze({
+  applied: false,
+  addedPaths: 0,
+  stalePaths: 0,
+  degradedRules: Object.freeze([]) as readonly string[],
+});
+
+/** 空枚举结果的固定返回。 */
+const EMPTY_PATH_RESULT: PathEnumerationResult = Object.freeze({
+  paths: [] as string[][],
+  truncated: false,
+  total: 0,
+});
+
+/** 一次装载的结构戳：只用于**快路径**，真正的等价判定见 `diffAgainstSpace`。 */
+interface SyncStamp {
+  readonly timestamp: number;
+  readonly nodeCount: number;
+  readonly edgeCount: number;
+}
+
 function nodeAttrs(node: GraphNode): NodeAttrs {
   return {
     label: node.label,
@@ -82,84 +162,249 @@ function xjEdge(edge: GraphEdge): XJEdge {
   };
 }
 
+/** 图空间里已存的属性与新节点的属性是否一致（不一致就不能走增量：属性参与规则谓词）。 */
+function attrsEqual(stored: NodeAttrs, next: NodeAttrs): boolean {
+  if (
+    stored.label !== next.label ||
+    stored.role !== next.role ||
+    stored.filePath !== next.filePath ||
+    stored.isExported !== next.isExported ||
+    stored.layer !== next.layer
+  ) {
+    return false;
+  }
+  const a = stored.tags ?? [];
+  const b = next.tags ?? [];
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/** 结构戳；没有可用 timestamp 时返回 null（快路径失效，只能走结构比较）。 */
+function stampOf(data: SyncGraphInput): SyncStamp | null {
+  const timestamp = data.metadata?.timestamp;
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) return null;
+  return { timestamp, nodeCount: data.nodes.length, edgeCount: data.edges.length };
+}
+
+/**
+ * 与当前图空间的三向结构比较结果：
+ * - `identical`：逐节点属性 + 逐边三元组完全一致；
+ * - `additive`：旧节点/边全都还在且属性未变，只是多出了新节点/新边；
+ * - `incompatible`：删除了节点或边、或有关键属性变化 —— 只能全量重建。
+ */
+type SpaceDiff =
+  | { kind: 'identical' }
+  | { kind: 'additive'; addedNodes: GraphNode[]; addedEdges: GraphEdge[] }
+  | { kind: 'incompatible' };
+
 /** 结点集合与边集合的图空间视图。 */
 export class XuanjiAdapter {
   private space = new GraphSpace();
   /** 已注册规则名 → 索引（增量维护）。 */
   private readonly indexes = new Map<string, PathIndex>();
   private readonly rules = new Map<string, PathRule>();
+  /** 是否装载过图（首次装载必须全量，不能只靠 delta 拼出来）。 */
+  private loaded = false;
+  /** 最近一次「适配层 == 某份图数据」的结构戳；applyDelta 后必然作废。 */
+  private lastSyncStamp: SyncStamp | null = null;
 
-  /** 用完整图装载（重建图空间；已注册规则的索引全部清空）。 */
-  loadGraph(data: Pick<GraphData, 'nodes' | 'edges'>): void {
+  /** 图空间是否已装载过。未装载时 delta 无基线可依，池层必须拒绝应用。 */
+  get isReady(): boolean {
+    return this.loaded;
+  }
+
+  /**
+   * 用完整图装载（重建图空间；已注册规则的索引全部清空）。
+   *
+   * 任何「无法证明与当前图等价」的数据都必须走这里（宁可慢不可错）。
+   */
+  loadGraph(data: SyncGraphInput): void {
     this.space = new GraphSpace();
     for (const node of data.nodes) this.space.addNode(node.id, nodeAttrs(node));
     for (const edge of data.edges) this.space.addEdge(xjEdge(edge));
     for (const index of this.indexes.values()) index.clear();
+    this.loaded = true;
+    this.lastSyncStamp = stampOf(data);
+  }
+
+  /**
+   * 把适配层同步到 `data`，返回实际采取的同步方式（`'full' | 'delta' | 'none'`）。
+   *
+   * 判定顺序（每一步都要求「能证明等价」，否则落到 `'full'`）：
+   * 1. 从未装载 ⇒ `'full'`；
+   * 2. 结构戳（timestamp + 规模）相同 ⇒ `'none'`（快路径）；
+   * 3. 与图空间逐节点属性、逐边三元组比较：
+   *    - 完全一致 ⇒ `'none'`（timestamp 变了但图没变，**不得**因缓存陈旧返回旧路径，
+   *      这里因为等价所以复用是安全的）；
+   *    - 纯增补 ⇒ 用一条真实 delta（新增节点/新增边）走 `applyDelta` ⇒ `'delta'`；
+   *    - 其余（删除 / 属性变化 / 悬空边）⇒ `loadGraph` ⇒ `'full'`。
+   *
+   * 返回值是给调用方与测试看的**判定证据**：拿不到 `'none'` 就说明每次都在重建。
+   */
+  syncGraph(data: SyncGraphInput): SyncGraphOutcome {
+    if (!this.loaded) {
+      this.loadGraph(data);
+      return 'full';
+    }
+
+    const stamp = stampOf(data);
+    if (stamp && this.lastSyncStamp && this.sameStamp(stamp, this.lastSyncStamp)) {
+      return 'none';
+    }
+
+    const diff = this.diffAgainstSpace(data);
+    if (diff.kind === 'identical') {
+      // 结构相同 ⇒ 复用现有空间与索引是安全的；只刷新戳，避免下次再付一遍结构比较。
+      this.lastSyncStamp = stamp;
+      return 'none';
+    }
+
+    if (diff.kind === 'additive') {
+      this.applyDelta({
+        addedNodes: diff.addedNodes,
+        removedNodes: [],
+        modifiedNodes: [],
+        addedEdges: diff.addedEdges,
+        removedEdges: [],
+        modifiedEdges: [],
+      });
+      // applyDelta 内部会作废 lastSyncStamp（空间已不再等于任何已知修订），这里重新钉住。
+      this.lastSyncStamp = stamp;
+      return 'delta';
+    }
+
+    this.loadGraph(data);
+    return 'full';
   }
 
   /**
    * 增量应用 GraphDelta（璇玑图「改一字只重读经过该字的诗」）。
    *
-   * - 删除边：库的 `onEdgeRemoved` 只把经过该边的物化路径标记 stale（O(k)），不重建索引；
+   * - 删除边：库的 `onEdgeRemovedDetailed` 只把经过该边的物化路径标记 stale（O(k)），不重建索引；
    * - 新增边：`onEdgeAdded` 用「前缀 × 新边 × 后缀」物化新路径，长度分桶裁剪；
-   * - 只有**已注册规则**才承担增量维护成本。
+   * - 只有**已注册规则**才承担增量维护成本；
+   * - XJ-04：某条规则的 stale 比例 > 0.3（或增量枚举超出工作预算）时，其索引被清空并记入
+   *   `degradedRules`，本次 delta 内不再向它增量写入——留一个「空索引」比留一个「看起来完整、
+   *   实际只含新边路径」的半成品安全（查询层据此回退全量枚举）。
    */
-  applyDelta(delta: GraphDelta): { addedPaths: number; stalePaths: number } {
+  applyDelta(delta: GraphDelta): DeltaApplicationResult {
     let addedPaths = 0;
     let stalePaths = 0;
+    const degraded = new Set<string>();
+
+    // 增量之后图空间不再等于任何已知修订：快路径戳必须作废，否则 syncGraph 会把旧戳当最新。
+    this.lastSyncStamp = null;
+
+    const retire = (name: string, index: PathIndex): void => {
+      index.clear();
+      degraded.add(name);
+    };
+
+    const dropEdge = (ej: XJEdge): void => {
+      this.space.removeEdge(ej);
+      for (const [name, index] of this.indexes) {
+        if (degraded.has(name)) continue;
+        const rule = this.rules.get(name);
+        if (!rule) continue;
+        const outcome = onEdgeRemovedDetailed(ej, rule, index);
+        stalePaths += outcome.newlyStale;
+        if (outcome.needsRebuild) retire(name, index);
+      }
+    };
+
+    const addEdge = (ej: XJEdge): void => {
+      this.space.addEdge(ej);
+      for (const [name, index] of this.indexes) {
+        if (degraded.has(name)) continue;
+        const rule = this.rules.get(name);
+        if (!rule) continue;
+        addedPaths += onEdgeAdded(ej, rule, this.space, index).length;
+        // 预算降级时 onEdgeAdded 已自行 clear()；这里把它记入 degradedRules 并停止后续写入。
+        if (wasLastIncrementalDegraded()) degraded.add(name);
+      }
+    };
 
     for (const node of delta.removedNodes) this.space.removeNode(node.id);
     for (const node of delta.addedNodes) this.space.addNode(node.id, nodeAttrs(node));
     for (const node of delta.modifiedNodes) this.space.addNode(node.id, nodeAttrs(node));
 
-    for (const edge of delta.removedEdges) {
-      const ej = xjEdge(edge);
-      this.space.removeEdge(ej);
-      for (const [name, index] of this.indexes) {
-        const rule = this.rules.get(name);
-        if (!rule) continue;
-        stalePaths += onEdgeRemoved(ej, rule, index);
-      }
-    }
+    for (const edge of delta.removedEdges) dropEdge(xjEdge(edge));
 
     for (const edge of delta.modifiedEdges) {
       const ej = xjEdge(edge);
-      this.space.removeEdge(ej);
-      for (const [name, index] of this.indexes) {
-        const rule = this.rules.get(name);
-        if (!rule) continue;
-        stalePaths += onEdgeRemoved(ej, rule, index);
-      }
-      this.space.addEdge(ej);
-      for (const [name, index] of this.indexes) {
-        const rule = this.rules.get(name);
-        if (!rule) continue;
-        addedPaths += onEdgeAdded(ej, rule, this.space, index).length;
-      }
+      dropEdge(ej);
+      addEdge(ej);
     }
 
-    for (const edge of delta.addedEdges) {
-      const ej = xjEdge(edge);
-      this.space.addEdge(ej);
-      for (const [name, index] of this.indexes) {
-        const rule = this.rules.get(name);
-        if (!rule) continue;
-        addedPaths += onEdgeAdded(ej, rule, this.space, index).length;
-      }
-    }
+    for (const edge of delta.addedEdges) addEdge(xjEdge(edge));
 
-    return { addedPaths, stalePaths };
+    return { addedPaths, stalePaths, degradedRules: [...degraded] };
   }
 
-  /** 注册一条路径规则（索引惰性创建，与 RuleRegistry 语义一致）。 */
-  registerRule(rule: PathRule): PathIndex {
+  /**
+   * 当前图空间是否**包含** delta 的基线（删除/修改的条目都在，新增边的端点可解析）。
+   *
+   * 用于池层决定「这条 delta 能不能安全应用到缓存的适配层」：delta 只对它被计算出来的
+   * 那个修订有意义，基线不匹配时应用会把两版图混在一起，因此宁可丢弃缓存重建。
+   */
+  canApplyDelta(delta: GraphDelta): boolean {
+    for (const node of delta.removedNodes) if (!this.space.hasNode(node.id)) return false;
+    for (const node of delta.modifiedNodes) if (!this.space.hasNode(node.id)) return false;
+    for (const edge of delta.removedEdges) {
+      if (!this.space.hasEdge(edge.source, edge.target, edge.type)) return false;
+    }
+    for (const edge of delta.modifiedEdges) {
+      if (!this.space.hasEdge(edge.source, edge.target, edge.type)) return false;
+    }
+    const addedNodeIds = new Set<string>(delta.addedNodes.map((node) => node.id));
+    for (const edge of [...delta.addedEdges, ...delta.modifiedEdges]) {
+      if (!this.space.hasNode(edge.source) && !addedNodeIds.has(edge.source)) return false;
+      if (!this.space.hasNode(edge.target) && !addedNodeIds.has(edge.target)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * 用 `validateRule` 校验一条规则（spec §3.4），返回原始 errors / warnings。
+   *
+   * XJ-05 的**公共校验面**：两处调用者——
+   * 1. {@link registerRule}（程序化注册闸门，errors 非空则不注册）；
+   * 2. {@link assertRule}（内联读法闸门，`findPathsBetween` / `cycles` 每次调用都走它）。
+   *
+   * 刻意做成 public 而不是 private：验收断言要能在运行时证明「生产枚举路径上
+   * 确实执行了校验」，公共方法可以被 spy，私有方法只能靠猜。
+   *
+   * @param graph 用于取 Σ 与 |V| 的图空间（缺省为本适配层已装载的空间）
+   */
+  validateRule(rule: PathRule, graph?: GraphSpace): RuleValidation {
+    const space = graph ?? this.space;
+    return validateRuleSpec(rule, space.edgeTypes(), space.nodeCount);
+  }
+
+  /**
+   * 注册一条路径规则（索引惰性创建，与 RuleRegistry 语义一致）。
+   *
+   * XJ-05：errors 非空 ⇒ 规则不进入规则表、不建索引，`index` 返回 null（warnings 原样透传）。
+   * 已存在的同名规则不会被非法注册覆盖。
+   *
+   * 如实说明：**`registerRule` 目前在 `src/` 内没有生产调用点**（`graph_path_enumerate` /
+   * `graph_cycles` 用的是内联读法规则，见 {@link assertRule}），它是保留给宿主程序化注册
+   * 与测试的 API。生产上的必然校验关口是 `assertRule`，不要把它当成「唯一入口」。
+   *
+   * @param graph 用于校验的图空间（缺省为本适配层已装载的空间）
+   */
+  registerRule(rule: PathRule, graph?: GraphSpace): RuleRegistration {
+    const validation = this.validateRule(rule, graph);
+    if (validation.errors.length > 0) return { index: null, validation };
+
     this.rules.set(rule.name, rule);
     let index = this.indexes.get(rule.name);
     if (!index) {
       index = new PathIndex();
       this.indexes.set(rule.name, index);
     }
-    return index;
+    return { index, validation };
   }
 
   getRule(name: string): PathRule | undefined {
@@ -179,14 +424,16 @@ export class XuanjiAdapter {
     target: string,
     options: PathEnumerationOptions = {},
   ): PathEnumerationResult {
-    const edgeTypes = new Set<AdapterEdgeType>(options.edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
     const minHops = Math.max(1, options.minHops ?? 1);
     const maxHops = Math.max(minHops, options.maxHops ?? 5);
     const limit = Math.max(1, options.limit ?? 20);
 
-    if (!this.space.hasNode(source) || !this.space.hasNode(target)) {
-      return { paths: [], truncated: false, total: 0 };
-    }
+    if (!this.space.hasNode(source) || !this.space.hasNode(target)) return EMPTY_PATH_RESULT;
+
+    // 读法只能走图里真实存在的边类型：请求了图中没有的类型（如 'extend'）本来就走不通，
+    // 先裁剪掉，既保持结果不变，也让这条内联规则能通过 registerRule 同源的校验闸门。
+    const edgeTypes = this.presentEdgeTypes(options.edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
+    if (edgeTypes.size === 0) return EMPTY_PATH_RESULT;
 
     const rule: PathRule = {
       name: `between:${source}->${target}`,
@@ -200,6 +447,7 @@ export class XuanjiAdapter {
       normalize: 'none',
       output: (nodes) => nodes,
     };
+    this.assertRule(rule);
 
     const index = new PathIndex();
     // limit+1 用于区分「恰好 limit 条」与「被截断」
@@ -214,9 +462,11 @@ export class XuanjiAdapter {
    * 同一环从不同节点起读只出现一次——「同一首诗从不同字起读仍是同一首」。
    */
   cycles(options: CycleEnumerationOptions = {}): PathEnumerationResult {
-    const edgeTypes = new Set<AdapterEdgeType>(options.edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
     const maxLength = Math.max(1, options.maxLength ?? 6);
     const limit = Math.max(1, options.limit ?? 100);
+
+    const edgeTypes = this.presentEdgeTypes(options.edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
+    if (edgeTypes.size === 0) return EMPTY_PATH_RESULT;
 
     const rule: PathRule = {
       name: 'cycles',
@@ -230,6 +480,7 @@ export class XuanjiAdapter {
       normalize: 'canonical',
       output: (nodes) => nodes,
     };
+    this.assertRule(rule);
 
     const index = new PathIndex();
     const starts = [...this.space.nodeIds()];
@@ -268,5 +519,152 @@ export class XuanjiAdapter {
 
   stats(): { nodes: number; edges: number; version: number } {
     return { nodes: this.space.nodeCount, edges: this.space.edgeCount, version: this.space.version };
+  }
+
+  /**
+   * 内联读法规则的**必然执行**的校验关口：构造错误（lMin/lMax/normalize 非法等）绝不能静默枚举。
+   *
+   * 与 {@link registerRule} 共用同一个 {@link validateRule}。两条内联读法的合法输入
+   * （已把 edgeTypes 裁剪到图中存在者）不会触发它，但**调用本身是每次枚举都执行的**——
+   * 验收断言依赖这一点（spy `validateRule` 即可证明），并有一个用例用非法参数
+   * （非有限的 minHops/maxLength）证明它确实会拒绝，而不是恒真。
+   */
+  private assertRule(rule: PathRule): void {
+    const validation = this.validateRule(rule);
+    if (validation.errors.length > 0) {
+      throw new RuleCompositionError(
+        `invalid path rule "${rule.name}": ${validation.errors.join('; ')}`,
+      );
+    }
+  }
+
+  private presentEdgeTypes(requested: Iterable<AdapterEdgeType>): Set<AdapterEdgeType> {
+    const present = this.space.edgeTypes();
+    const result = new Set<AdapterEdgeType>();
+    for (const type of requested) if (present.has(type)) result.add(type);
+    return result;
+  }
+
+  private sameStamp(a: SyncStamp, b: SyncStamp): boolean {
+    return (
+      a.timestamp === b.timestamp &&
+      a.nodeCount === b.nodeCount &&
+      a.edgeCount === b.edgeCount
+    );
+  }
+
+  /** 逐节点（含属性）与逐边（三元组）比较 `data` 与当前图空间。 */
+  private diffAgainstSpace(data: SyncGraphInput): SpaceDiff {
+    const knownNodes = new Set<string>();
+    const addedNodes: GraphNode[] = [];
+    for (const node of data.nodes) {
+      const stored = this.space.getNodeAttrs(node.id);
+      if (stored === undefined) {
+        addedNodes.push(node);
+        continue;
+      }
+      // 属性参与规则谓词（role / tags / isExported），变了就不能当作「旧节点还在」。
+      if (!attrsEqual(stored, nodeAttrs(node))) return { kind: 'incompatible' };
+      knownNodes.add(node.id);
+    }
+    // 图空间里还有 data 没提到的节点 ⇒ 这版图删了节点，只能全量重建。
+    if (knownNodes.size !== this.space.nodeCount) return { kind: 'incompatible' };
+
+    const knownEdgeKeys = new Set<string>();
+    const addedEdges: GraphEdge[] = [];
+    for (const edge of data.edges) {
+      if (this.space.hasEdge(edge.source, edge.target, edge.type)) {
+        knownEdgeKeys.add(`${edge.source}->${edge.target}->${edge.type}`);
+        continue;
+      }
+      addedEdges.push(edge);
+    }
+    if (knownEdgeKeys.size !== this.space.edgeCount) return { kind: 'incompatible' };
+
+    if (addedNodes.length === 0 && addedEdges.length === 0) return { kind: 'identical' };
+
+    // 新增边必须能解析端点（否则增量后的图与全量装载的图不一致）。
+    const addedNodeIds = new Set<string>(addedNodes.map((node) => node.id));
+    for (const edge of addedEdges) {
+      if (!this.space.hasNode(edge.source) && !addedNodeIds.has(edge.source)) {
+        return { kind: 'incompatible' };
+      }
+      if (!this.space.hasNode(edge.target) && !addedNodeIds.has(edge.target)) {
+        return { kind: 'incompatible' };
+      }
+    }
+    return { kind: 'additive', addedNodes, addedEdges };
+  }
+}
+
+/**
+ * 按 repoId 缓存 {@link XuanjiAdapter} 的 LRU 池（XJ-02）。
+ *
+ * 存在的理由：`graph_path_enumerate` / `graph_cycles` 之前每次调用都 `new XuanjiAdapter()`
+ * + `loadGraph()`，于是库里的增量引擎（`onEdgeAdded` / `onEdgeRemovedDetailed`）在生产上
+ * 没有任何宿主入口。池化之后同一个图空间被复用，`syncGraph` 才有意义。
+ *
+ * 容量默认 2（同时挂两个仓库即可覆盖「当前工作区 + 刚切换的工作区」）。
+ */
+export class XuanjiAdapterPool {
+  private readonly adapters = new Map<string, XuanjiAdapter>();
+  private readonly capacity: number;
+
+  constructor(capacity = 2) {
+    this.capacity = Number.isFinite(capacity) ? Math.max(1, Math.floor(capacity)) : 2;
+  }
+
+  /** 取（必要时新建）某仓库的适配层；命中即刷新 LRU 顺序。 */
+  get(repoId: string): XuanjiAdapter {
+    const existing = this.adapters.get(repoId);
+    if (existing) {
+      // Map 保序：先删后插 = 移到 MRU 端。
+      this.adapters.delete(repoId);
+      this.adapters.set(repoId, existing);
+      return existing;
+    }
+    const created = new XuanjiAdapter();
+    this.adapters.set(repoId, created);
+    while (this.adapters.size > this.capacity) {
+      const oldest = this.adapters.keys().next().value;
+      if (oldest === undefined) break;
+      this.adapters.delete(oldest);
+    }
+    return created;
+  }
+
+  /**
+   * 把一条真实 delta 应用到该仓库已缓存的适配层。
+   *
+   * 前置条件（任一不满足就**不应用**，绝不把两版图混在一起）：
+   * - 该仓库有缓存且已装载过图；
+   * - `canApplyDelta` 认可这条 delta 的基线就在当前图空间里。
+   *
+   * 基线不匹配时直接丢弃缓存，让下一次 `get` 从零重建（正确性优先于命中率）。
+   */
+  applyDelta(repoId: string, delta: GraphDelta): PoolDeltaResult {
+    const adapter = this.adapters.get(repoId);
+    if (!adapter || !adapter.isReady) return DELTA_SKIPPED;
+    if (!adapter.canApplyDelta(delta)) {
+      this.invalidate(repoId);
+      return DELTA_SKIPPED;
+    }
+    const result = adapter.applyDelta(delta);
+    return { applied: true, ...result };
+  }
+
+  /**
+   * 丢弃某仓库的派生状态（图空间 + 增量索引）。
+   *
+   * 用于「拿到了没有缓存基线的全新图」：此时适配层手里的可能是另一版修订，
+   * 继续复用它虽然会被 `syncGraph` 的结构比较拦下，但先丢掉更直白也更省内存。
+   */
+  invalidate(repoId: string): void {
+    this.adapters.delete(repoId);
+  }
+
+  /** 插件卸载时清空所有缓存（`createGraphTools` 的 dispose 调用）。 */
+  dispose(): void {
+    this.adapters.clear();
   }
 }

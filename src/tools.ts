@@ -6,12 +6,13 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import type { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
+import { computeGraphDiff } from './merger/DiffEngine.ts';
 import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, HealthScore, RuleViolation } from './types/index.ts';
 import { RepoId as makeRepoId, NodeId } from './types/index.ts';
 import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
-import { XuanjiAdapter, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
+import { XuanjiAdapterPool, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
 import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
@@ -189,14 +190,26 @@ export async function executeGraphData(
   emitData: (event: GraphDataEvent) => void,
   graphCache: Map<string, GraphData>,
   deps: GraphToolDeps,
+  xuanjiPool?: XuanjiAdapterPool,
 ) {
   const source = (args.source ?? 'both') as 'codegraph' | 'lens' | 'both';
   const fresh = await fetchMergedGraph(invoke, args.repoId, source, deps);
 
   const cached = graphCache.get(args.repoId);
-  const merged = cached
-    ? deps.merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: source === 'both' ? 'codegraph' : source, timestamp: fresh.metadata.timestamp })
-    : fresh;
+  let merged: GraphData;
+  if (cached) {
+    merged = deps.merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: source === 'both' ? 'codegraph' : source, timestamp: fresh.metadata.timestamp });
+    // XJ-02：把 merger.applyDelta 产出的**真实**结构差（缓存基线 → 合并结果）转发给璇玑图适配层，
+    // 让库里的增量引擎在生产上真的被调用；delta 不是这里手搓的，而是缓存与新结果的实际差异。
+    if (xuanjiPool) {
+      const delta = computeGraphDiff(cached.nodes, cached.edges, merged.nodes, merged.edges);
+      xuanjiPool.applyDelta(args.repoId, delta);
+    }
+  } else {
+    // 没有缓存基线：适配层手里的可能是另一版修订，派生状态（图空间 + 增量索引）先丢掉。
+    merged = fresh;
+    xuanjiPool?.invalidate(args.repoId);
+  }
   cacheGraph(graphCache, args.repoId, merged);
 
   emitUpdate({
@@ -235,6 +248,9 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
   const invoke = createInvoke(ctx, options.requestTimeout, options.apiCompat);
   const graphCache = new Map<string, GraphData>();
   const deps = await createGraphToolDeps();
+  // XJ-02：按 repoId 缓存璇玑图适配层，让增量引擎有真正的宿主入口；
+  // 生命周期挂在返回的 dispose 上（src/index.ts 的 ctx.effect 清理会调用它）。
+  const xuanjiPool = new XuanjiAdapterPool();
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
     ctx.emit('codegraph-visualizer/graph/updated', event);
@@ -288,7 +304,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       card: 'generic' as const,
       title: result.isError ? 'Graph fetch failed' : 'Code graph fetched',
     }),
-    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache, deps),
+    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache, deps, xuanjiPool),
   });
 
   const graphSymbol = defineTool({
@@ -427,8 +443,8 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         return toJsonValue({ paths: [], truncated: true, total: 0 });
       }
 
-      const adapter = new XuanjiAdapter();
-      adapter.loadGraph(data);
+      const adapter = xuanjiPool.get(a.repoId);
+      adapter.syncGraph(data);
       const parsedTypes = parseEdgeTypes(a.edgeTypes);
       const result = adapter.findPathsBetween(a.sourceSymbol, a.targetSymbol, {
         ...(parsedTypes ? { edgeTypes: parsedTypes } : {}),
@@ -481,8 +497,8 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         return toJsonValue({ paths: [], truncated: true, total: 0 });
       }
 
-      const adapter = new XuanjiAdapter();
-      adapter.loadGraph(data);
+      const adapter = xuanjiPool.get(a.repoId);
+      adapter.syncGraph(data);
       const parsedTypes = parseEdgeTypes(a.edgeTypes);
       const result = adapter.cycles({
         ...(parsedTypes ? { edgeTypes: parsedTypes } : {}),
@@ -615,7 +631,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
-  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, dispose: () => graphCache.clear() };
+  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, dispose: () => { xuanjiPool.dispose(); graphCache.clear(); } };
 };
 
 
