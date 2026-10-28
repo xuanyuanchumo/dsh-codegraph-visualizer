@@ -331,7 +331,7 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 10 tools with correct names', async () => {
+  it('should create 11 tools with correct names', async () => {
     const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
@@ -343,6 +343,10 @@ describe('createGraphTools', () => {
     expect(tools.graphHealth.name).toBe('graph_health');
     expect(tools.graphRulesCheck.name).toBe('graph_rules_check');
     expect(tools.graphFocus.name).toBe('graph_focus');
+    // GF-P0-2：关键词查询工具（graphify P0-2）
+    expect(tools.graphQuery.name).toBe('graph_query');
+    // 数量也要钉住：只断言「每个名字对」时，漏掉一个工具不会有任何断言变红。
+    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(11);
   });
 
   // ── graph_status ─────────────────────────────────────────────────────
@@ -974,6 +978,84 @@ describe('createGraphTools - additional tools', () => {
     expect(output[0]!.text).toContain('No path');
   });
 
+  // ── XJ-03：Ω（labels）与分页必须在**工具返回面**上真的存在 ────────────
+  // 只在库内单测里读 labels/nextCursor 是不够的：适配层与工具层都可以把它们丢掉
+  // （本项目历史上「返回值里某个字段被中间层丢弃」踩过多次），所以断言落在 execute 的返回值上。
+
+  it('graph_path_enumerate 分页：nextCursor 可翻页、页间不重复、labels 与当前页一一对应', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6'].map((id, i) => ({
+        id, label: id, type: 'function' as const, filePath: `${id}.ts`, lineNumber: i + 1, properties: {},
+      })),
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
+        { id: 'e2', source: 'n1', target: 'n3', type: 'call', properties: {} },
+        { id: 'e3', source: 'n2', target: 'n6', type: 'call', properties: {} },
+        { id: 'e4', source: 'n3', target: 'n6', type: 'call', properties: {} },
+        { id: 'e5', source: 'n1', target: 'n4', type: 'call', properties: {} },
+        { id: 'e6', source: 'n4', target: 'n6', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+
+    type Page = { paths: string[][]; labels?: unknown[]; nextCursor?: number | null; truncated: boolean };
+    const first = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n6', limit: 2, pageSize: 2 },
+      mockExec,
+    ) as Page;
+    expect(first.paths).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+    // Ω 输出长度必须等于当前页条目数（不是全部条目数，也不是 0）
+    expect(first.labels).toHaveLength(2);
+    // 适配层两条内联读法的 output 是恒等映射：labels[i] 就是 paths[i] 的快照
+    expect(first.labels![0]).toEqual(first.paths[0]);
+
+    const second = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n6', limit: 2, pageSize: 2, cursor: first.nextCursor! },
+      mockExec,
+    ) as Page;
+    expect(second.paths).toHaveLength(1);
+    expect(second.labels).toHaveLength(1);
+    expect(second.nextCursor).toBeNull();
+    // 两页不重复
+    const seen = new Set([...first.paths, ...second.paths].map((path) => path.join('>')));
+    expect(seen.size).toBe(3);
+  });
+
+  it('graph_path_enumerate render 会写出 nextCursor（否则调用方无从翻页）', async () => {
+    const tools = await createGraphTools(ctx);
+    const renderFn = tools.graphPathEnumerate.output.render!;
+    const output = renderFn({}, { paths: [['n1', 'n2']], truncated: true, total: 2, nextCursor: 2 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('nextCursor=2');
+  });
+
+  it('graph_cycles 同样暴露 nextCursor（环读法的分页面）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: ['a', 'b', 'c', 'd'].map((id, i) => ({
+        id, label: id, type: 'function' as const, filePath: `${id}.ts`, lineNumber: i + 1, properties: {},
+      })),
+      edges: [
+        { id: 'e1', source: 'a', target: 'b', type: 'call', properties: {} },
+        { id: 'e2', source: 'b', target: 'a', type: 'call', properties: {} },
+        { id: 'e3', source: 'c', target: 'd', type: 'call', properties: {} },
+        { id: 'e4', source: 'd', target: 'c', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphCycles.execute(
+      { repoId: 'r1', limit: 1, pageSize: 1 },
+      mockExec,
+    ) as { total: number; truncated: boolean; nextCursor?: number | null; labels?: unknown[] };
+    expect(result.total).toBe(1);
+    expect(result.truncated).toBe(true);
+    expect(result.nextCursor).toBe(1);
+    expect(result.labels).toHaveLength(1);
+  });
+
 
   // ── graph_cycles (Xuanji closed-path reader) ─────────────────────────
 
@@ -1208,6 +1290,132 @@ describe('createGraphTools - additional tools', () => {
     const output = renderFn({}, null) as Array<{ type: string; text: string }>;
     expect(output[0]!.text).toContain('not found');
   });
+
+  // ── graph_query (GF-P0-2 关键词查询：种子 → 子图 → 预算内文本) ────────
+
+  function queryGraph(nodes: Array<{ id: string; label: string; filePath?: string }>, edges: Array<[string, string, string]> = []) {
+    return {
+      nodes: nodes.map((node, i) => ({
+        id: node.id,
+        label: node.label,
+        ...(node.filePath === undefined ? {} : { filePath: node.filePath }),
+        type: 'function' as const,
+        lineNumber: i + 1,
+        properties: {},
+      })),
+      edges: edges.map(([source, target, type], i) => ({ id: `e${i}`, source, target, type, properties: {} })),
+      source: 'codegraph',
+      timestamp: 1,
+    };
+  }
+
+  type QueryResult = {
+    query: string;
+    terms: string[];
+    seeds: Array<{ id: string; label: string; score: number; matchedTerms: string[] }>;
+    text: string;
+    tokens: number;
+    truncated: boolean;
+    reason: string;
+    nodeCount: number;
+    edgeCount: number;
+  };
+
+  it('graph_query 按关键词选种子并渲染子图（精确 > 前缀 > 子串 > 路径）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(queryGraph(
+      [
+        { id: 'n1', label: 'graphStore', filePath: 'src/client/store/graphStore.ts' },
+        { id: 'n2', label: 'GraphStoreBuilder', filePath: 'src/store/builder.ts' },
+        { id: 'n3', label: 'unrelatedThing', filePath: 'src/other.ts' },
+      ],
+      [
+        ['n1', 'n2', 'call'],
+        ['n2', 'n3', 'call'],
+      ],
+    ));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphQuery.execute(
+      { repoId: 'r1', query: 'graphstore', maxSeeds: 3 },
+      mockExec,
+    ) as QueryResult;
+
+    expect(result.terms).toEqual(['graphstore']);
+    expect(result.seeds[0]!.id).toBe('n1');
+    expect(result.seeds[0]!.score).toBe(1000);
+    // 子图渲染：种子节点必须出现（NODE 行），邻边出现（EDGE 行）
+    expect(result.text).toContain('NODE n1');
+    expect(result.text).toContain('EDGE n1 -> n2');
+    expect(result.reason).toBe('fits');
+    expect(result.tokens).toBeGreaterThan(0);
+    expect(result.truncated).toBe(false);
+  });
+
+  it('graph_query 支持中文关键词（整段 + 单字都要能命中）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(queryGraph(
+      [
+        { id: 'c1', label: '依赖环检测', filePath: 'src/analysis/cycles.ts' },
+        { id: 'c2', label: 'graphStore', filePath: 'src/store.ts' },
+      ],
+    ));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphQuery.execute(
+      { repoId: 'r1', query: '依赖环' },
+      mockExec,
+    ) as QueryResult;
+
+    // tokenizeQuery 会给出整段词 + 三个单字词
+    expect(result.terms).toEqual(['依赖环', '依', '赖', '环']);
+    expect(result.seeds.map((seed) => seed.id)).toContain('c1');
+    expect(result.text).toContain('NODE c1');
+  });
+
+  it('graph_query 无命中时返回明确的空结果（不编造种子、不渲染空壳）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue(queryGraph([{ id: 'n1', label: 'alpha' }]));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphQuery.execute(
+      { repoId: 'r1', query: 'zzzzzz' },
+      mockExec,
+    ) as QueryResult;
+
+    expect(result.seeds).toEqual([]);
+    expect(result.nodeCount).toBe(0);
+    expect(result.text).toContain('No seed matched');
+    expect(result.truncated).toBe(false);
+  });
+
+  it('graph_query 的 token 预算真的会截断（预算不足时不得谎报完整）', async () => {
+    const leaves = Array.from({ length: 40 }, (_, i) => ({ id: `leaf${i}`, label: `leafFunction${i}` }));
+    const edges: Array<[string, string, string]> = leaves.map((leaf) => ['hub', leaf.id, 'call']);
+    getMockFetchData('codegraph').mockResolvedValue(queryGraph(
+      [{ id: 'hub', label: 'hub' }, ...leaves],
+      edges,
+    ));
+    const tools = await createGraphTools(ctx);
+    const result = await tools.graphQuery.execute(
+      { repoId: 'r1', query: 'hub', tokenBudget: 50, maxSeeds: 3, depth: 1 },
+      mockExec,
+    ) as QueryResult;
+
+    // hub 精确命中 ⇒ 唯一保底种子；depth=1 把 40 个叶子都拉进子图 ⇒ 50 token 装不下。
+    expect(result.seeds.map((seed) => seed.id)).toEqual(['hub']);
+    expect(result.truncated).toBe(true);
+    expect(result.tokens).toBeLessThanOrEqual(50);
+    expect(result.text).toContain('[!]');
+  });
+
+  it('graph_query render 会显示种子与预算信息，null 时给出未命中提示', async () => {
+    const tools = await createGraphTools(ctx);
+    const renderFn = tools.graphQuery.output.render!;
+    const output = renderFn(
+      {},
+      { text: 'NODE n1 graphStore', seeds: [{ id: 'n1', label: 'graphStore', score: 1000 }], tokens: 12, truncated: false },
+    ) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('graphStore(1000)');
+    expect(output[0]!.text).toContain('12 tokens');
+
+    const empty = renderFn({}, null) as Array<{ type: string; text: string }>;
+    expect(empty[0]!.text).toContain('No seed matched');
+  });
 });
 
 describe('render functions', () => {
@@ -1294,6 +1502,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphHealth: { repoId: 'repo-1' },
   graphRulesCheck: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 },
   graphFocus: { repoId: 'repo-1', symbolId: 'sym-1' },
+  graphQuery: { repoId: 'repo-1', query: 'graphStore' },
 };
 
 const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawInput: unknown }> = [
@@ -1307,6 +1516,7 @@ const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawI
   { key: 'graphHealth', title: 'Calculate health score', kind: 'other', rawInput: { repoId: 'repo-1' } },
   { key: 'graphRulesCheck', title: 'Check architecture rules', kind: 'other', rawInput: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 } },
   { key: 'graphFocus', title: 'Focus on symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
+  { key: 'graphQuery', title: 'Query graph', kind: 'search', rawInput: { repoId: 'repo-1', query: 'graphStore' } },
 ];
 
 const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = [
@@ -1320,6 +1530,7 @@ const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = 
   { key: 'graphHealth', ok: 'Health score', fail: 'Health scoring failed' },
   { key: 'graphRulesCheck', ok: 'Rules checked', fail: 'Rules check failed' },
   { key: 'graphFocus', ok: 'Symbol neighborhood', fail: 'Focus failed' },
+  { key: 'graphQuery', ok: 'Graph query result', fail: 'Graph query failed' },
 ];
 
 describe('createGraphTools presentation callbacks', () => {

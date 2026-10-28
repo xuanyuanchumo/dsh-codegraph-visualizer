@@ -33,6 +33,7 @@ export * from './index/rebalance.ts';
 // query
 export * from './query/query-engine.ts';
 export * from './query/topk.ts';
+export * from './query/keyword-query.ts';
 
 // registry
 export * from './registry/rule-registry.ts';

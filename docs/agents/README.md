@@ -19,12 +19,15 @@
 
 | 文件 | 回答的问题 | 何时读 |
 |---|---|---|
-| [01-插件开发规范.md](./01-插件开发规范.md) | 写代码必须遵守什么？宿主版本怎么承诺？清单怎么声明？ | 动手改任何文件**之前** |
-| [02-宿主API参考.md](./02-宿主API参考.md) | 宿主侧能用哪些 Context 服务？18 条路由、8 个 tool、27 个错误码长什么样？ | 改 `src/host/**` 或 `src/index.ts` 时 |
+| [01-插件开发规范.md](./01-插件开发规范.md) | 写代码必须遵守什么？宿主版本怎么承诺？清单怎么声明？复杂度与依赖怎么管？ | 动手改任何文件**之前** |
+| [02-宿主API参考.md](./02-宿主API参考.md) | 宿主侧能用哪些 Context 服务？19 条路由、11 个 tool、25 个错误码长什么样？ | 改 `src/host/**` 或 `src/index.ts` 时 |
 | [03-客户端API参考.md](./03-客户端API参考.md) | 客户端怎么注册标签页？store 有哪些字段？hooks / i18n / CSS 怎么用？ | 改 `src/client/**` 时 |
 | [04-架构设计.md](./04-架构设计.md) | 分层怎么切的？数据怎么流的？为什么这么决策？ | 做结构性改动、评审设计时 |
 | [05-DSH官方规范检索证据.md](./05-DSH官方规范检索证据.md) | 我们对 DSH 契约的每条断言，官方依据（带来源 URL）在哪？ | 引用宿主契约、抬版本窗、判断某个服务是否真实存在时 |
 | [06-dsh-anic插件开发规范.md](./06-dsh-anic插件开发规范.md) | dsh-anic 独立工程的开发规范：六域分区路由、模块架构、适配器、测试金字塔 | 改 `dsh-anic/src/**` 时 |
+| [07-界面与功能域规划.md](./07-界面与功能域规划.md) | 功能域 × 界面组件 × 入口通道 × 状态源 × 测试锚点矩阵；技能/插件能力面怎么进界面 | 改界面、加面板/入口时 |
+| [08-质量属性与评审标准.md](./08-质量属性与评审标准.md) | 什么数值才算过？用什么命令验？哪些只有人工评审？ | 评审、发版、判断「够不够」时 |
+| [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) | 承诺分几层？真门是哪个字段？宿主换代怎么办？ | 抬版本窗、兼容事故、上游插件突然不加载时 |
 
 ## 与既有文档的关系（避免重复，各司其职）
 
@@ -37,6 +40,8 @@
 | `docs/用户旅程.md` | J1–J44 用户旅程定义 | 实现细节 |
 | `docs/anic/*` | **另一个独立工程** `dsh-anic/` 的设计文档 | 本插件的 API |
 | `docs/research/dsh-多代API规范差异与兼容矩阵.md` | 多代 API 差异与兼容矩阵（行级证据） | 快速上手 |
+| `docs/research/dsh-round110-规范与破坏性变更.md` | cycle-110 官方规范检索与变更面影响判定（来源 URL） | 本项目的承诺口径（在 09） |
+| `docs/评估评审研究开发体系.md` | 七维评估体系与全生命周期门禁的**框架** | 具体阈值与命令（在 08） |
 
 > ⚠️ `docs/anic/` 描述的是仓库内的**独立兄弟工程** `dsh-anic/`（ANIC 工作流可视化），
 > 与本插件共享仓库但**源码零依赖**。不要把两者的 API 混用。
@@ -52,6 +57,10 @@
    文档正文同样用中文，但**标识符、路径、命令、错误码保持原文**，不做翻译。
 4. **不写"应该"**：只写"是"或"不是"。如果某个约束没有对应的守卫测试，必须显式标注
    「无机器守卫」，而不是让它看起来像有保护。
+5. **数量型事实只在 02 里写一次**：工具数 / 路由数 / 错误码数 / 组件数 / hooks 数 / CSS 数
+   集中登记在 [02-宿主API参考.md](./02-宿主API参考.md)（宿主侧）与
+   [03-客户端API参考.md](./03-客户端API参考.md)（客户端侧），本 README 与 04 只引用不复写。
+   这类数字最容易过期——2026-10-28 复核时发现 `8 个 tool / 18 条路由 / 27 个错误码` 三个数字全部已漂移。
 
 ## 事实基座自检
 
@@ -65,12 +74,13 @@ grep -n "export const inject" src/index.ts
 grep -n "export const inject" src/client/index.ts
 grep -n "DSH_SUPPORTED_RANGE" src/shared/dshGeneration.ts
 grep -n "manifestVersion" package.json
-# 3) 路由数量（应为 18 个 register*Route 调用）
+# 3) 路由数量（应为 19 个 register*Route 调用，含 /churn）
 grep -c "register.*Route(" src/host/routes.ts
-# 4) tool 数量（应为 8 个 defineTool）
+# 4) tool 数量（应为 11 个 defineTool，且与 src/index.ts 的注册数相等）
 grep -c "defineTool(" src/tools.ts
-# 5) 错误码数量（应为 27）
-grep -c "^  [A-Z_]*:" src/shared/constants.ts
+grep -c "ctx.tools.register" src/index.ts
+# 5) 错误码数量（应为 25，且 ERROR_CODES 与 ERROR_MESSAGES 键集合相等）
+grep -c "^  [A-Z_]*:" src/shared/constants.ts   # 全文件，非 ERROR_CODES 段
 # 6) dsh-anic 独立性（G-IND）：源码不得 import 父项目 src/
 grep -r "from.*\.\./\.\./src/" dsh-anic/src/ || echo "G-IND OK"
 # 7) dsh-anic 路由数量（18 个路由文件）
@@ -79,8 +89,14 @@ ls dsh-anic/src/host/routes/*.ts | wc -l
 cd dsh-anic && pnpm run typecheck && pnpm run test && pnpm run build
 ```
 
+> 第 3/4/5 项的**精确口径**见 [02-宿主API参考.md](./02-宿主API参考.md) §3.2 / §7 / §6.1；
+> 数量类断言唯一可信的方式是跑 `tests/unit/plugin.test.ts` 与 `tests/unit/routes.test.ts`，
+> 而不是数 grep 行——grep 会把注释与字符串里的同形文本一起数进来。
+
 ## 版本
 
 - 适用插件版本：`dsh-codegraph-visualizer@0.2.0` + `dsh-anic@0.3.0`
-- 适用 DSH 宿主：`>=0.2.0-rc.2 <0.4.0`（见 [01-插件开发规范.md](./01-插件开发规范.md) §2）
-- 文档族版本：`1.1.0`（cycle-93 新增 06-dsh-anic 插件开发规范）
+- **声明**的宿主范围：`>=0.2.0-rc.2 <0.4.0-0`（见 [01-插件开发规范.md](./01-插件开发规范.md) §2）
+- **已验证**的运行宿主：`0.2.1-rc.3`（gen2 补丁；取证见 [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) §2）
+- ⚠️ 「声明范围」与「已验证版本」是两列事实，下限永远写 `0.2.0-rc.2`，不得写成已验证版本
+- 文档族版本：`1.2.0`（cycle-110 新增 07/08/09、工具 10→11、路由 18→19、错误码口径 27→25）

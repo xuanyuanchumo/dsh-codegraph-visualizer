@@ -22,6 +22,8 @@ import { useLODZoom } from './hooks/useLODZoom.ts';
 import { useMiniMapSync } from './hooks/useMiniMapSync.ts';
 import { useAutoBootstrap } from './hooks/useAutoBootstrap.ts';
 import { useAncestorResize } from './hooks/useAncestorResize.ts';
+import { usePanelTier } from './hooks/usePanelTier.ts';
+import { panelRootDataAttributes } from './components/panelSheet.ts';
 import { useViewModePanelGuard } from './hooks/useViewModePanelGuard.ts';
 import { useSearchInteraction, type GetDataApi } from './hooks/useSearchInteraction.ts';
 import { useFocusMode } from './hooks/useFocusMode.ts';
@@ -196,6 +198,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rendererRef: renderer.rendererRef,
     panelRef,
   });
+
+  /**
+   * 面板宽度档位（cycle-110 / T3）。
+   *
+   * 与容器查询 `@container graphpanel (...)` 同阈值，但走 JS 测量：宿主浏览器缺少
+   * 容器查询支持时，`@supports not` 兜底用的是**视口**媒体查询，而 DSH 面板宽度与
+   * 视口无关（1600px 视口里可能是 400px 侧栏），只有实测宽度才能得到正确档位。
+   * 档位写进 `data-cg-tier`，供样式（窄档抽屉）与 E2E 读取。
+   */
+  const panelTier = usePanelTier(panelRef);
 
   usePanelVisibility({ panelVisible, rendererRef: renderer.rendererRef });
 
@@ -400,7 +412,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}
-      data-cg-integration={integrationMode}>
+      data-cg-integration={integrationMode}
+      // 档位与「抽屉是否打开」都是数据属性而不是内联样式：样式表负责版式，
+      // 组件只如实声明状态（`components/panelSheet.ts` 是唯一判据来源）。
+      {...panelRootDataAttributes(panelTier, {
+        hasSelectedNode: Boolean(selectedNodeData),
+        showSearch: panel.showSearch,
+        showPathFind: panel.showPathFind,
+        showFilterPanel: panel.showFilterPanel,
+        showImport: panel.showImport,
+      })}>
       <button className="cg-collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')} aria-expanded={!panel.collapsed}>
         <GraphIcon size={22} />
       </button>

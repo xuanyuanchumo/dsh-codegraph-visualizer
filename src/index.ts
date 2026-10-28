@@ -47,7 +47,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const repoReady = graphRepo.init();
   if (!repoReady) { log.warn('graph repository init failed, persistence disabled'); }
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -60,7 +60,8 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     const d8 = ctx.tools.register(graphFocus);
     const d9 = ctx.tools.register(graphPathEnumerate);
     const d10 = ctx.tools.register(graphCycles);
-    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); };
+    const d11 = ctx.tools.register(graphQuery);
+    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); };
   }, 'codegraph: tool registrations');
 
   let lastGraphData: GraphData | null = null;

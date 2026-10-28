@@ -637,6 +637,12 @@ export const en: Record<string, string> = {
 
   // Tour feature
   'toolbar.more': 'More',
+  // Section headings of the "More" dropdown (cycle-110 / T3). Empty sections are
+  // dropped while building (`components/toolbar/moreMenu.ts`), so these headings can
+  // never render without items.
+  'toolbar.moreOverlaySection': 'Overlays',
+  'toolbar.moreAppearanceSection': 'Appearance & language',
+  'toolbar.moreSessionSection': 'Session actions',
   'toolbar.tour': 'Code Tour',
   'tour.title': 'Code Tour',
   'tour.close': 'Close tour',

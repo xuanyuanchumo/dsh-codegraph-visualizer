@@ -34,7 +34,7 @@ import {
   onEdgeRemovedDetailed,
   wasLastIncrementalDegraded,
 } from '../../xuanji/index/incremental.ts';
-import { enumerate } from '../../xuanji/query/query-engine.ts';
+import { enumerate, readPathPage } from '../../xuanji/query/query-engine.ts';
 
 /** 允许的边类型（项目 `GraphEdge.type` 的取值域）。 */
 export type AdapterEdgeType = GraphEdge['type'];
@@ -58,6 +58,10 @@ export interface PathEnumerationOptions {
   readonly maxHops?: number;
   /** 最多返回多少条路径，默认 20。 */
   readonly limit?: number;
+  /** 分页游标（已返回条数；缺省 0）。XJ-03：翻页用上一页的 `nextCursor`。 */
+  readonly cursor?: number;
+  /** 每页条数（缺省等于 `limit`）。 */
+  readonly pageSize?: number;
 }
 
 /** 路径枚举结果。 */
@@ -68,6 +72,13 @@ export interface PathEnumerationResult {
   readonly truncated: boolean;
   /** 实际返回条数。 */
   readonly total: number;
+  /**
+   * Ω 惰性输出：本页每条路径经过规则 `output` 映射后的值（XJ-03）。
+   * 只对**当前页**求值；旧调用方可以完全忽略这个字段（可选）。
+   */
+  readonly labels?: readonly unknown[];
+  /** 下一页游标；`null` 表示没有更多（XJ-03）。不传分页参数时也会给出。 */
+  readonly nextCursor?: number | null;
 }
 
 /** 环枚举参数。 */
@@ -77,6 +88,10 @@ export interface CycleEnumerationOptions {
   readonly maxLength?: number;
   /** 最多返回多少条环，默认 100。 */
   readonly limit?: number;
+  /** 分页游标（已返回条数；缺省 0）。 */
+  readonly cursor?: number;
+  /** 每页条数（缺省等于 `limit`）。 */
+  readonly pageSize?: number;
 }
 
 /**
@@ -321,7 +336,9 @@ export class XuanjiAdapter {
         if (!rule) continue;
         addedPaths += onEdgeAdded(ej, rule, this.space, index).length;
         // 预算降级时 onEdgeAdded 已自行 clear()；这里把它记入 degradedRules 并停止后续写入。
-        if (wasLastIncrementalDegraded()) degraded.add(name);
+        // XJ-11：读**该索引**的实例态（不是模块级全局），否则两条规则 / 两个仓库并发时
+        // A 的降级会被 B 的正常调用清掉。
+        if (wasLastIncrementalDegraded(index)) degraded.add(name);
       }
     };
 
@@ -418,6 +435,10 @@ export class XuanjiAdapter {
   /**
    * 枚举「从 source 到 target」的简单路径（璇玑图的一种「读法」）。
    * 每次调用使用独立索引——只读查询，不承担增量维护责任。
+   *
+   * XJ-03：返回值经库的 {@link readPathPage} 组装，因此带 `labels`（Ω 惰性输出，
+   * 只对当前页求值）与 `nextCursor`（分页）。不传 `cursor`/`pageSize` 时
+   * `paths` / `truncated` / `total` 三个旧字段与改造前逐元素一致。
    */
   findPathsBetween(
     source: string,
@@ -427,6 +448,8 @@ export class XuanjiAdapter {
     const minHops = Math.max(1, options.minHops ?? 1);
     const maxHops = Math.max(minHops, options.maxHops ?? 5);
     const limit = Math.max(1, options.limit ?? 20);
+    const cursor = Math.max(0, Math.floor(options.cursor ?? 0));
+    const pageSize = Math.max(1, Math.floor(options.pageSize ?? limit));
 
     if (!this.space.hasNode(source) || !this.space.hasNode(target)) return EMPTY_PATH_RESULT;
 
@@ -450,20 +473,30 @@ export class XuanjiAdapter {
     this.assertRule(rule);
 
     const index = new PathIndex();
-    // limit+1 用于区分「恰好 limit 条」与「被截断」
-    const entries = enumerate(this.space, rule, [source], index, { maxPaths: limit + 1 });
-    const truncated = entries.length > limit;
-    const kept = truncated ? entries.slice(0, limit) : entries;
-    return { paths: kept.map((entry) => [...entry.nodes]), truncated, total: kept.length };
+    // 多枚举一条用于区分「恰好 limit 条」与「被截断」；分页时窗口终点是 cursor + pageSize。
+    const entries = enumerate(this.space, rule, [source], index, { maxPaths: cursor + pageSize + 1 });
+    const truncated = entries.length > cursor + pageSize;
+    const page = readPathPage(rule, entries, { cursor, pageSize });
+    return {
+      paths: page.entries.map((entry) => [...entry.nodes]),
+      truncated,
+      total: page.entries.length,
+      labels: page.labels,
+      nextCursor: page.nextCursor,
+    };
   }
 
   /**
    * 枚举图中的简单环（闭合路径 + Booth 规范化去重）。
    * 同一环从不同节点起读只出现一次——「同一首诗从不同字起读仍是同一首」。
+   *
+   * XJ-03：与 {@link findPathsBetween} 同源，返回值带 `labels` / `nextCursor`。
    */
   cycles(options: CycleEnumerationOptions = {}): PathEnumerationResult {
     const maxLength = Math.max(1, options.maxLength ?? 6);
     const limit = Math.max(1, options.limit ?? 100);
+    const cursor = Math.max(0, Math.floor(options.cursor ?? 0));
+    const pageSize = Math.max(1, Math.floor(options.pageSize ?? limit));
 
     const edgeTypes = this.presentEdgeTypes(options.edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
     if (edgeTypes.size === 0) return EMPTY_PATH_RESULT;
@@ -484,10 +517,16 @@ export class XuanjiAdapter {
 
     const index = new PathIndex();
     const starts = [...this.space.nodeIds()];
-    const entries = enumerate(this.space, rule, starts, index, { maxPaths: limit + 1 });
-    const truncated = entries.length > limit;
-    const kept = truncated ? entries.slice(0, limit) : entries;
-    return { paths: kept.map((entry) => [...entry.nodes]), truncated, total: kept.length };
+    const entries = enumerate(this.space, rule, starts, index, { maxPaths: cursor + pageSize + 1 });
+    const truncated = entries.length > cursor + pageSize;
+    const page = readPathPage(rule, entries, { cursor, pageSize });
+    return {
+      paths: page.entries.map((entry) => [...entry.nodes]),
+      truncated,
+      total: page.entries.length,
+      labels: page.labels,
+      nextCursor: page.nextCursor,
+    };
   }
 
   /** 从一批起点沿边类型可正向到达的节点集合（BFS，与 DeadCodeAnalyzer 语义一致）。 */

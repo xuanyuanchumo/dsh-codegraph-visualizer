@@ -79,11 +79,24 @@ describe('integrateBetterSidebar', () => {
     return { state, api: resolvedApi };
   }
 
-  it('returns early when flags.betterSidebar is false', () => {
-    const ctx = { effect, get: vi.fn() } as unknown as Context;
+  it('does not register on a false snapshot, but leaves an observable snapshot-miss and arms a retry', () => {
+    // cycle-110 / C1：旧契约是「快照为假 ⇒ 永不探测」（`expect(ctx.get).not.toHaveBeenCalled()`），
+    // 那是「一瞬决定永远」缺陷本身。新契约保留「不注册」，但要求：
+    //   1. 写出可观测标记（`<html data-cg-channel-better-sidebar>`），
+    //   2. 用**实时**探测复核快照（快照可能是旧的），
+    //   3. 实时也为假时登记「服务就绪后重跑」。
+    const ctx = { effect, get: vi.fn(() => undefined), inject: vi.fn(() => ({})) } as unknown as Context;
     const state = new IntegrationState(ctx, makeFlags({ betterSidebar: false }));
+
     integrateBetterSidebar(state);
-    expect(ctx.get).not.toHaveBeenCalled();
+
+    expect(state.navButtonRegistered).toBe(false);
+    // 实时探测必须真的发生（否则快照仍旧决定一整轮）
+    expect(ctx.get).toHaveBeenCalledWith('betterSidebar', false);
+    // 可观测标记落在 <html> 上（jsdom 有 document，故此断言可执行）
+    expect(document.documentElement.getAttribute('data-cg-channel-better-sidebar')).toBe('retry-pending');
+    // 重试用 ctx.inject 作为「服务就绪」触发器
+    expect(ctx.inject).toHaveBeenCalledWith(['betterSidebar'], expect.any(Function));
   });
 
   it('returns early when navButtonRegistered is already true', () => {

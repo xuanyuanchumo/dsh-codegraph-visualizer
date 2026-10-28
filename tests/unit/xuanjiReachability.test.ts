@@ -538,6 +538,12 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
         owner: 'library-internal',
       },
       {
+        symbol: 'effectiveMaxEdges',
+        reason:
+          'XJ-10 的单一实现：库内 3 处调用（enumerate / onEdgeAdded / rebalance 的长度上界）；宿主不自己算路径长度上界，非法规则由库抛错',
+        owner: 'library-internal',
+      },
+      {
         symbol: 'EdgeRemovalOptions',
         reason: '库内类型：适配层调用 onEdgeRemovedDetailed 时不传 options，走缺省阈值',
         owner: 'library-internal',
@@ -652,6 +658,49 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
         symbol: 'isMinimalRotation',
         reason: '仅由 CycleDFS 对称 re-export，仓库内无消费者；行为已由 CycleDFS.test.ts 的引用相等断言覆盖',
         owner: 'library-internal',
+      },
+      {
+        symbol: 'estimateTokens',
+        reason:
+          'GF-P0-2 预算估算：库内 renderSubgraphText 每个分支都用它；宿主 graph_query 只透传 tokens 字段，不自己算 token',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'KeywordEdge',
+        reason:
+          'GF-P0-2：宿主把 GraphEdge 结构化地传给 renderSubgraphText（{source,target,type}），不 import 类型名',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'KeywordNode',
+        reason:
+          'GF-P0-2：宿主把 GraphNode 结构化地传给 selectSeeds（{id,label,filePath}），不 import 类型名',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'RenderOptions',
+        reason: 'GF-P0-2：graph_query 以对象字面量传 {depth, tokenBudget}，不引用选项类型名',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'RenderReason',
+        reason: 'GF-P0-2：渲染三分支的取值类型；宿主只把 reason 字符串透传进 JSON，不引用联合类型名',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'RenderedSubgraph',
+        reason: 'GF-P0-2：渲染结果结构；graph_query 把字段展开进 JSON 返回值，不 import 类型名',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'SeedMatch',
+        reason: 'GF-P0-2：种子结构；graph_query 读取 id/label/score/matchedTerms 并映射成 JSON',
+        owner: 'GF-P0-2',
+      },
+      {
+        symbol: 'SelectSeedOptions',
+        reason: 'GF-P0-2：graph_query 以对象字面量传 {maxK}（术语/断层比例走库缺省），不引用选项类型名',
+        owner: 'GF-P0-2',
       },
       {
         symbol: 'makeEntry',

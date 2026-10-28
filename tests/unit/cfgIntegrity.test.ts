@@ -8,7 +8,7 @@ import type { GraphEdge } from '../../src/types/index.ts';
  * Round 9 (P2): the CFG micro diagram shipped edges whose endpoints were not part of the diagram,
  * which Cytoscape rejects at render time with `Edge 'cfg-edge-N' has invalid endpoints` and drops
  * (silent data loss). These tests assert the invariant on the exact function that surfaced it in
- * the Round 8 J0 session (`computeClusteredGraph` in `src/client/store/cluster/progressiveCluster.ts`)
+ * the Round 8 J0 session (`computeClusteredGraph` in `src/client/store/cluster/index.ts`)
  * and across every construct the assembler supports.
  */
 describe('CFG assembler edge integrity', () => {
@@ -34,8 +34,11 @@ describe('CFG assembler edge integrity', () => {
   };
 
   it('keeps every edge endpoint inside the diagram for the function that surfaced the warning', async () => {
-    const file = 'src/client/store/cluster/progressiveCluster.ts';
+    const file = 'src/client/store/cluster/index.ts';
     const source = readFileSync(file, 'utf8');
+    // 守卫：assemble() 找不到目标函数时会**回退**成骨架图，所有不变量仍然成立——
+    // 于是「函数搬家了」这种腐化会一直绿。这里先钉住函数确实在本文件内。
+    expect(source).toContain('function computeClusteredGraph');
     const diagram = await assembleFrom(file, source, 'computeClusteredGraph');
 
     expect(diagram.nodes.length).toBeGreaterThan(1);
@@ -67,8 +70,11 @@ describe('CFG assembler edge integrity', () => {
   });
 
   it('declares only exit blocks that exist in the diagram', async () => {
-    const file = 'src/client/store/cluster/progressiveCluster.ts';
+    const file = 'src/client/store/cluster/index.ts';
     const source = readFileSync(file, 'utf8');
+  // 同上：先钉住函数在本文件内，再断言图不变量（否则 fallback 图会让用例永远绿）
+  expect(source).toContain('function computeClusteredGraph');
+
     const ast = await adapter.parseToAst(file, source);
     const assembler = new CFGAssembler();
     const diagram = assembler.assemble(ast!, file, 'computeClusteredGraph');

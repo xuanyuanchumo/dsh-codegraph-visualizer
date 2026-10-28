@@ -16,6 +16,13 @@ import type { WorkspaceRootSource } from '../security.ts';
 import { findWorkspacePath, resolveWorkspaceRoots } from '../prerequisites.ts';
 import type { VisualizerConfig } from '../config.ts';
 import type { ApiCompatLayer, FeatureFlags } from '../compat/index.ts';
+import {
+  evaluateSnapshotShrink,
+  rememberRefusedSnapshot,
+  wasRefusedBefore,
+  clearRefusedSnapshot,
+} from '../compat/index.ts';
+import { GRAPH_DELTA_SHRINK } from '../../shared/graphDelta.ts';
 import { createRateLimiter } from '../RateLimiter.ts';
 import type { GraphRepository } from '../db/GraphRepository.ts';
 import {
@@ -580,10 +587,57 @@ export function triggerBackgroundBuild(
     if (graphRepo?.isReady()) {
       try {
         const previous = graphRepo.getLatestSnapshot(repoId);
+        // 先把基线规模取出来（`previous` 为 null 时留 null）。这样下面的日志与判定都不必
+        // 对可空对象做属性访问，也就不需要非空断言。
+        const previousNodes = previous?.nodeCount ?? null;
+        const previousEdges = previous?.edgeCount ?? null;
         if (previous?.snapshotHash !== fingerprint) {
-          const serialized = Buffer.from(JSON.stringify({ nodes: data.nodes, edges: data.edges, metadata: data.metadata }), 'utf-8');
-          graphRepo.saveSnapshot(repoId, fingerprint, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
+          // P0-7（cycle-110）：写入前的规模维度守卫。阈值/规模下限全部来自
+          // `GRAPH_DELTA_SHRINK`（与 client store、host incrementalUpdate 共用同一组数字），
+          // 理由与边界写在 `src/host/compat/snapshotShrinkGuard.ts` 的模块头。
+          //
+          // **关键约束（"快照不决定永远"）**：拒绝写入**只**影响落盘。`setLastGraphData()`
+          // 已经在上面执行、`ctx.emit()` 在下面照常发出——内存里的图、扫描缓存、SSE/事件
+          // 观众全都拿到这次扫描的结果。把这里的 `if` 写成 `return` 就会让一次守卫命中
+          // 连整轮构建一起掐断，那正是本仓反复记录的"快照决定永远"缺陷形态。
+          const decision = evaluateSnapshotShrink(previous, {
+            nodeCount: data.metadata.nodeCount,
+            edgeCount: data.metadata.edgeCount,
+          }, { minRetainRatio: GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO });
+
+          // 先读"上一轮是否已经拒过同一个指纹"，再决定要不要登记——顺序反了会让第一次
+          // 拒绝立刻看见自己刚登记的记录，从而把两次确认退化成一次（写入照旧发生）。
+          const reproduced = wasRefusedBefore(repoId, fingerprint);
+          const writeAllowed = decision.allowed || reproduced;
+
+          if (!decision.allowed) {
+            if (reproduced) {
+              // 两次确认：连续两轮扫出**完全相同**的较小图 —— 缩水是真实改动（用户确实删了代码），
+              // 不是一次半读。放行写入，否则基线会被永久锁死在一张过时的图上。
+              log.warn('snapshot write proceeding: the shrunken graph was reproduced identically', {
+                repoId, fingerprint, nodeRatio: decision.nodeRatio, edgeRatio: decision.edgeRatio,
+                previousNodes, previousEdges,
+                nextNodes: data.metadata.nodeCount, nextEdges: data.metadata.edgeCount,
+              });
+            } else {
+              rememberRefusedSnapshot(repoId, fingerprint);
+              log.warn('snapshot write refused: graph would shrink beyond the retain ratio', {
+                repoId, fingerprint, reason: decision.reason,
+                nodeRatio: decision.nodeRatio, edgeRatio: decision.edgeRatio,
+                previousNodes, previousEdges,
+                nextNodes: data.metadata.nodeCount, nextEdges: data.metadata.edgeCount,
+                minRetainRatio: GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO,
+              });
+            }
+          }
+
+          if (writeAllowed) {
+            const serialized = Buffer.from(JSON.stringify({ nodes: data.nodes, edges: data.edges, metadata: data.metadata }), 'utf-8');
+            graphRepo.saveSnapshot(repoId, fingerprint, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
+            clearRefusedSnapshot(repoId);
+          }
         } else {
+          clearRefusedSnapshot(repoId);
           log.debug('snapshot unchanged, skipping write', { repoId, fingerprint });
         }
       } catch (e) { log.warn('snapshot save failed', e); }

@@ -114,7 +114,17 @@ describe('dsh plugin manifest', () => {
       const probe = DSH_GENERATION_PROBES[generation as keyof typeof DSH_GENERATION_PROBES];
       expect(coversVersion(range as string, probe), `${range} should cover ${generation} (${probe})`).toBe(true);
     }
-    expect(coversVersion(range as string, DSH_UNSUPPORTED_PROBE)).toBe(false);
+    // 上界探针必须**成对**：只测「被排除」测不出「上界被改宽」，只测「仍覆盖」测不出
+    // 「上界被改窄」。cycle-110 的实证是旧上界 `<0.4.0` 在 includePrerelease 下放行了
+    // `0.4.0-rc.1`，所以最近的缺口是**预发布**，探针必须落在预发布上。
+    expect(coversVersion(range as string, '0.4.0-rc.1'), `${range} must NOT cover 0.4.0-rc.1 (gen4 prerelease)`).toBe(false);
+    expect(coversVersion(range as string, '0.4.0-alpha.1'), `${range} must NOT cover 0.4.0-alpha.1`).toBe(false);
+    expect(coversVersion(range as string, '0.4.0'), `${range} must NOT cover 0.4.0`).toBe(false);
+    expect(coversVersion(range as string, '1.0.0'), `${range} must NOT cover 1.0.0`).toBe(false);
+    // 反向：收紧上界不得误伤 0.3 线的预发布与正式版（这是「改窄」的守卫）。
+    for (const version of ['0.3.0-rc.1', '0.3.0-rc.2', '0.3.0', '0.3.7']) {
+      expect(coversVersion(range as string, version), `${range} must still cover ${version}`).toBe(true);
+    }
   });
 
   it('excludes every legacy generation from the declared window', () => {

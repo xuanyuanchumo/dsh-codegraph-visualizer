@@ -191,11 +191,11 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 10 tools and 6 event listeners', async () => {
+  it('should register 11 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     await apply(ctx);
-    expect(ctx.tools.register).toHaveBeenCalledTimes(10);
+    expect(ctx.tools.register).toHaveBeenCalledTimes(11);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/scanned', expect.any(Function));
@@ -230,6 +230,13 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     expect(registeredNames).toEqual(returnedNames);
     expect(registeredNames).toContain('graph_path_enumerate');
     expect(registeredNames).toContain('graph_cycles');
+    // GF-P0-2：新工具必须同时在「工厂返回」与「入口注册」两侧出现——只改一侧就是
+    // cycle-107 的死工具（工厂返回了、入口没解构，/tools 里永远看不到）。
+    expect(registeredNames).toContain('graph_query');
+    expect(returnedNames).toContain('graph_query');
+    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 11」，
+    // 否则「工厂和入口同时漏掉同一个工具」仍然满足集合相等。
+    expect(registeredNames).toHaveLength(11);
   });
 
 

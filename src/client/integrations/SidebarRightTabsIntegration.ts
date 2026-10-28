@@ -1,7 +1,6 @@
 
 import type { IntegrationState } from './IntegrationState.ts';
 import { GraphPanel } from '../GraphPanel.tsx';
-import { useGraphStore } from '../store/graphStore.ts';
 import { t } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { PLUGIN_SLOT_ID } from './integrationIds.ts';
@@ -28,10 +27,22 @@ const log = scoped('client');
  *     through hiding, Session changes and docking; default false」。
  */
 export function integrateSidebarRightTabs(state: IntegrationState): void {
+  // 快照只说明 `apply()` 那一刻读不到 `sidebarRightTabs`，**不说明以后读不到**
+  // （cycle-110 / C1：`better-sidebar pending` 实测证明提供者晚到是常态）。
+  // 因此快照为假时不再早退，而是记一条可观测的 snapshot-miss，然后照旧走
+  // `ctx.inject(['sidebarRightTabs'])` —— 该注入本身就是「服务出现才回调」的响应式
+  // 触发器；回调里仍会检查 `navButtonRegistered`，故不会造成优先级反转。
+  const viaSnapshot = state.flags.sidebarRightTabs;
+  if (!viaSnapshot) state.noteSnapshotMiss('sidebar-right', 'sidebarRightTabs');
+
+  // 顶部标签仍在预留窗口内时**排队**，而不是被 `navButtonRegistered` 直接挡掉：
+  // 排队回放保证「顶部标签失败/超时后仍有这一档可用」，直接挡掉等于丢失整档优先级。
+  if (state.deferIfTopTabPending(() => integrateSidebarRightTabs(state), 'sidebar-right')) return;
   if (state.navButtonRegistered) return;
-  if (!state.flags.sidebarRightTabs) return;
 
   const { ctx } = state;
+  /** 内容席位的 disposer；顶部标签迟到注册时用于撤回本档入口。 */
+  let bodyDisposer: (() => void) | undefined;
 
   try {
     // cordis 的 `ctx.inject(deps, callback)` 回调首参是 **Context**（`registry.d.ts:71-73`
@@ -42,6 +53,13 @@ export function integrateSidebarRightTabs(state: IntegrationState): void {
       const tabs = scope.get('sidebarRightTabs') as typeof ctx.sidebarRightTabs | undefined;
       if (!tabs) {
         log.warn('sidebarRightTabs injected but undefined');
+        return;
+      }
+      // 注入是异步的：等待期间页脚按钮/浮动面板可能已经占位。此时本档必须让位，
+      // 否则同一面板出现两个入口（cycle-110 前的实际行为）。
+      if (state.navButtonRegistered) {
+        state.noteChannelYielded('sidebar-right', '席位已被更早占位的通道持有');
+        log.warn('sidebarRightTabs yielded the seat to a channel that claimed it first');
         return;
       }
       log.info('sidebarRightTabs injected via ctx.inject, registering...');
@@ -63,15 +81,31 @@ export function integrateSidebarRightTabs(state: IntegrationState): void {
           { name: 'sidebar.right.pane.tab', key: PLUGIN_SLOT_ID },
           GraphPanel,
         );
-        if (typeof regResult === 'function') state.slotDisposers.push(regResult);
+        if (typeof regResult === 'function') {
+          bodyDisposer = regResult;
+          state.slotDisposers.push(regResult);
+        }
       });
       if (typeof bodyDispose === 'function') state.slotDisposers.push(bodyDispose);
 
+      // 顶部标签迟到注册时撤回本档（顶部标签优先，其余通道让位）。
+      state.noteFallbackSeat(() => {
+        if (typeof typeDispose === 'function') {
+          try { typeDispose(); } catch (e) { log.warn('sidebar-right tab type withdrawal failed', e); }
+        }
+        if (bodyDisposer) {
+          try { bodyDisposer(); } catch (e) { log.warn('sidebar-right tab body withdrawal failed', e); }
+          bodyDisposer = undefined;
+        }
+      }, 'sidebar-right');
+
       state.navButtonRegistered = true;
-      useGraphStore.getState().setIntegrationMode('sidebar-right');
+      // 快照为假、服务晚到 ⇒ late-registered（可观测的修复形态）；否则就是正常注册。
+      state.markChannel('sidebar-right', viaSnapshot ? 'registered' : 'late-registered');
       log.info('sidebarRightTabs registration succeeded');
     });
   } catch (e) {
+    state.noteChannelFailed('sidebar-right', `ctx.inject 抛错: ${e instanceof Error ? e.message : String(e)}`);
     log.error('sidebarRightTabs ctx.inject failed', e);
   }
 }

@@ -119,6 +119,34 @@ export class RuleCompositionError extends Error {
   }
 }
 
+/**
+ * 规则的有效长度上界（边数），三处调用点（`enumerate` / `onEdgeAdded` / `rebalance`）
+ * 共用这一个实现（XJ-10：此前三处各写一份 `Number.isFinite(lMax) ? lMax : nodeCount`）。
+ *
+ * 契约：
+ * - 有限 `lMax`：直接用它（取整并夹到 ≥ 0）；
+ * - 无界 `lMax` + `simple: true`：简单路径最长 |V| - 1 条边，用 `nodeCount` 兜底终止；
+ * - 无界 `lMax` + 非 simple：**路径集合无限**，这是调用方违约（`validateRule` §6 已报错），
+ *   这里抛 {@link RuleCompositionError} 而不是静默用 |V| 近似。
+ *
+ * 为什么从「静默近似」改为「显式拒绝」：静默兜底会得到「看起来完整、其实缺一半」的结果
+ * （枚举在 |V| 处被截断而调用方以为拿到了全部），比一个明确的错误危险得多（XJ-10）。
+ *
+ * @param nodeCount 图节点数 |V|
+ */
+export function effectiveMaxEdges(
+  rule: Pick<PathRule, 'lMax' | 'simple'>,
+  nodeCount: number,
+): number {
+  if (Number.isFinite(rule.lMax)) return Math.max(0, Math.floor(rule.lMax));
+  if (rule.simple !== true) {
+    throw new RuleCompositionError(
+      'unbounded lMax requires simple: true (the path set is infinite)',
+    );
+  }
+  return Math.max(0, Math.floor(nodeCount));
+}
+
 function combinePredicates(
   a: NodePredicate | undefined,
   b: NodePredicate | undefined,

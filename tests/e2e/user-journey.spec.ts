@@ -7,12 +7,13 @@ import {
   clickDataItem,
   clickMoreItem,
   openDropdown,
+  BASE_URL,
 } from './helpers.ts';
 import { PANEL, TRIGGERS, SEARCH, FILTER, OPTION, DROPDOWN_CONTENT, DATA_ITEM } from './selectors.ts';
 
 test.describe('Full user journey: API modal → plugin entry', () => {
   test('J0: should start dsh web, dismiss API modal, and load plugin', async ({ page }) => {
-    await page.goto('http://localhost:3080', { timeout: 60000, waitUntil: 'domcontentloaded' });
+    await page.goto(BASE_URL, { timeout: 60000, waitUntil: 'domcontentloaded' });
     const apiModal = page.locator('#api-modal');
     await expect(apiModal).toBeVisible({ timeout: 20000 });
     await page.locator('#api-skip-btn').click({ timeout: 15000 });

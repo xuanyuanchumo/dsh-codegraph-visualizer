@@ -1,101 +1,42 @@
-import { NodeId } from '../../../types/index.ts';
+/**
+ * 渐进式聚类（cycle-110 Q7 重组后的**编排层**）。
+ *
+ * 本文件现在只保留「编排」：入口（`computeProgressiveClusters`）、上限收敛（`enforceNodeLimit`）、
+ * 以及三个与展开状态直接相关的纯函数（`parseExpandedNodeIds` / `buildDirMapping` /
+ * `applyInitialDepth`）。构造簇节点、智能分组、展开代价缓存分别搬到：
+ *   · `clusterNodes.ts`        —— 簇节点构造器（无状态）
+ *   · `directoryExpansion.ts`  —— 已展开目录的聚类流程（就地写容器）
+ *   · `clusterExpandCost.ts`   —— 模块级展开代价缓存（有状态，`disposeStore` 唯一入口）
+ *
+ * 行为等价承诺：这次重组只移动代码，没有改任何条件、顺序、字符串或返回值形状。为了让既有
+ * import 路径（生产代码与 30+ 个用例）全部继续成立，被搬走的导出名在这里**原样 re-export**。
+ * 也就是说「以本文件为入口」的公开面仍是重构前的那个公开面。
+ *
+ * ⚠️ 注释纪律：**不要在这里写出「from + 本文件路径」的字面量**（哪怕只是举例）。Q5 的环检测器
+ * 用相对 import 图做 DFS，而它不剥注释——一句形如 `from './xxx.ts'` 的示例会被当成真 import，
+ * 于是本文件被判成「自环」，Q5 直接 FAIL。cycle-110 实盘踩过：把示例改成白话即恢复。
+ */
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges, getDependencyGroup } from './types.ts';
-import { detectCommunities } from './communityDetection.ts';
 import { CLUSTER, getDynamicMaxVisibleNodes, getAutoClusterDepth } from '../../../shared/constants.ts';
 import { getTopLevelDir } from '../../../shared/pathUtils.ts';
+import { buildParentIndex, createDirectoryCluster } from './clusterNodes.ts';
+import { clusterExpandedDirectory } from './directoryExpansion.ts';
 
 const MAX_VISIBLE_NODES = CLUSTER.MAX_VISIBLE_NODES;
-const SUBGROUP_THRESHOLD = CLUSTER.SUBGROUP_THRESHOLD;
-const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = CLUSTER.MAX_NODES_PER_DIR_BEFORE_SUBGROUP;
 
+// —— 公开面保持：搬走的符号从新家再导出，调用方零改动 ——
+export { getFileLabel, createSubgroupClusters } from './clusterNodes.ts';
+export { invalidateExpandCostCache, estimateExpandCost } from './clusterExpandCost.ts';
 
-
-function getDirLabel(dirPath: string): string {
-  const parts = dirPath.split('/');
-  return parts[parts.length - 1] ?? dirPath;
-}
-
-export function getFileLabel(filePath: string): string {
-  const parts = filePath.split(/[\\/]/);
-  return parts[parts.length - 1] ?? filePath;
-}
-
-function buildParentIndex(rawNodes: GraphNode[]): {
-  parentToChildren: Map<string, GraphNode[]>;
-  filePathToNodes: Map<string, GraphNode[]>;
-} {
-  const parentToChildren = new Map<string, GraphNode[]>();
-  const filePathToNodes = new Map<string, GraphNode[]>();
-
-  for (const n of rawNodes) {
-    if (n.parentId) {
-      const list = parentToChildren.get(n.parentId);
-      if (list) list.push(n);
-      else parentToChildren.set(n.parentId, [n]);
-    }
-    if (n.filePath) {
-      const list = filePathToNodes.get(n.filePath);
-      if (list) list.push(n);
-      else filePathToNodes.set(n.filePath, [n]);
-    }
-  }
-
-  return { parentToChildren, filePathToNodes };
-}
-
-export function createSubgroupClusters(
-  dirNodes: GraphNode[],
-  dirEdges: GraphEdge[],
-  dirPath: string,
-  expandedSubgroups: Set<string>,
-): { nodes: (GraphNode | ClusterNode)[]; nodeIdToVisibleId: Map<string, string> } {
-  const visibleNodes: (GraphNode | ClusterNode)[] = [];
-  const nodeIdToVisibleId = new Map<string, string>();
-
-  const communities = detectCommunities(dirNodes, dirEdges);
-
-  for (const [communityLabel, group] of communities) {
-    if (group.nodes.length <= SUBGROUP_THRESHOLD) {
-      for (const n of group.nodes) {
-        visibleNodes.push(n);
-        nodeIdToVisibleId.set(n.id, n.id);
-      }
-      continue;
-    }
-
-    const subgroupClusterId = `subgroup__${dirPath.replace(/[/:\\]/g, '__')}__${communityLabel}`;
-    if (expandedSubgroups.has(subgroupClusterId)) {
-      for (const n of group.nodes) {
-        visibleNodes.push(n);
-        nodeIdToVisibleId.set(n.id, n.id);
-      }
-    } else {
-      const primaryNode = group.nodes[0]!;
-      const clusterNode: ClusterNode = {
-        id: NodeId(subgroupClusterId),
-        label: `${primaryNode.label.split(/[\\/]/).pop()?.split('.')[0] ?? 'group'} +${group.nodes.length - 1}`,
-        type: primaryNode.type,
-        filePath: primaryNode.filePath,
-        lineNumber: 0,
-        properties: {},
-        isCluster: true,
-        childCount: group.nodes.length,
-        childIds: group.nodes.map((n) => n.id),
-        clusterPath: `${dirPath}/${communityLabel}`,
-        clusterLevel: 'smart',
-      };
-      visibleNodes.push(clusterNode);
-      for (const n of group.nodes) {
-        nodeIdToVisibleId.set(n.id, subgroupClusterId);
-      }
-    }
-  }
-
-  return { nodes: visibleNodes, nodeIdToVisibleId };
-}
-
+/**
+ * 把 `expandedNodeIds` 这个「已展开 id 集合」按前缀分成四类。
+ *
+ * 契约：四个前缀互斥且**按顺序判定**（`cluster__` 先于 `filecluster__file__`；
+ * 两者不会互相命中，但顺序决定新增前缀时的插入点）。未识别的 id 被静默丢弃——
+ * 展开状态是从 UI 传回来的字符串集合，来源不止一处，宁可不展开也不要猜错类型。
+ */
 export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
   expandedDirs: Set<string>;
   expandedFileClusters: Set<string>;
@@ -120,92 +61,10 @@ export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
   return { expandedDirs, expandedFileClusters, expandedFuncClusters, expandedSubgroups };
 }
 
-let _dirToNodesCache: Map<string, GraphNode[]> | null = null;
-let _fileToNodesCache: Map<string, GraphNode[]> | null = null;
-let _clusterIdToCountCache: Map<string, number> | null = null;
-let _normalizedDirToCountCache: Map<string, number> | null = null;
-let _normalizedFileToCountCache: Map<string, number> | null = null;
-let _rawNodesRef: GraphNode[] | null = null;
-
-function getDirToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
-  if (_rawNodesRef === rawNodes && _dirToNodesCache) return _dirToNodesCache;
-  _rawNodesRef = rawNodes;
-  _dirToNodesCache = new Map();
-  _clusterIdToCountCache = new Map();
-  _normalizedDirToCountCache = new Map();
-  for (const n of rawNodes) {
-    const depGroup = getDependencyGroup(n);
-    const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
-    const list = _dirToNodesCache.get(dir);
-    if (list) list.push(n);
-    else _dirToNodesCache.set(dir, [n]);
-  }
-  for (const [dir, nodes] of _dirToNodesCache) {
-    const normalized = dir.replace(/[/:\\]/g, '__');
-    _clusterIdToCountCache.set(`cluster__${normalized}`, (_clusterIdToCountCache.get(`cluster__${normalized}`) ?? 0) + nodes.length);
-    _normalizedDirToCountCache.set(normalized, (_normalizedDirToCountCache.get(normalized) ?? 0) + nodes.length);
-  }
-  return _dirToNodesCache;
-}
-
-function getFileToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
-  if (_rawNodesRef === rawNodes && _fileToNodesCache) return _fileToNodesCache;
-  _rawNodesRef = rawNodes;
-  _fileToNodesCache = new Map();
-  _normalizedFileToCountCache = new Map();
-  for (const n of rawNodes) {
-    if (n.filePath) {
-      const list = _fileToNodesCache.get(n.filePath);
-      if (list) list.push(n);
-      else _fileToNodesCache.set(n.filePath, [n]);
-    }
-  }
-  for (const [fp, nodes] of _fileToNodesCache) {
-    const normalized = fp.replace(/[/:\\]/g, '__');
-    _normalizedFileToCountCache.set(normalized, (_normalizedFileToCountCache.get(normalized) ?? 0) + nodes.length);
-  }
-  return _fileToNodesCache;
-}
-
-export function invalidateExpandCostCache(): void {
-  _dirToNodesCache = null;
-  _fileToNodesCache = null;
-  _clusterIdToCountCache = null;
-  _normalizedDirToCountCache = null;
-  _normalizedFileToCountCache = null;
-  _rawNodesRef = null;
-}
-
-export function estimateExpandCost(nodeId: string, rawNodes: GraphNode[]): number {
-  if (nodeId.startsWith('subgroup__')) {
-    const parts = nodeId.split('__');
-    const dirPart = parts.slice(1, -1).join('__');
-    const clusterId = `cluster__${dirPart}`;
-    getDirToNodesCache(rawNodes);
-    const count = _clusterIdToCountCache!.get(clusterId) ?? 0;
-    return Math.max(0, count - 1);
-  }
-  if (nodeId.startsWith('cluster__')) {
-    const dirPath = nodeId.replace(/^cluster__/, '').replace(/__/g, '/');
-    const cache = getDirToNodesCache(rawNodes);
-    const nodes = cache.get(dirPath);
-    if (nodes) return Math.max(0, nodes.length - 1);
-    const normalized = nodeId.replace(/^cluster__/, '');
-    const count = _normalizedDirToCountCache!.get(normalized) ?? 0;
-    return Math.max(0, count - 1);
-  }
-  if (nodeId.startsWith('filecluster__')) {
-    const filePath = nodeId.replace(/^filecluster__file__/, '').replace(/__/g, '/');
-    const cache = getFileToNodesCache(rawNodes);
-    const nodes = cache.get(filePath);
-    if (nodes) return Math.max(0, nodes.length - 1);
-    const normalized = nodeId.replace(/^filecluster__file__/, '');
-    const count = _normalizedFileToCountCache!.get(normalized) ?? 0;
-    return Math.max(0, count - 1);
-  }
-  return 0;
-}
-
+/**
+ * 原始节点 → 所属目录（同一份判定与 `clusterExpandCost` 的目录缓存保持一致：
+ * 依赖分组优先，其次文件路径的顶层目录，最后退回节点 id）。
+ */
 function buildDirMapping(rawNodes: GraphNode[]): {
   nodeToDir: Map<string, string>;
   dirToNodes: Map<string, GraphNode[]>;
@@ -223,6 +82,12 @@ function buildDirMapping(rawNodes: GraphNode[]): {
   return { nodeToDir, dirToNodes };
 }
 
+/**
+ * 按初始展开深度预置展开状态。
+ *
+ * 契约：`initialDepth >= 1` 展开全部目录；`>= 2` 在此基础上再展开二级文件簇，
+ * 且**只展开本轮已被目录级展开的目录**（跳过 `continue` 的那条依赖 `expandedDirs` 的写入顺序）。
+ */
 export function applyInitialDepth(
   initialDepth: number,
   dirToNodes: Map<string, GraphNode[]>,
@@ -254,195 +119,6 @@ export function applyInitialDepth(
     }
   }
 
-}
-
-function createDirectoryCluster(
-  dirPath: string,
-  nodes: GraphNode[],
-  clusterId: string,
-): { clusterNode: ClusterNode; nodeIdToVisibleId: Map<string, string> } {
-  const childIds = nodes.map((n) => n.id);
-  const clusterNode: ClusterNode = {
-    id: NodeId(clusterId),
-    label: `${getDirLabel(dirPath)} (${nodes.length})`,
-    type: 'module',
-    filePath: dirPath,
-    lineNumber: 0,
-    properties: {},
-    isCluster: true,
-    childCount: nodes.length,
-    childIds,
-    clusterPath: dirPath,
-    clusterLevel: 'directory',
-  };
-  const nodeIdToVisibleId = new Map<string, string>();
-  for (const n of nodes) {
-    nodeIdToVisibleId.set(n.id, clusterId);
-  }
-  return { clusterNode, nodeIdToVisibleId };
-}
-
-function processModuleNodeExpanded(
-  n: GraphNode,
-  parentToChildren: Map<string, GraphNode[]>,
-  filePathToNodes: Map<string, GraphNode[]>,
-  visibleNodes: (GraphNode | ClusterNode)[],
-  displayedIds: Set<string>,
-  nodeIdToVisibleId: Map<string, string>,
-): void {
-  const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
-  if (childNodes.length > 0) {
-    visibleNodes.push(n);
-    displayedIds.add(n.id);
-    nodeIdToVisibleId.set(n.id, n.id);
-    for (const child of childNodes) {
-      if (child.id === n.id) continue;
-      if (displayedIds.has(child.id)) continue;
-      visibleNodes.push(child);
-      displayedIds.add(child.id);
-      nodeIdToVisibleId.set(child.id, child.id);
-    }
-  } else {
-    visibleNodes.push(n);
-    displayedIds.add(n.id);
-    nodeIdToVisibleId.set(n.id, n.id);
-  }
-}
-
-function processModuleNodeCollapsed(
-  n: GraphNode,
-  parentToChildren: Map<string, GraphNode[]>,
-  filePathToNodes: Map<string, GraphNode[]>,
-  fileClusterId: string,
-  visibleNodes: (GraphNode | ClusterNode)[],
-  nodeIdToVisibleId: Map<string, string>,
-): void {
-  const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
-  const filteredChildren = childNodes.filter((c) => c.id !== n.id);
-  if (filteredChildren.length > 0) {
-    nodeIdToVisibleId.set(n.id, fileClusterId);
-    for (const child of filteredChildren) {
-      nodeIdToVisibleId.set(child.id, fileClusterId);
-    }
-    const clusterNode: ClusterNode = {
-      id: NodeId(fileClusterId),
-      label: `${n.label} (${filteredChildren.length + 1})`,
-      type: 'module',
-      filePath: n.filePath,
-      lineNumber: 0,
-      properties: {},
-      isCluster: true,
-      childCount: filteredChildren.length + 1,
-      childIds: [n.id, ...filteredChildren.map((c) => c.id)],
-      clusterPath: n.filePath ?? n.id,
-      clusterLevel: 'file',
-    };
-    visibleNodes.push(clusterNode);
-  } else {
-    visibleNodes.push(n);
-    nodeIdToVisibleId.set(n.id, n.id);
-  }
-}
-
-function processNonModuleNode(
-  n: GraphNode,
-  expandedFileClusters: Set<string>,
-  visibleNodes: (GraphNode | ClusterNode)[],
-  displayedIds: Set<string>,
-  nodeIdToVisibleId: Map<string, string>,
-  fileGroups: Map<string, GraphNode[]>,
-): void {
-  const parentFileId = n.parentId ?? n.filePath;
-  if (parentFileId) {
-    const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, '__')}`;
-    if (expandedFileClusters.has(fileClusterId)) {
-      if (!displayedIds.has(n.id)) {
-        visibleNodes.push(n);
-        displayedIds.add(n.id);
-        nodeIdToVisibleId.set(n.id, n.id);
-      }
-    } else {
-      nodeIdToVisibleId.set(n.id, fileClusterId);
-      const list = fileGroups.get(fileClusterId);
-      if (list) list.push(n);
-      else fileGroups.set(fileClusterId, [n]);
-    }
-  } else {
-    visibleNodes.push(n);
-    displayedIds.add(n.id);
-    nodeIdToVisibleId.set(n.id, n.id);
-  }
-}
-
-function createFileClustersFromGroups(
-  fileGroups: Map<string, GraphNode[]>,
-  filePathToNodes: Map<string, GraphNode[]>,
-  visibleNodes: (GraphNode | ClusterNode)[],
-): void {
-  for (const [fileClusterId, children] of fileGroups) {
-    const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? '';
-    const parentNode = filePathToNodes.get(parentFileId)?.[0];
-    const clusterNode: ClusterNode = {
-      id: NodeId(fileClusterId),
-      label: `${parentNode?.label ?? getFileLabel(parentFileId)} (${children.length})`,
-      type: 'module',
-      filePath: parentNode?.filePath ?? parentFileId,
-      lineNumber: 0,
-      properties: {},
-      isCluster: true,
-      childCount: children.length,
-      childIds: children.map((c) => c.id),
-      clusterPath: parentFileId,
-      clusterLevel: 'file',
-    };
-    visibleNodes.push(clusterNode);
-  }
-}
-
-function clusterExpandedDirectory(
-  dirPath: string,
-  nodes: GraphNode[],
-  rawEdges: GraphEdge[],
-  parentToChildren: Map<string, GraphNode[]>,
-  filePathToNodes: Map<string, GraphNode[]>,
-  expandedFileClusters: Set<string>,
-  expandedSubgroups: Set<string>,
-  dirEdgeCache: Map<string, GraphEdge[]>,
-  visibleNodes: (GraphNode | ClusterNode)[],
-  displayedIds: Set<string>,
-  nodeIdToVisibleId: Map<string, string>,
-): void {
-  if (nodes.length > MAX_NODES_PER_DIR_BEFORE_SUBGROUP) {
-    let dirEdges = dirEdgeCache.get(dirPath);
-    if (!dirEdges) {
-      const nodeIds = new Set(nodes.map((n) => n.id));
-      dirEdges = rawEdges.filter(
-        (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
-      );
-      dirEdgeCache.set(dirPath, dirEdges);
-    }
-    const { nodes: subgroupNodes, nodeIdToVisibleId: subgroupMap } =
-      createSubgroupClusters(nodes, dirEdges, dirPath, expandedSubgroups);
-    for (const n of subgroupNodes) visibleNodes.push(n);
-    for (const [rawId, visId] of subgroupMap) nodeIdToVisibleId.set(rawId, visId);
-  } else {
-    const fileGroups = new Map<string, GraphNode[]>();
-
-    for (const n of nodes) {
-      if (n.type === 'module') {
-        const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, '__')}`;
-        if (expandedFileClusters.has(fileClusterId)) {
-          processModuleNodeExpanded(n, parentToChildren, filePathToNodes, visibleNodes, displayedIds, nodeIdToVisibleId);
-        } else {
-          processModuleNodeCollapsed(n, parentToChildren, filePathToNodes, fileClusterId, visibleNodes, nodeIdToVisibleId);
-        }
-      } else {
-        processNonModuleNode(n, expandedFileClusters, visibleNodes, displayedIds, nodeIdToVisibleId, fileGroups);
-      }
-    }
-
-    createFileClustersFromGroups(fileGroups, filePathToNodes, visibleNodes);
-  }
 }
 
 export function computeProgressiveClusters(

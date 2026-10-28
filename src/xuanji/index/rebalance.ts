@@ -18,16 +18,16 @@
 
 import type { GraphSpace, NodeId } from '../core/graph-space.ts';
 import type { PathRule } from '../core/path-rule.ts';
-import { isLegalPath } from '../core/path-rule.ts';
+import { effectiveMaxEdges, isLegalPath } from '../core/path-rule.ts';
 import { makeEntry } from '../core/path-entry.ts';
 import { edgePairKey, reviveEntry } from './path-index.ts';
 import type { PathIndex } from './path-index.ts';
 
-/** 有效长度上界（边数）；无界规则以 |V| 兜底（同 incremental.effectiveMaxEdges）。 */
-function effectiveMaxEdges(rule: PathRule, graph: GraphSpace): number {
-  if (Number.isFinite(rule.lMax)) return Math.max(0, Math.floor(rule.lMax));
-  return Math.max(0, graph.nodeCount);
-}
+/**
+ * 长度上界统一由 {@link effectiveMaxEdges} 给出（XJ-10：此前本文件自带一份
+ * `Number.isFinite(lMax) ? lMax : nodeCount`，与 incremental / query-engine 三处重复）。
+ * 无界 + 非 simple 的非法规则会在此抛 `RuleCompositionError`，不再静默近似。
+ */
 
 /**
  * 重组 node 的 1-hop 邻域。
@@ -60,7 +60,7 @@ export function rebalance(
   for (const prev of inNeighbors) index.markStale(edgePairKey(prev, node));
 
   // 2) 邻域内局部重枚举
-  const maxEdges = effectiveMaxEdges(rule, graph);
+  const maxEdges = effectiveMaxEdges(rule, graph.nodeCount);
 
   const materialize = (nodes: readonly NodeId[]): void => {
     const entry = makeEntry(rule, nodes, graph.version);

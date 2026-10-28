@@ -88,9 +88,18 @@ function getSessions(ctx: Context): SessionsLike {
 }
 
 function getWorkspaceRegistry(ctx: Context): WorkspaceRegistryLike {
-  // Optional service (gen2-only): probe via ctx.get() so the plugin remains active
-  // on hosts that do not provide the workspace registry.
-  return ctx.get('workspaceRegistry') as WorkspaceRegistryLike;
+  // 可选服务（gen2 起）：走 `ctx.get()` 探测，让插件在没有该注册表的宿主上仍然激活。
+  //
+  // **必须传 `strict = false`（cycle-110 修复）**：`ctx.get(name)` 默认 strict 的含义是
+  // 「提供者 fiber 当前活跃」而不是「服务存在」（cordis `lib/index.js:763-772`、
+  // `lib/types/reflect.d.ts:16`）。本函数被 `resolveWorkspaceRoots()` 在**每个请求**里调用，
+  // 而它第一次运行就发生在 `apply()` 的同一步里 —— 此时 `workspaceRegistry` 的提供者很可能
+  // 还停在 loading。用默认值探测会把「稍后可用」永久判成「不存在」，于是工作区根只剩
+  // sessions / cwd 两个回退分支，`addAllowedWorkspaceRoots` 也永远只拿到回退来源。
+  // 这个缺陷在修之前不会让任何用例变红：回退路径同样能解析出根目录，只有「注册表里有、
+  // sessions 里没有」的工作区会被静默丢掉。
+  // 由 `tests/unit/generation/serviceProbeContract.test.ts` 的源码形状守卫兜底。
+  return ctx.get('workspaceRegistry', false) as WorkspaceRegistryLike;
 }
 
 export interface WorkspaceRootsResolution {

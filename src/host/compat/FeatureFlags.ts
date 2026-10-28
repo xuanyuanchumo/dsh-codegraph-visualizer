@@ -117,7 +117,12 @@ export interface FeatureFlagResolution {
 export function resolveFeatureFlags(info: HostVersionInfo, probe?: CapabilityProbe): FeatureFlagResolution {
   const base = FEATURE_FLAGS_BY_GENERATION[info.generation];
   if (!probe) {
-    return { flags: base, source: 'generation', probedUpgrades: [] };
+    // 返回**副本**，不返回 `FEATURE_FLAGS_BY_GENERATION` 里的那一份（cycle-110）。
+    // 无探针曾直接 `return { flags: base }`，于是调用方手里是**代际默认表的同一个对象**：
+    // 任何一处对 flags 的写入都会永久改坏该代的默认值（同一进程内后续所有解析都受污染），
+    // 而"能力快照可以被重算"这一性质也随之失效。副本让「解析」保持纯：
+    // 每次调用得到互相独立的对象，随时可以用最新的探针再算一次。
+    return { flags: { ...base }, source: 'generation', probedUpgrades: [] };
   }
 
   const flags: FeatureFlags = { ...base };

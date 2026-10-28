@@ -27,7 +27,7 @@ import {
   existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync,
   openSync, closeSync, rmSync, realpathSync,
 } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
@@ -49,7 +49,10 @@ const CHROME_DEBUG_PORT = 9222;
 const CHROME_DEBUG_URL = `http://127.0.0.1:${CHROME_DEBUG_PORT}`;
 const USER_DATA_DIR = join(PROJECT_ROOT, 'test-results', 'chrome-debug-profile');
 
-const DSH_PROC_NAMES = ['node', 'cmd'];
+// cycle-110：桌面运行时的 dsh 监听进程是 `DeepSeek Harness.exe`（Electron 以 Node 模式跑 CLI），
+// 不是 node.exe。白名单缺它会把「我们自己的 DSH」判成无关进程而拒绝清理，随后必然
+// 「端口 20s 未释放 → 终止启动」。'deepseek harness' 必须在内。
+const DSH_PROC_NAMES = ['node', 'cmd', 'deepseek harness'];
 const CHROME_PROC_NAMES = ['chrome'];
 
 // ---------- 参数解析 ----------
@@ -314,6 +317,45 @@ function resolveDshEntry(dshCmd) {
 }
 
 /**
+ * 把 `%~dp0..\..\..\..\DeepSeek Harness.exe` 这类垫片相对路径还原成绝对路径。
+ * `resolve()` 会自己吃掉 `..` 段，不需要手工拼。
+ */
+function resolveRelativeShimPath(base, token) {
+  const raw = token.replace(/%~dp0/gi, `${base}\\`);
+  return resolve(raw);
+}
+
+/**
+ * 解析 **Electron 垫片形态** 的 `dsh.cmd`（桌面运行时）。
+ *
+ * cycle-110 真机实测：`D:\DSH\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd`
+ * 不是 npm 垫片，而是
+ *   set "ELECTRON_RUN_AS_NODE=1"
+ *   "…\DeepSeek Harness.exe" --expose-internals "…\app.asar\dsh\node_modules\
+ *    @deepseek-ai\dsh-desktop-host\lib\cli.js" %*
+ * 它的 Node 入口不在 `<bin>/node_modules/@deepseek-ai/dsh/lib/bin.js`，`resolveDshEntry`
+ * 因此返回 null，启动器回退 `cmd.exe /c dsh.cmd` 并**丢掉 stdout**——实测表现为
+ * 「60 秒未就绪 + 拿不到认证 URL」，而不是 DSH 真的起不来（手工用同一个 exe 拉起，
+ * 30 秒内 3080 端口就有响应）。
+ *
+ * 返回 `{ exe, cli }`；不是 Electron 垫片时返回 null（走原逻辑）。
+ */
+function resolveElectronShim(dshCmd) {
+  let text;
+  try { text = readFileSync(dshCmd, 'utf8'); } catch { return null; }
+  if (!/ELECTRON_RUN_AS_NODE/.test(text) || !/app\.asar/.test(text)) return null;
+  const tokens = [...text.matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  const exeToken = tokens.find(t => /\.exe$/i.test(t));
+  const cliToken = tokens.find(t => /app\.asar/i.test(t) && /\.js$/i.test(t));
+  if (!exeToken || !cliToken) return null;
+  const base = dirname(dshCmd);
+  return {
+    exe: resolveRelativeShimPath(base, exeToken),
+    cli: resolveRelativeShimPath(base, cliToken),
+  };
+}
+
+/**
  * 只读预检：DSH 的 bundle 元数据解析顺序是「安装锚点优先」
  * （`@deepseek-ai/dsh-app-boot/lib/index.js:889-907 resolveBundleDir`）。
  * 只要 DSH 安装目录自身的 `node_modules` 里存在同名旧副本，
@@ -459,19 +501,31 @@ async function preflightPortCheck({ autoKill = true } = {}) {
       warn(`  端口 ${c.port} 被无关进程 ${c.procName} (PID ${c.pid}) 占用，跳过（如需强杀请手动处理）`);
       continue;
     }
-    if (killProcess(c.pid, { expectNames: expected })) {
-      log(`  已终止 ${c.name} (PID ${c.pid}, ${c.procName})`);
-      removePidFile(c.pidFile);
-    } else {
-      warn(`  终止失败 ${c.name} (PID ${c.pid})，保留 PID 文件`);
+    // cycle-110 真机实测：桌面运行时的监听进程（`DeepSeek Harness.exe`）是**父进程**，
+    // 端口表里偶尔只列出 node 子进程。只杀端口 PID 会出现「已终止，但 5s 内端口未释放」，
+    // 因为父进程立刻又拉起 / 继续持有监听。所以先用 PID 文件里记录的进程（它是父）
+    // 连子进程一起 kill，再兜底杀端口 PID。
+    const recorded = readPid(c.pidFile);
+    const candidates = [...new Set([recorded, c.pid].filter(p => Number.isInteger(p) && p > 0))];
+    let killedAny = false;
+    for (const pid of candidates) {
+      const pname = getProcessName(pid);
+      if (!pname) continue;
+      if (expected.length > 0 && !expected.some(e => pname.includes(e.toLowerCase()))) continue;
+      if (killProcess(pid, { expectNames: expected })) {
+        log(`  已终止 ${c.name} (PID ${pid}, ${pname})`);
+        killedAny = true;
+      }
     }
+    if (killedAny) removePidFile(c.pidFile);
+    else warn(`  终止失败 ${c.name} (PID ${c.pid})，保留 PID 文件`);
   }
 
   let allFreed = true;
   for (const c of conflicts) {
-    const freed = await waitForPortFree(c.port, 5000);
+    const freed = await waitForPortFree(c.port, 20000);
     if (!freed) {
-      warn(`  端口 ${c.port} 在 5s 内未释放`);
+      warn(`  端口 ${c.port} 在 20s 内未释放`);
       allFreed = false;
     }
   }
@@ -570,15 +624,28 @@ async function startDsh() {
   try { unlinkSync(DSH_LOG); } catch { /* ignore */ }
 
   log(`启动 DSH Web 服务（超时 ${timeoutSeconds}s）...`);
-  const dshEntry = resolveDshEntry(dshCmd);
-  const dshProc = dshEntry
-    ? spawnWithLog(process.execPath, [dshEntry, 'web', '--no-open'], {
-        cwd: PROJECT_ROOT, detached: true, windowsHide: true,
-      }, DSH_LOG)
-    : spawnWithLog('cmd.exe', ['/c', dshCmd, 'web', '--no-open'], {
-        cwd: PROJECT_ROOT, detached: true, windowsHide: true,
-      }, DSH_LOG);
-  if (!dshEntry) warn(`未能从 ${dshCmd} 解析出 Node 入口，回退 cmd.exe 垫片（可能捕获不到认证 URL）`);
+  const electronShim = resolveElectronShim(dshCmd);
+  const dshEntry = electronShim ? electronShim.cli : resolveDshEntry(dshCmd);
+  let dshProc;
+  if (electronShim) {
+    // 桌面运行时的 dsh.cmd 是 Electron 垫片：必须用同一个 exe + ELECTRON_RUN_AS_NODE=1，
+    // 并且**绕过垫片**直接拉起 cli.js，否则 stdout（认证 URL 的唯一来源）会被丢掉。
+    log(`Electron 垫片: ${electronShim.exe}`);
+    log(`CLI 入口: ${electronShim.cli}`);
+    dshProc = spawnWithLog(electronShim.exe, ['--expose-internals', electronShim.cli, 'web', '--no-open'], {
+      cwd: PROJECT_ROOT, detached: true, windowsHide: true,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    }, DSH_LOG);
+  } else {
+    dshProc = dshEntry
+      ? spawnWithLog(process.execPath, [dshEntry, 'web', '--no-open'], {
+          cwd: PROJECT_ROOT, detached: true, windowsHide: true,
+        }, DSH_LOG)
+      : spawnWithLog('cmd.exe', ['/c', dshCmd, 'web', '--no-open'], {
+          cwd: PROJECT_ROOT, detached: true, windowsHide: true,
+        }, DSH_LOG);
+    if (!dshEntry) warn(`未能从 ${dshCmd} 解析出 Node 入口，回退 cmd.exe 垫片（可能捕获不到认证 URL）`);
+  }
   reportInstallAnchorShadowing(dshEntry);
 
   let spawnFailed = false;
@@ -609,9 +676,14 @@ async function startDsh() {
   else warn(`无法通过端口查找 PID，使用 spawn PID: ${dshProc.pid}`);
   writePidFile(PID_FILE, finalDshPid);
 
-  const dshTokenUrl = await waitForTokenUrlFromLog(5000);
+  // cycle-110 真机实测：`dsh web:` 那一行不是紧跟端口就绪打印的——它在所有 profile
+  // bundle 加载完、客户端半边装配完**之后**才落盘（本次实测端口已 401 后约 6~20s）。
+  // 原来写死 5000ms，等于在「端口已通但令牌还没打印」的窗口里必然失败，表现为
+  // 「没有认证 URL → Chrome 打开 authentication required」。改为跟随总启动预算轮询。
+  const tokenTimeoutMs = Math.max(15000, Math.min(timeoutSeconds * 1000, 60000));
+  const dshTokenUrl = await waitForTokenUrlFromLog(tokenTimeoutMs);
   if (dshTokenUrl) log(`认证 URL 已捕获: ${dshTokenUrl}`);
-  else warn(`未能从 ${DSH_LOG} 捕获 DSH 认证 URL —— 新开的 Chrome 会停在被拒绝访问页面；请检查日志`);
+  else warn(`等待 ${tokenTimeoutMs}ms 仍未从 ${DSH_LOG} 捕获 DSH 认证 URL —— 新开的 Chrome 会停在被拒绝访问页面；请检查日志`);
 
   return { dshProc, finalDshPid, dshTokenUrl };
 }

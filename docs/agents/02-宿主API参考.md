@@ -1,11 +1,12 @@
 # 02 · 宿主 API 参考
 
-> cycle-102 更新：新增 §3.5 ETag 决策矩阵（cycle-100）、§3.6 跨源条件请求 CO-3（cycle-101）、§13 增量更新层（Round 16 补记）。
-> §3.4 及之前内容对应 cycle-92 时代基线，行号已按 cycle-102 源码复核（`resourceEtag`/`etagGuard`/`etagHeaders` 与 requestKey 构造函数行号未漂移）。
+> cycle-110 更新（2026-10-28）：路由 **18 → 19**（新增 `/churn`）、工具 **10 → 11**（新增 `graph_query`）、
+> 错误码口径纠正为 **25**（原文「27」与行号 `:426-452` 都不对）、路由/工具行号按当前源码重取。
+> 上一版（cycle-102）：§3.5 ETag 决策矩阵、§3.6 跨源条件请求 CO-3、§13 增量更新层。
 
 > 面向改 `src/index.ts` / `src/host/**` / `src/tools.ts` / `src/adapters/**` 的开发者。
 > 所有路径与行号基于 `dsh-codegraph-visualizer@0.2.0`。
-> 文档族版本 1.0.0 · 适用宿主 `>=0.2.0-rc.2 <0.4.0`
+> 文档族版本 1.2.0 · 声明宿主 `>=0.2.0-rc.2 <0.4.0-0` · 已验证宿主 `0.2.1-rc.3`（见 [09](./09-破坏性变更与兼容策略.md) §2）
 
 ---
 
@@ -28,10 +29,10 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
 | 5 | `createFeatureFlags(hostVersionInfo, createHostCapabilityProbe(ctx))` | **探针只把能力打开，不做 gate** |
 | 6 | `createApiCompatLayer(hostVersionInfo)` | 多代适配层 |
 | 7 | `new GraphRepository(primaryWorkspace)` + `init()` | 本地图谱库 |
-| 8 | `await createGraphTools(ctx, { requestTimeout, apiCompat })` | 得 8 个 tool + 一个 dispose |
-| 9 | `ctx.effect(...)` 注册 8 个 tool | 标签 `'codegraph: tool registrations'` |
+| 8 | `await createGraphTools(ctx, { requestTimeout, apiCompat })` | 得 **11** 个 tool + 一个 dispose |
+| 9 | `ctx.effect(...)` 注册 **11** 个 tool | 标签 `'codegraph: tool registrations'`；注册集合必须等于工厂返回集合（`tests/unit/plugin.test.ts`） |
 | 10 | `createInvokeUpstream(...)` → `routeDeps` | 路由依赖对象 |
-| 11 | `registerService(routeDeps)` + `registerRoutes(routeDeps)` | 服务 + 18 条路由 |
+| 11 | `registerService(routeDeps)` + `registerRoutes(routeDeps)` | 服务 + **19** 条路由 |
 | 12 | 前置依赖轮询（`MAX_POLLS = 6`） | `emit('codegraph-visualizer/prerequisite/status')` |
 | 13 | `registerEventListeners` + `registerWatcher` | 事件与文件监听 |
 | 14 | `new McpServer()` 在 `ctx.effect` 内 `start()`/`stop()` | MCP 面 |
@@ -99,33 +100,40 @@ export interface RouteDeps {
 }
 ```
 
-### 3.2 18 条路由（`src/host/routes.ts:39` `registerRoutes`）
+### 3.2 19 条路由（`src/host/routes.ts` 的 `registerRoutes`）
 
-全部挂在 `/api/v1/codegraph` 前缀下。
+全部挂在 `/api/v1/codegraph` 前缀下。下表「行」列指**注册函数定义行**
+（`grep -n "^export function register" src/host/routes/*.ts` 可复验）；`routePath` 常量紧随其后约 3 行。
 
 | # | 注册函数 | 路径 | 文件:行 | 方法 |
 |---|---|---|---|---|
-| 1 | `registerStatusRoute` | `/status` | `statusRoutes.ts:9` | GET |
-| 2 | `registerHealthRoute` | `/health` | `statusRoutes.ts:31` | GET |
-| 3 | `registerWorkspaceRoute` | `/workspace` | `statusRoutes.ts:70` | GET |
-| 4 | `registerDataRoute` | `/data` | `dataRoutes.ts:65` | GET |
-| 5 | `registerScanRoute` | `/scan` | `controlRoutes.ts:17` | POST |
-| 6 | `registerInitRoute` | `/init` | `controlRoutes.ts:99` | POST |
-| 7 | `registerWatchRoute` | `/watch` | `controlRoutes.ts:168` | POST |
-| 8 | `registerDependenciesRoute` | `/dependencies` | `analysisRoutes.ts:22` | GET |
-| 9 | `registerDiffRoute` | `/diff` | `analysisRoutes.ts:87` | POST |
-| 10 | `registerAstRoute` | `/ast` | `analysisRoutes.ts:138` | POST |
-| 11 | `registerTreeSitterRoute` | `/tree-sitter` | `analysisRoutes.ts:177` | POST |
-| 12 | `registerBootstrapRoute` | `/bootstrap` | `dataRoutes.ts:107` | GET |
-| 13 | `registerNodeChildrenRoute` | `/children` | `dataRoutes.ts:194` | GET |
-| 14 | `registerFileOutlineRoute` | `/files/{id}/outline` | `dataRoutes.ts:269` | GET |
-| 15 | `registerSymbolASTRoute` | `/symbols/{id}/ast` | `dataRoutes.ts:330` | GET |
-| 16 | `registerEdgesRoute` | `/edges` | `dataRoutes.ts:438` | GET |
-| 17 | `registerEventsRoute` | `/events` | `controlRoutes.ts:194` | GET（SSE） |
-| 18 | `registerLayoutWorkerRoute` | `/worker/layoutWorker.js` | `workerRoutes.ts` | GET |
+| 1 | `registerStatusRoute` | `/status` | `statusRoutes.ts:6` | GET |
+| 2 | `registerHealthRoute` | `/health` | `statusRoutes.ts:28` | GET |
+| 3 | `registerWorkspaceRoute` | `/workspace` | `statusRoutes.ts:67` | GET |
+| 4 | `registerDataRoute` | `/data` | `dataRoutes.ts:62` | GET |
+| 5 | `registerScanRoute` | `/scan` | `controlRoutes.ts:14` | POST |
+| 6 | `registerInitRoute` | `/init` | `controlRoutes.ts:96` | POST |
+| 7 | `registerWatchRoute` | `/watch` | `controlRoutes.ts:165` | POST |
+| 8 | `registerDependenciesRoute` | `/dependencies` | `analysisRoutes.ts:36` | GET |
+| 9 | `registerChurnRoute` | `/churn` | `analysisRoutes.ts:129` | GET |
+| 10 | `registerDiffRoute` | `/diff` | `analysisRoutes.ts:198` | POST |
+| 11 | `registerAstRoute` | `/ast` | `analysisRoutes.ts:278` | POST |
+| 12 | `registerTreeSitterRoute` | `/tree-sitter` | `analysisRoutes.ts:317` | POST |
+| 13 | `registerBootstrapRoute` | `/bootstrap` | `dataRoutes.ts:104` | GET |
+| 14 | `registerNodeChildrenRoute` | `/children` | `dataRoutes.ts:193` | GET |
+| 15 | `registerFileOutlineRoute` | `/files/{id}/outline` | `dataRoutes.ts:268` | GET |
+| 16 | `registerSymbolASTRoute` | `/symbols/{id}/ast` | `dataRoutes.ts:329` | GET |
+| 17 | `registerEdgesRoute` | `/edges` | `dataRoutes.ts:439` | GET |
+| 18 | `registerEventsRoute` | `/events` | `controlRoutes.ts:191` | GET（SSE） |
+| 19 | `registerLayoutWorkerRoute` | `/worker/layoutWorker.js` | `workerRoutes.ts:69` | GET |
 
-**共享资源**（`routes.ts:44`）：一个 `TreeSitterAdapter` 实例在 #10/#11 间共享，
-并在 `routes.ts:68` 的 `ctx.effect` 里 `destroy()`；`rateLimiter` 在 `:67` `reset()`。
+> **`/churn` 刻意注册在最后**（`registerChurnRoute(rc)` 上方有 5 行源码注释说明）：
+> `registerRoutes` 的调用顺序就是 `webServer.register` 的调用顺序，而既有测试大量用
+> 「第 N 次注册」定位路由（`getHandler(ctx, 3)`）。插在中间会让十几个无关用例整体错位一格。
+> 所有路由都是 `kind: 'exact'` 精确路径，顺序不影响匹配语义。
+
+**共享资源**（同一函数体内）：一个 `TreeSitterAdapter` 实例在 #11/#12 间共享，
+并在 `ctx.effect` 里 `destroy()`；`rateLimiter` 同样在 `ctx.effect` 里 `reset()`。
 
 ### 3.3 路由中间件管线（`src/host/routes/shared.ts:43` `withRouteMiddleware`）
 
@@ -159,17 +167,19 @@ handleCorsPreflight → requireMethod → logRequest → checkRate → try { han
 3. `repoId` 传**请求方声明的工作区**（`resolveWorkspaceFromRequest()` 的结果），
    revision 取槽的——方向刻意偏保守：多算一次不匹配只多回一次 200，假 304 会静默丢真实更新。
 4. 所有 `sendJson(res, 200, ...)` 都要带 `etagHeaders(etag)`。
-   **守卫**：`tests/unit/etagContract.test.ts` 源码扫描全部 20 个调用点。
+   **守卫**：`tests/unit/etagContract.test.ts` 源码扫描 `src/host/routes/` 下**每一个** `sendJson(res, 200, …)` 调用点
+   （按文件分组断言，并带「括号平衡」「字符串里的括号」两条反向自检）。
+   调用点总数用 `grep -rho "sendJson(res, 200" src/host/routes/ | wc -l` 复验，**不要写死数字**。
 
 ### 3.5 ETag 决策矩阵——cycle-100 的收口（§59.32）
 
-**每条路由必须对自己的缓存语义表态**。18 条路由按 RouteClass 分类，
-契约由 `tests/unit/etagCoverageContract.test.ts` 钉死（`DECISION_MATRIX` 18 条 + 源码扫描提取路由清单 + 反向自检）：
+**每条路由必须对自己的缓存语义表态**。19 条路由按 RouteClass 分类，
+契约由 `tests/unit/etagCoverageContract.test.ts` 钉死（`DECISION_MATRIX` 逐条登记 + 源码扫描提取路由清单 + 反向自检）：
 
 | RouteClass | 路由 | 为什么 |
 |---|---|---|
 | `etag-guarded`（6） | `/data` `/bootstrap` `/children` `/files/*/outline` `/symbols/*/ast` `/edges` | 图数据族：载荷来自图谱槽/DB，`etagGuard` + `requestKey` 完整条件请求 |
-| `content-etag`（1） | `/dependencies` | 载荷来自**磁盘 manifest**（package.json/Cargo.toml/go.mod 原文），与图谱槽无关——校验器必须同域：`computeDependenciesEtag(workspacePath, manifestInputs)`（`analysisRoutes.ts:30`），`W/"v{fingerprint}:{hash}"` 内容哈希；manifest 变更/工作区切换/文件出现消失都改变 etag |
+| `content-etag`（2） | `/dependencies`、`/churn` | 载荷与图谱槽**不同域**，校验值必须同域计算：`/dependencies` = 磁盘 manifest 内容哈希（`computeDependenciesEtag(workspacePath, manifestInputs)`，`analysisRoutes.ts` 内）；`/churn` = git log 输出，校验值 = (工作区, HEAD revision, 可用性) 三元组——采集从失败转成功必须让旧 304 失效 |
 | `post`（6） | `/scan` `/init` `/watch` `/diff` `/ast`(POST) `/tree-sitter` | POST 无条件请求语义（GET-only 的 if-none-match 不适用） |
 | `sse`（1） | `/events` | SSE 长连接无 304 概念 |
 | `diagnostic`（3） | `/status` `/health` `/workspace` | 诊断信息要求每次新鲜，缓存反而有害 |
@@ -267,7 +277,11 @@ export function createSecurityManager(): SecurityManager                        
 
 ## 6. 错误码 `src/shared/constants.ts`
 
-### 6.1 `ERROR_CODES`（`:426-452`，共 27 个）
+### 6.1 `ERROR_CODES`（`:460-486`，共 **25** 个）
+
+> **纠偏（cycle-110）**：原文写「`:426-452`，共 27 个」——行号与数量**都不对**。
+> 当前 `ERROR_CODES` 起于 `:460`、止于 `:486`，共 25 条；`ERROR_MESSAGES` 紧随其后
+> `:488-514`，同样 25 条，两者键集合**完全相等**（无遗漏、无孤儿）。
 
 ```
 PATH_NOT_ALLOWED            WORKSPACE_PATH_NOT_ALLOWED   SYMLINK_ESCAPE
@@ -281,7 +295,14 @@ SYMBOL_NOT_FOUND            BODY_TOO_LARGE               INVALID_JSON_BODY
 INVALID_CONFIG
 ```
 
-### 6.2 `ERROR_MESSAGES`（`:454-480`）—— 每条含 `{ en, zh }`
+计数方式（**不要**用 `grep -c "^  [A-Z_]*:" src/shared/constants.ts`，它会把其它常量对象的键一起数进来）：
+
+```bash
+awk '/^export const ERROR_CODES/,/^} as const;/' src/shared/constants.ts | grep -c "^  [A-Z_]*:"
+# 期望 25
+```
+
+### 6.2 `ERROR_MESSAGES`（`:488-514`）—— 每条含 `{ en, zh }`
 
 示例：`PATH_NOT_ALLOWED { en: 'Path not allowed', zh: '路径不允许访问' }`、
 `SYMLINK_ESCAPE { en: 'Access denied: symlink escape', zh: '访问被拒绝：符号链接逃逸' }`。
@@ -298,18 +319,37 @@ INVALID_CONFIG
 
 ## 7. 工具面 `src/tools.ts`
 
-`import { defineTool } from '@deepseek-ai/dsh-tools';` —— 8 个工具：
+`import { defineTool } from '@deepseek-ai/dsh-tools';` —— **11 个工具**（cycle-110 新增第 11 个 `graph_query`）：
 
-| 工具 | 起始行 | 参数要点 |
+| 工具 | `name:` 行 | 参数要点 |
 |---|---|---|
-| `graph_status` | `:214` | `repoId`（string, required） |
-| `graph_data` | `:235` | `repoId` + `source`（enum: `codegraph\|lens\|both\|auto`） |
-| `graph_symbol` | `:261` | `repoId` + 符号标识 |
-| `graph_impact` | `:282` | `repoId` + 目标节点 |
-| `graph_path_find` | `:303` | `repoId` + 起点/终点 |
-| `graph_health` | `:345` | `repoId` |
-| `graph_rules_check` | `:381` | `repoId` + 规则集 |
-| `graph_focus` | `:426` | `repoId` + 聚焦目标 |
+| `graph_status` | `:265` | `repoId`（string, required） |
+| `graph_data` | `:286` | `repoId` + `source`（enum: `codegraph\|lens\|both\|auto`） |
+| `graph_symbol` | `:312` | `repoId` + 符号标识 |
+| `graph_impact` | `:333` | `repoId` + 目标节点 |
+| `graph_path_find` | `:354` | `repoId` + 起点/终点 |
+| `graph_path_enumerate` | `:396` | `repoId` + 规则/长度约束（走璇玑图 `enumerate`） |
+| `graph_cycles` | `:480` | `maxLength`（默认 6/上限 12）、`limit`（默认 100/上限 500）、`edgeTypes` |
+| `graph_health` | `:553` | `repoId` |
+| `graph_rules_check` | `:589` | `repoId` + 规则集 |
+| `graph_focus` | `:634` | `repoId` + 聚焦目标 |
+| `graph_query` | `:675` | `repoId` + 关键词/符号查询（GF-P0-2；CJK token 估算单独标定） |
+
+> 「`name:` 行」用 `grep -n "  name: '" src/tools.ts` 复验。**行号会随改动漂移**，
+> 以**工具名**为准、行号只用于快速定位。
+
+**注册集合契约**（这一行比上表更重要）：
+
+```bash
+grep -c "defineTool(" src/tools.ts        # 11  —— 工厂产出
+grep -c "ctx.tools.register" src/index.ts # 11  —— 入口注册
+pnpm vitest run tests/unit/plugin.test.ts # 断言两集合相等且无重复
+```
+
+> 历史事故（cycle-107）：`graph_path_enumerate` **只加进了工厂返回对象**，没加进
+> `src/index.ts` 的固定解构与注册列表 ⇒ 它不报错、不出现在工具清单、`tools.test.ts`
+> 直接调 `execute()` 也永远看不见——「实现了」≠「能被执行」。
+> 故计数式断言不够，必须是**集合相等 + 每名唯一**的契约用例。
 
 每个工具的结构：
 
@@ -400,16 +440,19 @@ detectCodegraphCli()  // 跑 `codegraph.cmd --version`（win32 用 shell）
 
 | 导出 | 行 | 值 / 签名 |
 |---|---|---|
-| `DshGeneration` | `:16` | `'gen1'\|'gen2'\|'gen3'\|'unknown'` |
-| `DSH_GENERATIONS` | `:19` | `['gen1','gen2','gen3'] as const` |
-| `DSH_GENERATION_PROBES` | `:36` | `{ gen1:'0.1.7-rc.2', gen2:'0.2.0-rc.2', gen3:'0.3.0-rc.2' }` |
-| `DSH_PROMISED_GENERATIONS` | `:52` | `['gen2','gen3'] as const` |
-| `DSH_LEGACY_GENERATIONS` | `:62` | `['gen1'] as const` |
-| `DSH_SUPPORTED_RANGE` | `:65` | `'>=0.2.0-rc.2 <0.4.0'` |
-| `DSH_UNSUPPORTED_PROBE` | `:79` | `'0.4.0'` |
-| `isDshGeneration(value)` | `:83` | type guard |
-| `generationOfVersion(major, minor)` | `:97` | `major>=1→gen3`；`major!==0→unknown`；`minor>=3→gen3`；`minor===2→gen2`；`minor===1→gen1`；否则 `unknown` |
-| `parseDshVersion(raw)` | `:107` | 正则 `/^v?(\d+)\.(\d+)\.(\d+)(?:-([\w.]+))?/` |
+| `DshGeneration` | `:44` | `'gen1'\|'gen2'\|'gen3'\|'unknown'` |
+| `DSH_GENERATIONS` | `:47` | `['gen1','gen2','gen3'] as const` |
+| `DSH_GENERATION_PROBES` | `:64` | `{ gen1:'0.1.7-rc.2', gen2:'0.2.0-rc.2', gen3:'0.3.0-rc.2' }` |
+| `DSH_PROMISED_GENERATIONS` | `:80` | `['gen2','gen3'] as const` |
+| `DSH_LEGACY_GENERATIONS` | `:90` | `['gen1'] as const` |
+| `DSH_SUPPORTED_RANGE` | `:119` | `'>=0.2.0-rc.2 <0.4.0-0'` |
+| `DSH_UNSUPPORTED_PROBE` | `:131` | `'0.4.0-rc.1'`（cycle-110 由 `'0.4.0'` 收紧，见 [09](./09-破坏性变更与兼容策略.md) §3.2） |
+| `DSH_UNSUPPORTED_PROBES` | `:139` | `['0.4.0-rc.1','0.4.0','1.0.0']`（多点探针，单点只能证明一格被排除） |
+| `isDshGeneration(value)` | `:143` | type guard |
+| `generationOfVersion(major, minor)` | `:170` | `major>=1→gen3`；`major!==0→unknown`；`minor>=3→gen3`；`minor===2→gen2`；`minor===1→gen1`；否则 `unknown` |
+| `parseDshVersion(raw)` | `:180` | 正则 `/^v?(\d+)\.(\d+)\.(\d+)(?:-([\w.]+))?/` |
+| `unknownDshVersion(raw)` | `:202` | 保守基线 |
+| `probeReleaseFor(generation)` | `:207` | 代际 → 代表版本 |
 
 ---
 

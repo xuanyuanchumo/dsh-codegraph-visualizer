@@ -52,15 +52,31 @@ const log = scoped('client');
  * 贡献面才适合用 `ctx.inject`。
  */
 export function integrateBetterSidebar(state: IntegrationState): void {
-  if (!state.flags.betterSidebar) return;
+  // 快照只说明 `apply()` 那一刻读不到 `betterSidebar`，**不说明以后读不到**。
+  // 真机 `better-sidebar pending` 已证明提供者晚到是常态（cycle-110 / C1），故：
+  //   - 快照为假不再早退，只记一条可观测的 snapshot-miss；
+  //   - 真正的判定改用**实时** `ctx.get('betterSidebar', false)`（快照可能是旧的）；
+  //   - 实时也读不到 ⇒ 登记「服务就绪后重跑本通道」，重跑仍走同一条同步优先级链的闸门。
+  // 这样既没有「一瞬决定永远」，也没有把互斥通道挪进异步链路造成优先级反转。
+  if (!state.flags.betterSidebar) state.noteSnapshotMiss('better-sidebar', 'betterSidebar');
+  // 顶部标签预留窗口内排队；窗口结束后若顶部标签已落地，本档会在回放时被
+  // `navButtonRegistered` 挡掉 —— 这正是「顶部优先、其余让位」的语义。
+  if (state.deferIfTopTabPending(() => integrateBetterSidebar(state), 'better-sidebar')) return;
   // 一旦有任何集成通道占位成功，就不再叠加第二个入口（避免同一面板被挂两次）。
-  if (state.navButtonRegistered) return;
+  if (state.navButtonRegistered) {
+    state.noteChannelYielded('better-sidebar', '席位已被更早占位的通道持有');
+    return;
+  }
 
   const { ctx } = state;
 
   try {
     const betterSidebarApi = ctx.get('betterSidebar', false) as Context['betterSidebar'] | undefined;
-    if (!betterSidebarApi) return;
+    if (!betterSidebarApi) {
+      // 实时探测也没有：等它 provide 之后再重跑（`ctx.inject` 是最贴近契约的触发器）。
+      state.retryWhenAvailable('betterSidebar', 'better-sidebar', () => integrateBetterSidebar(state));
+      return;
+    }
 
     // 能力清单读取失败时按「无能力」处理：宁可少挂钩子，也不要让整个集成崩掉。
     const bsFeatures: string[] = safeCheck(() => betterSidebarApi?.features ?? [], []);
@@ -124,7 +140,11 @@ export function integrateBetterSidebar(state: IntegrationState): void {
       ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
       state.navButtonRegistered = true;
       state.betterSidebarApi = betterSidebarApi;
-      useGraphStore.getState().setIntegrationMode('better-sidebar');
+      // 顶部标签迟到注册时撤回本档入口。
+      state.noteFallbackSeat(() => {
+        try { dispose(); } catch (e) { log.warn('better-sidebar tab withdrawal failed', e); }
+      }, 'better-sidebar');
+      state.markChannel('better-sidebar', state.flags.betterSidebar ? 'registered' : 'late-registered');
       if (hasFeature('stateSubscription')) {
         try {
           state.sidebarStateDisposer = betterSidebarApi.subscribeState(() => {

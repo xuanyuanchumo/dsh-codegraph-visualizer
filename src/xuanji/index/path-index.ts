@@ -2,10 +2,16 @@
  * 路径索引：起点桶 / 终点桶 / 边对倒排 / hash 去重 / 惰性失效计数。
  *
  * 璇玑图原型：一方锦缎上已经物化的「读法产物」按起点、终点、边数分桶，
- * 增量引擎只需触碰与新边相邻的桶，不必重读整张锦缎（spec §5.2）。
+ * 查询按边数升序读回，**不再**假设「增量只需触碰与新边相邻的桶」。
  *
- * 关键契约（cycle-107 任务 A）：
- * - 桶键是**边数**（nodes.length - 1），Λ 剪枝直接命中桶，无需逐条比较长度；
+ * 关键契约（cycle-107 任务 A + cycle-110 XJ-06 / XJ-09）：
+ * - 桶键是**边数**（nodes.length - 1）。分桶**只服务查询**（`queryByStart` /
+ *   `queryByEnd` 的边数升序返回、`getStartBuckets` 供 `query()` 取分母）。
+ *   **分桶不服务增量**：增量引擎已改为「旧图反向 DFS 前缀 × 新图正向 DFS 后缀」
+ *   （`incremental.ts` 模块头、设计方案 §12.2），它不读桶、不做桶配对；
+ *   规范 §4.2「onEdgeAdded 需要按 len(pre)+1+len(suf) 配对」的表述已作废。
+ *   Λ 长度剪枝也不落在桶上——它在 `isLegalPath`（`path-rule.ts`）里逐条精确判定，
+ *   桶只在查询侧决定**返回顺序**。这条区分是有意为之：桶是查询优化，不是正确性依据。
  * - hash 去重：同 hash 的条目只入桶一次，add 返回 false（不重复入桶、不改计数）；
  * - edgeToPaths 键是 `${u}->${v}`（**不含 type**）：删除任一类型的一条边都要保守失效；
  * - stale 是惰性失效标记：置位后 queryByStart / queryByEnd / sample 不再返回它，
@@ -171,17 +177,52 @@ export class PathIndex {
     return this.endIndex.get(node) ?? new Map();
   }
 
-  /** 抽取至多 n 条未失效条目（hashIndex 插入序，确定）。 */
+  /**
+   * 抽取至多 n 条未失效条目做抽样体检（I5 用）。
+   *
+   * 契约（XJ-06，修的是 I5 的抽样偏差）：**均匀铺满 + 必含尾部**。
+   *
+   * 旧实现按 `hashIndex` 插入序取前 n 条，条目数超过 n 之后新条目永不入样——
+   * 而 I5 要抓的恰恰是「新写入的坏条目」（version > graph.version、相邻边已删），
+   * 抽样偏差方向与风险方向完全相反。现在的取法：
+   * - 全部 live 条目按插入序排开（插入序 = 写入序，确定）；
+   * - 保留末尾 `max(1, floor(n/4))` 条（最新写入的条目必入样）；
+   * - 剩余额度在前段 `live.length - tailCount` 条里按等步长均匀取，首条必入样；
+   * - 前段与尾段下标区间不相交，因此结果无重复且严格递增（顺序确定）；
+   * - `n <= 0` 返回 `[]`；`live.length <= n` 返回全部 live 的副本。
+   *
+   * 返回的是新数组：调用方修改它不影响索引（I5 只读）。
+   */
   sample(n: number): PathEntry[] {
     const limit = Number.isFinite(n) ? Math.floor(n) : Number.POSITIVE_INFINITY;
     if (limit <= 0) return [];
-    const result: PathEntry[] = [];
+    const live: PathEntry[] = [];
     for (const entry of this.hashIndex.values()) {
-      if (entry.stale) continue;
-      result.push(entry);
-      if (result.length >= limit) break;
+      if (!entry.stale) live.push(entry);
     }
-    return result;
+    if (live.length <= limit) return live;
+    if (!Number.isFinite(limit)) return live;
+
+    // 尾部配额：至少 1 条（「必含尾部」是硬要求，n < 4 时配额就是 1，不是 0）。
+    const tailCount = Math.max(1, Math.floor(limit / 4));
+    const headQuota = limit - tailCount;
+    const headRegion = live.length - tailCount;
+    const result: PathEntry[] = [];
+
+    if (headQuota > 0 && headRegion > 0) {
+      // 步长按「前段长度 / 前段额度」取整，至少 1，保证下标严格递增且不越界。
+      const step = Math.max(1, Math.floor(headRegion / headQuota));
+      for (let i = 0; i < headQuota; i++) {
+        const index = Math.min(i * step, headRegion - 1);
+        const entry = live[index];
+        if (entry && result[result.length - 1] !== entry) result.push(entry);
+      }
+    }
+    for (let i = live.length - tailCount; i < live.length; i++) {
+      const entry = live[i];
+      if (entry) result.push(entry);
+    }
+    return result.slice(0, limit);
   }
 
   /** 未失效条目数（O(1)）。 */

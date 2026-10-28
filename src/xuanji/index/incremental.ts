@@ -30,13 +30,27 @@
 
 import type { EdgeType, GraphSpace, NodeId, XJEdge } from '../core/graph-space.ts';
 import type { PathRule } from '../core/path-rule.ts';
-import { isLegalPath } from '../core/path-rule.ts';
+import { effectiveMaxEdges, isLegalPath } from '../core/path-rule.ts';
 import type { PathEntry } from '../core/path-entry.ts';
 import { makeEntry } from '../core/path-entry.ts';
 import { edgePairKey, reviveEntry } from './path-index.ts';
 import type { PathIndex } from './path-index.ts';
 
-/** 增量展开预算（前缀展开 + 后缀展开次数）。超出即触发整索引降级。 */
+/**
+ * 增量展开预算（前缀展开 + 后缀展开次数）。超出即触发整索引降级。
+ *
+ * 标定（XJ-11：阈值必须与「图上界」成对校验，不能是一个孤立魔数）：
+ * - 计数单位是**展开次数**，不是节点数。线性链上每个前缀/后缀各展开一次，因此
+ *   「一次无分支的增量」至少需要 `|V|` 次展开 ⇒ 预算必须 ≥ 宿主允许送入的最大的图，
+ *   否则合法的大图一做增量就必然降级（降级后每次查询全量重枚举，增量引擎等于关闭）。
+ *   宿主侧的上界是 `PATH_FINDER.MAX_NODES_FOR_BFS`（50 000，见 `src/shared/constants.ts`），
+ *   本常量取同一个 50 000 是**契约**而不是巧合：`tests/unit/xuanjiBudgetContract.test.ts`
+ *   用成对不等式把它钉住（旧注释只写着「两个 50000 是巧合」）。
+ * - 显示层上界 `CLUSTER.MAX_VISIBLE_NODES`（1 500）远小于它，因此「用户真正看得见的图」
+ *   即使每节点平均 33 次分支展开也不会轻易触发降级。
+ * - 预算不可小于 1：`resolveBudget` 把非法值夹到 ≥ 0，`workBudget: 0` 是显式的「必然降级」
+ *   测试入口（首个展开即超预算）。
+ */
 export const INCREMENTAL_WORK_BUDGET = 50_000;
 
 /** onEdgeAdded 的可选参数（适配层不传，默认 INCREMENTAL_WORK_BUDGET）。 */
@@ -65,23 +79,39 @@ function resolveBudget(options?: IncrementalOptions): number {
   return Math.max(0, Math.floor(requested));
 }
 
-let lastDegraded = false;
+/**
+ * 降级状态（XJ-11）：**以索引实例为键**，不是模块级单例。
+ *
+ * 旧实现是 `let lastDegraded`：两个 adapter（两个仓库）或两条规则并发增量时，
+ * A 的降级会被 B 的 `lastDegraded = false` 清掉——降级信号不可观测，
+ * 而「不可观测的降级」等于没有降级（查询层不会回退，用户拿到半成品）。
+ *
+ * 现在状态挂在**被传入的 PathIndex** 上：
+ * - 调 `wasLastIncrementalDegraded(index)` 得到该索引最近一次的判定（生产用法）；
+ * - 不传参时仍返回「最近一次 onEdgeAdded 是否降级」的全局视图，仅作旧调用方兼容；
+ *   新代码不应依赖它（跨实例会被互相覆盖）。
+ */
+const degradedIndexes = new WeakSet<PathIndex>();
+let lastDegradedGlobal = false;
 
-/** 最近一次 onEdgeAdded 是否因超出展开预算而降级（每次调用开头重置）。 */
-export function wasLastIncrementalDegraded(): boolean {
-  return lastDegraded;
+/**
+ * 最近一次 `onEdgeAdded` 是否因超出展开预算而降级。
+ *
+ * @param index 给出时返回**该索引**最近一次调用的判定（XJ-11 实例态，推荐）；
+ *              省略时退化为全局视图（旧行为，跨实例不可靠，仅为兼容保留）
+ */
+export function wasLastIncrementalDegraded(index?: PathIndex): boolean {
+  if (index !== undefined) return degradedIndexes.has(index);
+  return lastDegradedGlobal;
 }
 
 /**
- * 有效长度上界（边数）。
+ * 有效长度上界（边数）：统一由 {@link effectiveMaxEdges} 给出（XJ-10）。
  *
- * 有限 lMax 直接用；无界 lMax 只在 simple 规则下合法（validateRule §6），
- * 此时路径长度受 |V| 限制；这里统一用 |V| 兜底，避免非 simple 的无界规则把枚举拖进死循环。
+ * 无界 `lMax` 只在 simple 规则下合法，此时用 |V| 兜底；无界 + 非 simple 是非法规则，
+ * `effectiveMaxEdges` 会抛 `RuleCompositionError`，不再静默近似。
+ * （此前本文件自带一份相同实现，`rebalance.ts` 与 `query-engine.ts` 再各带一份。）
  */
-function effectiveMaxEdges(rule: PathRule, graph: GraphSpace): number {
-  if (Number.isFinite(rule.lMax)) return Math.max(0, Math.floor(rule.lMax));
-  return Math.max(0, graph.nodeCount);
-}
 
 /**
  * u→v 是否还有**别的类型**的边。
@@ -164,7 +194,9 @@ export function onEdgeAdded(
   index: PathIndex,
   options?: IncrementalOptions,
 ): PathEntry[] {
-  lastDegraded = false;
+  // 每次调用开头重置**两个维度**：本索引的标记（实例态）与全局视图（兼容）。
+  degradedIndexes.delete(index);
+  lastDegradedGlobal = false;
 
   // Φ：类型不在规则里 → 与新边无关
   if (!rule.edgeTypes.has(edge.type)) return [];
@@ -173,7 +205,8 @@ export function onEdgeAdded(
   // 端点必须已在图空间中（否则路径无法终判）
   if (!graph.getNodeAttrs(u) || !graph.getNodeAttrs(v)) return [];
 
-  const maxEdges = effectiveMaxEdges(rule, graph);
+  // XJ-10：唯一实现，非法规则（无界 + 非 simple）在此抛错而非静默近似
+  const maxEdges = effectiveMaxEdges(rule, graph.nodeCount);
   if (maxEdges < 1) return [];
   if (maxEdges < rule.lMin) return [];
 
@@ -227,7 +260,8 @@ export function onEdgeAdded(
     // spec §5.4 / §7.3：本次增量已比全量还贵 → 整索引降级为空，查询层回退全量枚举。
     // 不抛异常、不留半成品（cleared 后 counters 归零，hashIndex 为空）。
     index.clear();
-    lastDegraded = true;
+    degradedIndexes.add(index);
+    lastDegradedGlobal = true;
     return [];
   }
 }

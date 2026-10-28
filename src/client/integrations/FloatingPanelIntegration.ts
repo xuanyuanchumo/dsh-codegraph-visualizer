@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import type { IntegrationState } from './IntegrationState.ts';
 import { FloatingGraphPanel, MinimizedFloatingButton } from '../components/FloatingUI.tsx';
-import { useGraphStore } from '../store/graphStore.ts';
 
 /**
  * 兜底集成通道：所有 DSH 托管席位都不可用时，把面板挂到 `document.body` 上自行浮动。
@@ -16,6 +15,8 @@ import { useGraphStore } from '../store/graphStore.ts';
  * ——`responsive.css` 不会把它的宽高钉成 100%。
  */
 export function integrateFloatingPanel(state: IntegrationState): void {
+  // 顶部标签预留窗口内排队，窗口结束后再决定是否用浮动面板兜底。
+  if (state.deferIfTopTabPending(() => integrateFloatingPanel(state), 'floating')) return;
   if (state.navButtonRegistered) return;
   if (typeof document === 'undefined') return;
 
@@ -49,7 +50,13 @@ export function integrateFloatingPanel(state: IntegrationState): void {
   };
 
   state.renderFloating();
-  useGraphStore.getState().setIntegrationMode('floating');
+  state.navButtonRegistered = true;
+  // 顶部标签迟到注册时收回自绘容器（顶部标签优先）。
+  state.noteFallbackSeat(() => {
+    try { floatingRoot.unmount(); } catch { /* 已卸载则忽略 */ }
+    floatingContainer.remove();
+  }, 'floating');
+  state.markChannel('floating');
 
   // 卸载时同时拆掉 React root 与宿主容器，避免留下空 div 影响后续布局测量。
   ctx.effect(() => () => {

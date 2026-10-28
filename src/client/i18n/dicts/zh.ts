@@ -638,6 +638,11 @@ export const zh: Record<string, string> = {
 
   // 导览功能
   'toolbar.more': '更多',
+  // 「更多」下拉的分段标题（cycle-110 / T3）。段在构造期已过滤空段
+  // （`components/toolbar/moreMenu.ts`），因此这三个标题不会出现「只有标题、没有条目」。
+  'toolbar.moreOverlaySection': '叠加视图',
+  'toolbar.moreAppearanceSection': '外观与语言',
+  'toolbar.moreSessionSection': '会话操作',
   'toolbar.tour': '代码导览',
   'tour.title': '代码导览',
   'tour.close': '关闭导览',

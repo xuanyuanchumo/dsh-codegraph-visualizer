@@ -1,6 +1,6 @@
 // E2E tests for J12: 异常恢复与容错
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers.ts';
+import { BASE_URL, setupPluginPage } from './helpers.ts';
 import { PANEL } from './selectors.ts';
 
 test.describe('J12: 异常恢复与容错', () => {
@@ -38,7 +38,7 @@ test.describe('J12: 异常恢复与容错', () => {
     await setupPluginPage(page);
     const panel = page.locator(PANEL.root);
     await expect(panel).toBeVisible();
-    await page.goto('http://localhost:3080', { timeout: 60000, waitUntil: 'domcontentloaded' });
+    await page.goto(BASE_URL, { timeout: 60000, waitUntil: 'domcontentloaded' });
     await page.locator('#api-skip-btn').click({ timeout: 15000 }).catch(() => {});
     await expect(page.locator(PANEL.root)).toBeVisible({ timeout: 45000 });
   });

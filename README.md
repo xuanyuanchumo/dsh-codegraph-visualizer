@@ -74,10 +74,10 @@ pnpm run dev
 ### 运行测试
 
 ```bash
-pnpm run test           # 单元+组件测试（2676 tests）
-pnpm run test:e2e       # E2E 测试（需先启动 dev server）
-pnpm run typecheck      # 类型检查
-pnpm run lint           # Lint
+pnpm run test           # 单元 + 组件（5,900+ 用例，以实跑为准）
+pnpm run test:e2e       # E2E（需先启动 dev server）
+pnpm run typecheck      # 三面类型检查（host / client / test）
+pnpm run lint           # oxlint
 ```
 
 ## 架构
@@ -107,7 +107,7 @@ pnpm run lint           # Lint
 ```
 src/
 ├── index.ts                  # Host 端插件入口（re-export 聚合）
-├── tools.ts                  # 10 个工具定义（graph_status/data/symbol/impact/path_find/path_enumerate/cycles/health/rules_check/focus）
+├── tools.ts                  # 11 个工具：graph_status/data/symbol/impact/path_find/path_enumerate/cycles/query/health/rules_check/focus
 ├── types/                    # Branded 类型、GraphData、事件声明合并
 ├── adapters/                 # 数据源适配器
 │   ├── CodeGraphAdapter.ts   #   dsh-codegraph 数据源
@@ -121,8 +121,11 @@ src/
 ├── graphUtils.ts             # 图谱工具函数
 ├── host/                     # Host 端模块
 │   ├── config.ts             #   配置定义与校验
-│   ├── routes.ts             #   HTTP 路由注册
+│   ├── routes.ts             #   HTTP 路由注册（19 条）
+│   ├── routes/               #   六个域分区路由文件
+│   ├── compat/               #   多代适配层（ApiCompatLayer/FeatureFlags/能力探针/版本探测/快照防缩水）
 │   ├── watcher.ts            #   文件监听与事件监听
+│   ├── incrementalUpdate.ts  #   文件级增量 diff 更新层
 │   ├── security.ts           #   路径安全校验
 │   ├── prerequisites.ts      #   前置条件检测
 │   ├── McpServer.ts          #   MCP 协议服务器
@@ -187,6 +190,17 @@ src/
         └── modulePath.ts     #     模块路径分析
 ```
 
+### 其它顶层目录
+
+| 路径 | 作用 |
+|---|---|
+| `docs/agents/` | **权威开发文档族**：01 插件开发规范 / 02 宿主 API / 03 客户端 API / 04 架构设计 / 05 官方规范检索证据 / 06 dsh-anic 规范 / **07 界面与功能域规划** / **08 质量属性与评审标准** / **09 破坏性变更与兼容策略** |
+| `docs/research/` | 研究报告（多代 API 差异、璇玑图、Graphify、本轮规范与破坏性变更） |
+| `site/plugin-market/` | 本地插件市场索引（`index.json` + `icons/`），由 `scripts/plugin-market-index.mjs` 生成 |
+| `dsh-anic/` | 仓库内的**独立兄弟工程**（ANIC 工作流可视化），与本插件源码零依赖 |
+| `.dsh/skills/` | 仓库内技能库（`ai-native-iteration-cycle` 等） |
+| `.cycles/` | 迭代循环工件（评估报告、门禁台账、子规划、测试报告） |
+
 ### 聚类策略
 
 采用 **渐进式聚类 + 增量聚类 + Louvain 社区检测** 三层聚类体系：
@@ -208,11 +222,79 @@ src/
 - [x] `dsh.bundle.patch` 指定 Cordis 补丁文件
 - [x] `dsh.client.platform` 为 `"web"`
 - [x] `dsh.client.inject` 声明运行时注入依赖
-- [x] `peerDependencies` 声明 Cordis/DSP-Tools/React
-- [x] `exports` 字段正确导出 host/client 入口
-- [x] `files` 字段仅包含 `dist` 和 `cordis.patch.yml`
-- [x] `engines` 字段声明 Node/pnpm 版本要求
+- [x] `peerDependencies` 声明 Cordis / dsh-tools / dsh-llm / React
+- [x] `exports` 字段正确导出 host（`.`）与 client（`./client`）入口，并导出 `./locale/*.json`
+- [x] `files` 字段只包含运行时需要的产物：`dist`、`cordis.patch.yml`、`locale`、`assets`、`README.md`
+- [x] `engines` 声明 Node/pnpm/DSH 版本要求；其中 `engines.dsh` 是宿主**真正读取**的兼容门
 - [x] `packageManager` 字段指定 pnpm 版本
+- [x] 不含无读取者的元数据（`dsh.displayName` / `category` / `permissions` 等一律不写，由 `tests/unit/manifest.test.ts` 守卫）
+
+## 插件市场
+
+本仓库同时维护一份**可用于自建插件市场的索引**，它不进 npm 包，而是作为静态资源发布。
+
+### 市场怎么收录一个插件
+
+- **npm 包只在声明了 `dsh.bundle` 时才会被索引收录**。本项目的声明在 `package.json` 的
+  `dsh.bundle.patch = "./cordis.patch.yml"`——没有这一条，`keywords` 写得再好也不会出现。
+- **搜索命中面**：名称、作者、`keywords`，以及**所有语言**的标题/描述/分类/标签。
+  本项目的 18 个 `keywords`（`dsh`、`dsh-plugin`、`dsh-market`、`codegraph`、`call-graph`、
+  `impact-analysis`、`ast`、`tree-sitter` …）就是搜索入口。
+- **多语言显示文案**来自 `locale/en.json` + `locale/zh.json`（`LocalizedText` 要求至少含 `en`），
+  而不是 `package.json.description`。
+- **图标**：`assets/icon.svg`，索引里以相对路径 `icons/icon.svg` 引用——相对图标**相对索引 URL 解析**，
+  所以索引和 `icons/` 目录必须一起发布。
+
+### 本地生成索引
+
+```bash
+node scripts/plugin-market-index.mjs            # 生成 site/plugin-market/index.json + icons/
+node scripts/plugin-market-index.mjs --offline  # 不访问 npm registry（离线可复现）
+node scripts/plugin-market-index.mjs --check    # 只校验是否最新，过期退出码 1（CI 用）
+```
+
+索引格式为 `format: 1` 的 JSON，每个插件条目含 `name` / `title` / `description` / `icon` /
+`author` / `homepage` / `repository` / `metadata`（分类、标签、排序键）/ `versions`
+（`version` + `publishTimestamp` + `source` + 可选 `engines.dsh`）。
+
+### 发布
+
+把 `site/plugin-market/` 整个目录放到任意静态主机（GitHub Pages、对象存储均可）即可；
+要求 UTF-8 JSON、2xx 直出且不经过重定向。DSH 侧在「插件 → 实验性插件 → 自定义插件市场」里
+添加该 `index.json` 的 URL 后，就能在「发现」标签页搜索与安装。
+
+> 格式的权威说明见本地知识库 `dsh-plugin-dev-kb` 的 `site/guide/plugin-market.md`。
+
+## 质量门禁与兼容承诺
+
+### 门禁（每条都能在本地一条命令复验）
+
+| 门禁 | 阈值 / 口径 | 命令 |
+|---|---|---|
+| 类型 | 三面零错误（host / client / test） | `pnpm run typecheck` |
+| Lint | 0 warnings / 0 errors | `pnpm run lint` |
+| 测试 | 全绿；用例数不得低于已提交基线 | `pnpm run test` |
+| 覆盖率 | 语句/分支/函数/行 **四维均 ≥ 86%** | `pnpm run test:coverage` |
+| 构建 | exit 0；client ≤ 3 MB、host ≤ 512 KB | `pnpm run build && pnpm run perf-gate` |
+| 复杂度 | 单文件 ≤ 100（`band-detector` 预算，超带即 `OVER_BUDGET`） | `node .dsh/skills/ai-native-iteration-cycle/scripts/band-detector.mjs . --threshold 0.15` |
+| 依赖安全 | `critical = 0`、`high = 0`（**必须**显式 registry，镜像无 bulk audit 端点） | `pnpm audit --json --registry=https://registry.npmjs.org` |
+| 卫生 | 消费面/死代码检查 | `pnpm run hygiene` |
+
+逐条判据（场景 → 阈值 → 用例 → 当前状态）在 [`docs/agents/08-质量属性与评审标准.md`](docs/agents/08-质量属性与评审标准.md)；
+哪里**只有人工评审能发现**，也在那份文档里显式列出（不假装有保护）。
+
+### 兼容承诺
+
+| 项 | 值 | 是不是真承诺 |
+|---|---|---|
+| `engines.dsh` | `">=0.2.0-rc.2 <0.4.0-0"` | **是。宿主 `dsh-app-boot` 的 `unmetRequirements()` 读它，且单独决定——声明了它，peer 范围就不再被检查** |
+| `peerDependencies`（`@deepseek-ai/dsh-*`） | `"^0.2.0-rc.2 \|\| ^0.3.0-rc.2"` | 仅在 `engines.dsh` 缺席时才生效（对本项目是「备份声明」） |
+| `dsh.manifestVersion` | `1` | **不是**。零读取者（宿主 asar 内只有 6 处命中，全是 README 正文） |
+| 已验证运行宿主 | `0.2.1-rc.3`（Windows 桌面端） | 这是「跑通过」的事实，**不是**下限；下限是 `0.2.0-rc.2` |
+| gen3（`0.3.0-rc.2`） | 在声明窗口内 | **未真机验证**，只保证不被安装门拒绝 |
+
+为什么「peer 范围才是真承诺」这个流行说法在本项目**不成立**、以及 `0.4.0-rc.1` 曾被放行的完整证据链，
+见 [`docs/agents/09-破坏性变更与兼容策略.md`](docs/agents/09-破坏性变更与兼容策略.md) §1 与 §3.2。
 
 ## 开发
 
@@ -234,13 +316,24 @@ src/
 ```bash
 pnpm run build          # 完整构建（host + client）
 pnpm run build:client   # 仅构建 client bundle
-pnpm run dev            # 启动 dev server
-pnpm run test           # 单元测试
-pnpm run test:e2e       # E2E 测试
-pnpm run typecheck      # 三面类型检查
-pnpm run lint           # Lint
-pnpm run lint:fix       # Lint 自动修复
+pnpm run dev            # 启动自包含 dev server（模拟 Web Shell + 桩数据）
+pnpm run test           # 单元 + 组件测试
+pnpm run test:coverage  # 覆盖率（四维 86% 阈值）
+pnpm run test:e2e       # E2E 测试（需先启动 dev server）
+pnpm run typecheck      # 三面类型检查（host / client / test）
+pnpm run lint           # oxlint
+pnpm run perf-gate      # 体积 + 用例数门禁
+pnpm run hygiene        # 消费面 / 死代码检查
 ```
+
+### 真机验证
+
+真机（Electron 桌面宿主 / Web 宿主）的启动、认证 URL 获取与进程收敛统一走
+`node scripts/start-dsh-test.mjs`，**不要自己写第二套启动脚本**——历史事故都来自两套脚本漂移。
+该脚本在 cycle-110 修了三处启动缺陷：Electron 垫片解析、认证 URL 等待窗口、桌面宿主进程名白名单。
+步骤与断言点见 `docs/用户旅程.md` 的 J0 段，以及 `.cycles/cycles/cycle-110/subplans/` 下的旅程清单。
+
+> 改过 HOST 路由后必须**重启宿主进程**（只重建不够：运行中的进程持有旧 bundle）。
 
 ### CI/CD
 
@@ -253,8 +346,17 @@ pnpm run lint:fix       # Lint 自动修复
 
 ### 测试覆盖
 
-- **2676 单元+组件测试** — 覆盖 adapters, tools, plugin, graphStore, validators, i18n, logger, pathSecurity, services, deriveName, renderer, hooks, components
-- **19 E2E 测试** — 覆盖 J1-J14 用户旅程、混沌场景、大仓库性能
+分层与命令（准确数字以实跑为准，`pnpm run test` 会打印；用例数下限由 `pnpm run perf-gate` 棘轮守住）：
+
+| 层 | 位置 | 命令 |
+|---|---|---|
+| L1 单元 + L2 组件 | `tests/unit/**`、`tests/component/**`（jsdom） | `pnpm run test` |
+| L3 契约守卫（源码形态扫描） | `tests/unit/*Contract.test.ts` | 同上 |
+| L4 E2E | `tests/e2e/**`（23 个 spec：用户旅程、混沌、按需加载、条件请求、键盘、i18n、视图分层…） | `pnpm run test:e2e` |
+| L4 视觉 | `tests/e2e/visual-screenshots.spec.ts`（逐图预算 + 硬上限） | `pnpm run test:visual` |
+| L4 性能 | `tests/e2e/performance.spec.ts` | `pnpm run test:performance` |
+
+覆盖率、体积与用例数的真实基线见 `.cycles/cycles/*/test-reports/test-report.md` 与 `scripts/perf-baseline.json`。
 
 ## 许可证
 

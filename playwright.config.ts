@@ -1,7 +1,35 @@
 import { defineConfig } from '@playwright/test';
 
+const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3080';
+
+// ── 端口身份守卫（为什么需要三道）──────────────────────────────────────────
+// `webServer.reuseExistingServer: true` + 固定 3080 意味着**本机 3080 上的任何东西都会被
+// 当成被测站点**。实测（cycle-110）占用者是真机验证用的桌面端 DSH 宿主
+// （进程名 `DeepSeek Harness.exe`），后果分两种：
+//   · 宿主回 401 ⇒ Playwright 判定「URL 不可用」⇒ 来起自己的 dev-server ⇒ 端口打不开但
+//     进程不退出 ⇒ 「webServer 180s 超时」（伪装成环境慢）；
+//   · 宿主回 200 ⇒ Playwright 直接复用 ⇒ 20 个 spec 全落到宿主页面 ⇒
+//     `TimeoutError: locator('.cg-graph-panel')`（伪装成选择器漂移，见 docs/测试体系.md §2.7）。
+// 两种都是**假失败**，而且绿色的 run 同样不能作为回归证据。
+// 判定分三道，判据与文案的单一事实源在 `tests/e2e/port-identity.mjs`：
+//   1. `webServer.command` 的第一段 `preflight-dev-server.mjs`（只在「要自己起服务」时跑）
+//   2. `globalSetup`：跑任何 spec 之前再确认一次（防两阶段之间 owner 变更，实测发生过）
+//   3. 手动排障：`curl -s -o /dev/null -w "%{http_code}" http://localhost:3080`
+// 说明：`playwright.config.ts` 只支持导出对象（async 工厂会报 "must export a single object"），
+// 所以没有第四道「配置阶段」判定。
+
 export default defineConfig({
   testDir: './tests/e2e',
+  globalSetup: './tests/e2e/global-setup.ts',
+  // ── outputDir 必须与真机启动器的 Chrome profile 解耦（cycle-110 实测）────────
+  // Playwright 每次 run 的「clear output」阶段会**递归删除 outputDir**。默认值 `test-results`
+  // 恰好是 `scripts/start-dsh-test.mjs:50` 放真机 Chrome profile 的地方
+  // （`USER_DATA_DIR = test-results/chrome-debug-profile`，内含数千个 WasmTtsEngine 缓存文件，
+  // 且运行中被 Chrome 锁定）。后果：E2E 一启动就卡在删除上——实测 `--global-timeout=25s` 报
+  // 「Timed out waiting 25s for the clear output to run」，**没有任何用例输出**，
+  // 看起来像「Playwright 起不来」而不是「两个工具抢同一个目录」。
+  // 因此把 Playwright 的产物收进独立子目录：只清自己的，不碰真机的 profile。
+  outputDir: 'test-results/e2e',
   testMatch: /.*\.spec\.ts$/,
   timeout: 120000,
   expect: {
@@ -12,7 +40,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3080',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: 30000,
@@ -50,7 +78,10 @@ export default defineConfig({
     {
       name: 'regression',
       use: { browserName: 'chromium' },
-      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|graph-browsing|conversation-remote-web-ui|on-demand-loading|conditional-requests)\.spec\.ts$/,
+      // 注意：testMatch 里**只能列真实存在的 spec**。cycle-110 清理时移除了
+      // `conversation-remote-web-ui`——该文件已不存在（历史遗留），列在这里的后果是
+      // 「以为有 21 个 spec 在跑，实际 20 个」，属 §2.20 那类「套件比你以为的小」的静默缺口。
+      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|graph-browsing|on-demand-loading|conditional-requests)\.spec\.ts$/,
     },
     // 独立集：视觉快照（手动触发）
     {
@@ -71,8 +102,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm run build:client && pnpm run dev',
-    url: 'http://localhost:3080',
+    // 第一段是端口身份守卫（见文件头三道说明与 `tests/e2e/port-identity.mjs`）：
+    // 它只在 Playwright 决定「自己起服务」时执行，正好覆盖「端口被非 dev-server 占用」这一支。
+    command: 'node tests/e2e/preflight-dev-server.mjs && pnpm run build:client && pnpm run dev',
+    url: BASE_URL,
     reuseExistingServer: true,
     timeout: 180000,
   },

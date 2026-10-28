@@ -13,6 +13,7 @@ import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { XuanjiAdapterPool, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
+import { renderSubgraphText, selectSeeds, tokenizeQuery } from './xuanji/query/keyword-query.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
 import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
@@ -401,6 +402,11 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       minHops: { type: 'number', description: 'Minimum path length in edges. Default: 1.' },
       maxHops: { type: 'number', description: 'Maximum path length in edges. Default: 5, capped at 10.' },
       limit: { type: 'number', description: 'Maximum number of paths returned. Default: 10, capped at 50.' },
+      cursor: {
+        type: 'number',
+        description: 'Pagination cursor: number of paths already returned. Use the previous call\'s nextCursor.',
+      },
+      pageSize: { type: 'number', description: 'Paths per page. Defaults to limit, capped at 50.' },
       edgeTypes: {
         type: 'string',
         description: 'Comma-separated edge types to traverse. Default: call,import,extend,implement,dependency.',
@@ -409,13 +415,21 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     output: {
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
-        const v = value as { paths?: string[][]; truncated?: boolean; total?: number } | null;
+        const v = value as {
+          paths?: string[][];
+          truncated?: boolean;
+          total?: number;
+          nextCursor?: number | null;
+          labels?: unknown[];
+        } | null;
         if (!v || !v.paths || v.paths.length === 0) {
           return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_PATH_FOUND?.en ?? 'No path found' }];
         }
         const lines = v.paths.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.join(' → ')} (${p.length - 1} hops)`);
         const suffix = v.truncated ? ' (truncated)' : '';
-        return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} path(s)${suffix}\n${lines.join('\n')}` }];
+        // XJ-03：分页游标必须出现在人读的摘要里，否则调用方无从翻页（"返回了字段但没人知道"）。
+        const next = v.nextCursor === null || v.nextCursor === undefined ? '' : ` (nextCursor=${String(v.nextCursor)})`;
+        return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} path(s)${suffix}${next}\n${lines.join('\n')}` }];
       },
     },
     presentCall: (args) => {
@@ -434,6 +448,8 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         minHops?: number;
         maxHops?: number;
         limit?: number;
+        cursor?: number;
+        pageSize?: number;
         edgeTypes?: string;
       };
       const data = await fetchMergedGraph(invoke, a.repoId);
@@ -446,11 +462,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       const adapter = xuanjiPool.get(a.repoId);
       adapter.syncGraph(data);
       const parsedTypes = parseEdgeTypes(a.edgeTypes);
+      const limit = clampInt(a.limit, 1, 50, 10);
       const result = adapter.findPathsBetween(a.sourceSymbol, a.targetSymbol, {
         ...(parsedTypes ? { edgeTypes: parsedTypes } : {}),
         minHops: clampInt(a.minHops, 1, 10, 1),
         maxHops: clampInt(a.maxHops, 1, 10, 5),
-        limit: clampInt(a.limit, 1, 50, 10),
+        limit,
+        ...(a.cursor === undefined ? {} : { cursor: clampInt(a.cursor, 0, Number.MAX_SAFE_INTEGER, 0) }),
+        ...(a.pageSize === undefined ? {} : { pageSize: clampInt(a.pageSize, 1, 50, limit) }),
       });
       return toJsonValue(result);
     },
@@ -464,6 +483,11 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       repoId: { type: 'string', required: true, description: 'Repository id.' },
       maxLength: { type: 'number', description: 'Maximum cycle length in edges. Default: 6, capped at 12.' },
       limit: { type: 'number', description: 'Maximum number of cycles returned. Default: 100, capped at 500.' },
+      cursor: {
+        type: 'number',
+        description: 'Pagination cursor: number of cycles already returned. Use the previous call\'s nextCursor.',
+      },
+      pageSize: { type: 'number', description: 'Cycles per page. Defaults to limit, capped at 500.' },
       edgeTypes: {
         type: 'string',
         description: 'Comma-separated edge types to traverse. Default: call,import,extend,implement,dependency.',
@@ -472,13 +496,19 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     output: {
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
-        const v = value as { paths?: string[][]; truncated?: boolean; total?: number } | null;
+        const v = value as {
+          paths?: string[][];
+          truncated?: boolean;
+          total?: number;
+          nextCursor?: number | null;
+        } | null;
         if (!v || !v.paths || v.paths.length === 0) {
           return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_CYCLES?.en ?? 'No dependency cycles detected.' }];
         }
         const lines = v.paths.slice(0, 10).map((cycle, i) => `  ${i + 1}. ${cycle.join(' → ')}`);
         const suffix = v.truncated ? ' (truncated)' : '';
-        return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} cycle(s)${suffix}\n${lines.join('\n')}` }];
+        const next = v.nextCursor === null || v.nextCursor === undefined ? '' : ` (nextCursor=${String(v.nextCursor)})`;
+        return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} cycle(s)${suffix}${next}\n${lines.join('\n')}` }];
       },
     },
     presentCall: (args) => {
@@ -490,7 +520,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       title: result.isError ? 'Cycle enumeration failed' : 'Dependency cycles',
     }),
     execute: async (args) => {
-      const a = args as { repoId: string; maxLength?: number; limit?: number; edgeTypes?: string };
+      const a = args as {
+        repoId: string;
+        maxLength?: number;
+        limit?: number;
+        cursor?: number;
+        pageSize?: number;
+        edgeTypes?: string;
+      };
       const data = await fetchMergedGraph(invoke, a.repoId);
       if (data.nodes.length === 0) return null;
       if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) {
@@ -500,10 +537,13 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       const adapter = xuanjiPool.get(a.repoId);
       adapter.syncGraph(data);
       const parsedTypes = parseEdgeTypes(a.edgeTypes);
+      const limit = clampInt(a.limit, 1, 500, 100);
       const result = adapter.cycles({
         ...(parsedTypes ? { edgeTypes: parsedTypes } : {}),
         maxLength: clampInt(a.maxLength, 1, 12, 6),
-        limit: clampInt(a.limit, 1, 500, 100),
+        limit,
+        ...(a.cursor === undefined ? {} : { cursor: clampInt(a.cursor, 0, Number.MAX_SAFE_INTEGER, 0) }),
+        ...(a.pageSize === undefined ? {} : { pageSize: clampInt(a.pageSize, 1, 500, limit) }),
       });
       return toJsonValue(result);
     },
@@ -631,7 +671,129 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
-  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, dispose: () => { xuanjiPool.dispose(); graphCache.clear(); } };
+  const graphQuery = defineTool({
+    name: 'graph_query',
+    description:
+      'Keyword/symbol query over the code graph: match seeds (exact > prefix > substring > file path), expand a bounded subgraph around them and render it as a token-budgeted text summary. CJK keywords are supported (whole run + per-character tokens).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      query: {
+        type: 'string',
+        required: true,
+        description: 'Keywords or symbol names (space separated for multiple terms; Chinese supported).',
+      },
+      depth: { type: 'number', description: 'Subgraph expansion hops from each seed. Default 1, capped at 3.' },
+      tokenBudget: { type: 'number', description: 'Token budget for the rendered text. Default 1200, capped at 8000.' },
+      maxSeeds: { type: 'number', description: 'Maximum seeds. Default 3, capped at 10. Each query term also guarantees one seed.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as
+          | {
+              text?: string;
+              seeds?: Array<{ id: string; label: string; score: number }>;
+              tokens?: number;
+              truncated?: boolean;
+              reason?: string;
+            }
+          | null;
+        if (!v || !v.text) return [{ type: 'text' as const, text: 'No seed matched the query.' }];
+        const seedLine =
+          v.seeds && v.seeds.length > 0
+            ? `seeds: ${v.seeds.map((seed) => `${seed.label}(${seed.score})`).join(', ')}\n`
+            : '';
+        const meta = `${v.tokens ?? 0} tokens${v.truncated ? ` / truncated (${v.reason})` : ''}`;
+        return [{ type: 'text' as const, text: `${seedLine}${meta}\n${v.text}` }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { repoId: string; query: string };
+      return { card: 'generic' as const, title: 'Query graph', kind: 'search' as const, rawInput: { repoId: a.repoId, query: a.query } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Graph query failed' : 'Graph query result',
+    }),
+    execute: async (args) => {
+      const a = args as {
+        repoId: string;
+        query: string;
+        depth?: number;
+        tokenBudget?: number;
+        maxSeeds?: number;
+      };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      if (data.nodes.length === 0) return null;
+
+      const terms = tokenizeQuery(a.query);
+      if (terms.length === 0) {
+        return toJsonValue({
+          query: a.query,
+          terms,
+          seeds: [],
+          text: 'No searchable term in query (need at least one letter/digit or CJK character).',
+          tokens: 0,
+          truncated: false,
+          reason: 'fits',
+          nodeCount: 0,
+          edgeCount: 0,
+        });
+      }
+
+      const seeds = selectSeeds(
+        data.nodes.map((node) => ({
+          id: node.id,
+          label: node.label,
+          ...(node.filePath === undefined ? {} : { filePath: node.filePath }),
+        })),
+        terms,
+        { maxK: clampInt(a.maxSeeds, 1, 10, 3) },
+      );
+      const rendered = renderSubgraphText(
+        {
+          nodes: data.nodes.map((node) => ({
+            id: node.id,
+            label: node.label,
+            ...(node.filePath === undefined ? {} : { filePath: node.filePath }),
+          })),
+          edges: data.edges.map((edge) => ({ source: edge.source, target: edge.target, type: edge.type })),
+        },
+        seeds,
+        { depth: clampInt(a.depth, 0, 3, 1), tokenBudget: clampInt(a.tokenBudget, 50, 8000, 1200) },
+      );
+
+      return toJsonValue({
+        query: a.query,
+        terms,
+        seeds: seeds.map((seed) => ({
+          id: seed.id,
+          label: seed.label,
+          score: seed.score,
+          matchedTerms: [...seed.matchedTerms],
+        })),
+        ...rendered,
+      });
+    },
+  });
+
+  return {
+    graphStatus,
+    graphData,
+    graphSymbol,
+    graphImpact,
+    graphPathFind,
+    graphPathEnumerate,
+    graphCycles,
+    graphHealth,
+    graphRulesCheck,
+    graphFocus,
+    graphQuery,
+    dispose: () => {
+      xuanjiPool.dispose();
+      graphCache.clear();
+    },
+  };
 };
 
 

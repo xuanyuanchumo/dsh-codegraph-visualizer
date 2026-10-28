@@ -9,6 +9,7 @@ import {
   DSH_PROMISED_GENERATIONS,
   DSH_SUPPORTED_RANGE,
   DSH_UNSUPPORTED_PROBE,
+  DSH_UNSUPPORTED_PROBES,
   generationOfVersion,
   parseDshVersion,
   probeReleaseFor,
@@ -122,7 +123,9 @@ describe('generation model is the single source of truth', () => {
       peerDependencies?: Record<string, string>;
     };
     expect(pkg.engines?.dsh).toBe(DSH_SUPPORTED_RANGE);
-    expect(DSH_UNSUPPORTED_PROBE).toBe('0.4.0');
+    // cycle-110：探针从 `0.4.0` 换成 `0.4.0-rc.1`。理由是 `0.4.0` 在旧上界下**本来就**被拒，
+    // 对「上界太宽」这类缺陷不敏感；真正的缺口是 gen4 的**预发布**。
+    expect(DSH_UNSUPPORTED_PROBE).toBe('0.4.0-rc.1');
     // cycle-92 裁定：宿主下限抬高到 0.2.0-rc.2，peer 门同步去掉 0.1.7 线。
     // 三处（engines.dsh / peerDependencies / DSH_SUPPORTED_RANGE）必须同时收紧，
     // 否则会出现「声明支持 gen1、peer 门却拒绝它」这种自相矛盾的安装体验。
@@ -154,6 +157,47 @@ describe('generation model is the single source of truth', () => {
     expect(parseDshVersion(lowerBound).generation).toBe('gen2');
     expect(parseDshVersion(DSH_GENERATION_PROBES.gen1).generation).toBe('gen1');
     expect(compareWithinRange(DSH_SUPPORTED_RANGE, DSH_GENERATION_PROBES.gen1)).toBe(false);
+  });
+
+  // cycle-110：上界探针必须是**一对**，否则「改宽」和「改窄」都只有一半被守住。
+  // 背景：`engines.dsh` 在 0.2.1-alpha.3 起是强制门；旧上界 `<0.4.0` 在
+  // includePrerelease 语义下放行 `0.4.0-rc.1`（gen4 预发布），实测见
+  // docs/research/dsh-round110-规范与破坏性变更.md §4。
+  it('excludes every gen4 probe, including the prerelease the old upper bound let through', () => {
+    for (const probe of DSH_UNSUPPORTED_PROBES) {
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, probe), `${DSH_SUPPORTED_RANGE} must NOT cover ${probe}`).toBe(false);
+    }
+    expect(compareWithinRange(DSH_SUPPORTED_RANGE, '0.4.0-rc.1')).toBe(false);
+    expect(compareWithinRange(DSH_SUPPORTED_RANGE, '0.4.0-alpha.1')).toBe(false);
+    expect(compareWithinRange(DSH_SUPPORTED_RANGE, '0.4.0-0')).toBe(false);
+  });
+
+  it('still covers the whole gen3 line after tightening the upper bound (改窄守卫)', () => {
+    // 收紧上界最容易犯的错是顺手把 0.3 的预发布也排掉 —— 那会让受支持的 gen3 宿主
+    // 装不上本插件。这一条与上一条必须同时存在。
+    for (const version of ['0.3.0-rc.1', '0.3.0-rc.2', '0.3.0', '0.3.7']) {
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must cover ${version}`).toBe(true);
+    }
+    // 下限侧的同一对：0.2 线（含本机实跑宿主）必须仍被覆盖，gen1 必须仍被排除。
+    for (const version of ['0.2.0-rc.2', '0.2.1-rc.3', '0.2.1', '0.2.9']) {
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must cover ${version}`).toBe(true);
+    }
+    for (const version of ['0.1.7-rc.1', '0.1.7-rc.2', '0.1.9']) {
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must NOT cover ${version}`).toBe(false);
+    }
+  });
+
+  // 本机真实运行宿主。这条用例把「发布线序号」与「本模型的代际」钉在一起：
+  // 0.2.1-rc.3 是比 0.2.0-rc.2 更新的**发布**，但按 minor 仍归 gen2。
+  // 混用两者会得出「gen3 已真机验证」的错误结论（gen3 = 0.3.x，至今未发布）。
+  it('classifies the live host 0.2.1-rc.3 as gen2, not as a new generation', () => {
+    const live = parseDshVersion('0.2.1-rc.3');
+    expect(live).toMatchObject({ major: 0, minor: 2, patch: 1, prerelease: 'rc.3', generation: 'gen2' });
+    expect(DSH_PROMISED_GENERATIONS).toContain(live.generation as 'gen2');
+    expect(live.generation).not.toBe('gen3');
+    // 而同一条发布线里的 `0.2.1-alpha.3` 已经带来破坏性变更（engines.dsh 判据）——
+    // 这正是「代际不是兼容性判据」的证据：两版同属 gen2。
+    expect(parseDshVersion('0.2.1-alpha.3').generation).toBe('gen2');
   });
 
   it('parses every generation probe back to the generation it represents', () => {

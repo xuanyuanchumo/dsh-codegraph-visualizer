@@ -55,9 +55,16 @@
 
 - **原文明确**：*"The types are erased at compile time and do not perform runtime JSON validation
   or file generation."*
-- 落点：这解释了为什么 `engines.dsh` 与 `dsh.manifestVersion` 在本插件里是**纯声明**——
-  没有任何读取者。真正的兼容门在 `peerDependencies`（见 §2.5）。相关裁定见
-  [01-插件开发规范.md](./01-插件开发规范.md) §2。
+- 落点（**cycle-110 纠偏**）：本条**只对「类型不做运行时 JSON 校验」成立**，不能推出「`engines.dsh`
+  没有读取者」。实测否证：宿主 `@deepseek-ai/dsh-app-boot` 的 `unmetRequirements()` **读 `engines.dsh`**
+  且**单独决定**——有 `engines.dsh` 时 `peerDependencies` 被完全忽略（源码注释原文
+  *"An own `engines.dsh` range decides alone and peerDependencies are ignored"*）；
+  `dshmarket/lib/verify.js:217-235` 用同一条规则。`dsh-package-manifest` 的 README 仍写
+  *"Current installers and loaders do not enforce `dsh.manifestVersion` or `engines.dsh`"*，
+  **该 README 落后于随包发布的代码**。因此本插件真正的兼容门是 `engines.dsh`，`peerDependencies`
+  只是历史声明；承诺矩阵与破坏性变更判定见
+  [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) §1–§3 与
+  [`docs/research/dsh-round110-规范与破坏性变更.md`](../research/dsh-round110-规范与破坏性变更.md)。
 
 ### 2.3 cordis 服务注入：必需 vs 可选
 

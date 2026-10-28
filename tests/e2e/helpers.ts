@@ -12,7 +12,10 @@ export const TIMEOUTS = {
   API_MODAL: 20000,
 } as const;
 
-export async function setupPluginPage(page: Page, url = 'http://localhost:3080'): Promise<void> {
+/** dev-server 的基准 URL：与 `playwright.config.ts` 同源，允许 PW_BASE_URL 覆盖（端口被真机宿主占用时的排查用） */
+export const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3080';
+
+export async function setupPluginPage(page: Page, url = BASE_URL): Promise<void> {
   await page.goto(url, { timeout: TIMEOUTS.NAVIGATION, waitUntil: 'domcontentloaded' });
   const skipBtn = page.locator('#api-skip-btn');
   await skipBtn.click({ timeout: TIMEOUTS.API_SKIP }).catch(() => {});
@@ -31,7 +34,7 @@ export async function setupPluginPage(page: Page, url = 'http://localhost:3080')
 export async function setupPluginPageInBehavioralLayer(
   page: Page,
   mode: 'callgraph' | 'dependencies' | 'inheritance' | 'package' | 'class' = 'callgraph',
-  url = 'http://localhost:3080',
+  url = BASE_URL,
 ): Promise<void> {
   await setupPluginPage(page, url);
   await selectViewMode(page, mode);

@@ -711,3 +711,60 @@ describe('onEdgeRemovedDetailed：stale 阈值必须到达动作（XJ-04）', ()
   });
 });
 
+/**
+ * XJ-11：降级信号必须是**实例态**。
+ *
+ * 旧实现是模块级 `let lastDegraded`：A 索引降级、随后 B 索引做一次正常（未降级）的
+ * `onEdgeAdded`，就把 A 的信号清成了 false。两个仓库/两条规则并发增量在生产上是常态
+ * （`XuanjiAdapterPool` 按 repoId 各持一个 adapter），所以「不可观测的降级」= 没有降级。
+ */
+describe('XJ-11 降级信号的实例态：索引之间互不覆盖', () => {
+  /** 造一个必然超预算的降级：小预算 + 有条可展开的边。 */
+  function degrade(index: PathIndex, rule: PathRule, graph: GraphSpace): void {
+    const candidate = edge('c', 'a');
+    graph.addEdge(candidate);
+    onEdgeAdded(candidate, rule, graph, index, { workBudget: 0 });
+  }
+
+  it('A 降级后 B 正常增量 ⇒ wasLastIncrementalDegraded(indexA)=true / (indexB)=false', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+
+    const graphA = triangleGraphLike();
+    const indexA = materializeAll(graphA, rule);
+    degrade(indexA, rule, graphA);
+
+    // B 是另一条独立索引（例如另一个 repoId 的适配层），做一次正常增量。
+    const graphB = triangleGraphLike();
+    const indexB = materializeAll(graphB, rule);
+    const candidateB = edge('c', 'a');
+    graphB.addEdge(candidateB);
+    onEdgeAdded(candidateB, rule, graphB, indexB);
+
+    // 顺序很重要：断言 A 在 B 之后仍然为 true（旧实现这里会是 false）。
+    expect(wasLastIncrementalDegraded(indexA)).toBe(true);
+    expect(wasLastIncrementalDegraded(indexB)).toBe(false);
+    // 全局视图此时指向最后一次调用（B），仅供旧调用方兼容——它不能区分实例。
+    expect(wasLastIncrementalDegraded()).toBe(false);
+  });
+
+  it('同一索引的标记在每次调用开头重置（幂等，不会永久为 true）', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+    const graph = triangleGraphLike();
+    const index = materializeAll(graph, rule);
+
+    degrade(index, rule, graph);
+    expect(wasLastIncrementalDegraded(index)).toBe(true);
+
+    // 同一索引、同一图，再来一次不超预算的调用：标记必须被重置为 false。
+    const again = edge('a', 'b'); // 已存在的边 → onEdgeAdded 惰性返回 []
+    onEdgeAdded(again, rule, graph, index);
+    expect(wasLastIncrementalDegraded(index)).toBe(false);
+  });
+
+  it('未参与增量的索引不被置位（WeakSet 默认 false，不误报）', () => {
+    const rule = makeRule({ lMin: 1, lMax: 2 });
+    const untouched = new PathIndex();
+    expect(wasLastIncrementalDegraded(untouched)).toBe(false);
+  });
+});
+

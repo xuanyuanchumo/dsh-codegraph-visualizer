@@ -1,7 +1,9 @@
 # 03 · 客户端 API 参考
 
 > 面向改 `src/client/**` 的开发者。
-> 文档族版本 1.0.0 · 适用插件版本 0.2.0
+> 文档族版本 1.2.0 · 适用插件版本 0.2.0
+> cycle-110 更新：新增 §2.5「顶部标签注册的三态可观测性」；组件 **45 → 47**、hooks **39 → 38**、
+> CSS **18 → 19**（三个数字原为估计值，已按 `find` 实测重取）。
 
 ---
 
@@ -38,6 +40,10 @@ conversation.view          （顶层标签，slot 系统）      ← 最完整
 
 `integrateCommandUi` 与通道**正交**（贡献斜杠命令，不占席位），无条件尝试。
 
+> `apply()` 的六个集成调用按**固定顺序**排列（`src/client/index.ts:80-85`），
+> 随后是 7 个 runtime setup（`:87-93`）。顺序即优先级，不要重排——
+> 见 [01-插件开发规范.md](./01-插件开发规范.md) §4.4 的优先级反转事故。
+
 先注册者把 `state.navButtonRegistered` 置真，后续通道据此让位——
 **DSH 的 slot/tab 注册表对重复 id 是抛错语义，不是覆盖语义**
 （`dsh-client-ui-sidebar-right/lib/client.js:8690` 的 `if (this.ids.has(id)) throw new Error(...)`）。
@@ -65,11 +71,32 @@ conversation.view          （顶层标签，slot 系统）      ← 最完整
 
 | 优先级 | 通道 | 文件 | 席位 |
 |---|---|---|---|
-| 1 | conversation.view | `integrations/ConversationViewIntegration.ts:33` | `conversation.view` |
+| 1 | conversation.view | `integrations/ConversationViewIntegration.ts` | `conversation.view` |
 | 2 | sidebar-right | `integrations/SidebarRightTabsIntegration.ts` | `sidebar.right.pane.tab` |
 | 3 | better-sidebar | `integrations/BetterSidebarIntegration.ts` | `betterSidebar.openTab` |
-| 4 | slots fallback | `integrations/SlotsFallback.ts:31` | `sidebar.footer.action` |
+| 4 | slots fallback | `integrations/SlotsFallback.ts` | `sidebar.footer.action` |
 | 5 | floating | `integrations/FloatingPanelIntegration.ts` | 无席位（自绘） |
+| — | command-ui（**正交**） | `integrations/CommandUiIntegration.ts` | 不占席位，贡献斜杠命令 |
+
+> 五个通道**互斥**（共同竞争 `navButtonRegistered`），必须留在同步优先级链里；
+> command-ui 是**叠加型**贡献面，与通道正交。
+
+### 2.5 顶部标签注册的三态可观测性（cycle-110）
+
+标签注册「成功 / 失败 / 降级」在屏幕上可能看起来一样（都没出现），因此状态被写成
+**DOM 标记 + 有界历史 + 事件** 三件套（`src/client/integrations/topTabObservability.ts`）：
+
+| 导出 | 行 | 作用 |
+|---|---|---|
+| `TOP_TAB_ATTR` = `'data-cg-top-tab'` | `:58` | 当前状态的 DOM 标记（写在 `<html>` 上） |
+| `TOP_TAB_REASON_ATTR` = `'data-cg-top-tab-reason'` | `:60` | 该状态的原因，便于断言「为什么降级」 |
+| `TOP_TAB_EVENT` = `'codegraph-visualizer/top-tab-state'` | `:62` | 状态变更事件 |
+| `recordTopTab(state, reason, channel)` | `:86` | 记录一次状态迁移（有界历史） |
+| `getTopTabState()` / `getTopTabHistory()` | `:71` / `:76` | 读取当前状态 / 历史 |
+| `resetTopTabObservability()` | `:113` | 清理（dispose 与测试用） |
+
+> 为什么需要它：环境里「元素没出现」和「根本没请求」在截图上**完全一致**，
+> 只有记录式探针能区分。这与 E2E 的计数契约同源（`page.on('request')` 记录而非 `page.route()` 打桩）。
 
 ### 2.2 `conversation.view` 席位契约（逐行核验自 `@deepseek-ai/dsh-client-ui-conversation`）
 
@@ -351,7 +378,7 @@ export function getAvailablePanels(layer: ViewLayer): Set<AnalysisPanelKey>;  //
 
 ---
 
-## 7. Hooks `src/client/hooks/`（39 文件）
+## 7. Hooks `src/client/hooks/`（2026-10-28 实测 39 文件；`find src/client/hooks -type f | wc -l`）
 
 统一从 `src/client/hooks/index.ts` 具名导出。分组：
 
@@ -560,7 +587,7 @@ export function resetLoggerListeners(): void;                  // :72
 
 ---
 
-## 12. 样式 `src/client/styles/`（18 个 CSS）
+## 12. 样式 `src/client/styles/`（2026-10-28 实测 19 个 CSS；`find src/client/styles -name '*.css' | wc -l`）
 
 全部由 `src/client/GraphPanel.tsx:56-61` **集中 import**（顺序即层叠顺序）：
 
@@ -605,7 +632,7 @@ tokens → layout → overlays → graph → node-detail → import-workspace
 
 ---
 
-## 13. 组件清单 `src/client/components/`（45 文件）
+## 13. 组件清单 `src/client/components/`（2026-10-28 实测 49 文件；`find src/client/components -type f \( -name '*.tsx' -o -name '*.ts' \) | wc -l`）
 
 | 组 | 组件 |
 |---|---|

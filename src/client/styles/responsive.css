@@ -936,3 +936,52 @@ body.dsh-remote-portrait .cg-graph-container {
     gap: 8px;
   }
 }
+
+/* ---- Narrow-tier sheets (cycle-110 / T3) ---------------------------------- */
+/*
+ * 窄面板（≤480px）下的两处版式修正：
+ *   1. 节点详情面板改为**底部抽屉**（贴边、限高），不再 `max-height: calc(100% - 24px)`
+ *      从上往下盖住整个画布；
+ *   2. 抽屉打开时小地图与图例**临时让位**，关闭后回归。
+ *
+ * 为什么两条都要：三者都是 `position: absolute` + `z-index: var(--cg-z-panel)` 的绝对定位
+ * 元素，窄档下面板几乎占满高度，小地图（右下 200px）与图例（左下 180px）会被盖住一半，
+ * 面板底部的按钮也会与图例重叠 —— 点击落在错误元素上，而所有 DOM 断言照旧通过。
+ *
+ * 两套机制**声明必须一致**：
+ *   - `@container graphpanel (max-width: 480px)`：主机制，按面板宽度响应（与视口无关）；
+ *   - `[data-cg-tier="narrow"]`：宿主不支持容器查询、或容器查询尺寸不可读时的兜底，
+ *     由 `hooks/usePanelTier.ts` 实测宽度后写在根元素上。
+ * `tests/unit/panelTierContract.test.ts` 会逐条比对这两处的声明，任一侧改动都会变红。
+ */
+@container graphpanel (max-width: 480px) {
+  .cg-node-detail-panel {
+    top: auto;
+    bottom: calc(var(--cg-statusbar-h) + 8px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 52%;
+  }
+
+  /* 抽屉打开 ⇒ 两个角落的叠加层让位（关闭后自动回归，不需要 JS 复位） */
+  .cg-graph-panel[data-cg-sheet="open"] .cg-mini-map,
+  .cg-graph-panel[data-cg-sheet="open"] .cg-legend-panel {
+    display: none;
+  }
+}
+
+/* 兜底机制（JS 实测档位）：与上面的容器查询分支**逐条等价** */
+.cg-graph-panel[data-cg-tier="narrow"] .cg-node-detail-panel {
+  top: auto;
+  bottom: calc(var(--cg-statusbar-h) + 8px);
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-height: 52%;
+}
+
+.cg-graph-panel[data-cg-tier="narrow"][data-cg-sheet="open"] .cg-mini-map,
+.cg-graph-panel[data-cg-tier="narrow"][data-cg-sheet="open"] .cg-legend-panel {
+  display: none;
+}

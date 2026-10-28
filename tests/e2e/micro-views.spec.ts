@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import {
   setupPluginPage,
+  setupPluginPageInBehavioralLayer,
   waitForGraphReady,
   getCyNodeIdsByType,
   selectFunctionNode,
@@ -14,7 +15,10 @@ import {
   openDropdown,
   TIMEOUTS,
 } from './helpers.ts';
-import { TRIGGERS, DROPDOWN_CONTENT, OPTION, MICRO, PANEL } from './selectors.ts';
+// 注意：`TOOL_ITEM` 用于第 125 行的「工具」下拉核心函数开关断言；漏 import 会在
+// **运行期**抛 `ReferenceError: TOOL_ITEM is not defined`（typecheck 不覆盖 tests/e2e，
+// 所以只有真跑才会红——cycle-110 实测抓到的正是这一条）。
+import { TRIGGERS, DROPDOWN_CONTENT, OPTION, MICRO, PANEL, TOOL_ITEM, ANALYSIS_PANEL } from './selectors.ts';
 
 /**
  * 选中一个函数节点；失败则返回 null（用于 `test.skip`）。
@@ -119,16 +123,22 @@ test.describe('J44: 微观-宏观切换', () => {
 
 test.describe('J45: 核心函数微观探索', () => {
   test('「工具」下拉应提供核心函数开关', async ({ page }) => {
-    await setupPluginPage(page);
+    // 核心函数面板属 **behavioral 层**：`getAvailablePanels(getViewLayer(viewMode))` 会把
+    // 结构层（默认 `code`）不提供的条目整条过滤掉 ⇒ 用 `setupPluginPage` 时它**根本不在 DOM 里**，
+    // 断言必然红。旧版就是这样写的（且还漏了 `TOOL_ITEM` 的 import，运行期 ReferenceError）。
+    await setupPluginPageInBehavioralLayer(page, 'callgraph');
     // 面板开关在「工具」下拉内，未展开时不在 DOM 中。
     await openDropdown(page, TRIGGERS.tools);
     await expect(page.locator(TOOL_ITEM.coreFunction)).toBeVisible();
   });
 
   test('核心函数面板默认不应显示', async ({ page }) => {
-    await setupPluginPage(page);
+    await setupPluginPageInBehavioralLayer(page, 'callgraph');
     // 面板根类名由 `AnalysisPanelShell` 动态拼出：`cg-${variant}-panel`，
     // `CoreFunctionPanel.tsx:26` 传的 variant 是 `core-function`。
-    await expect(page.locator(MICRO.coreFunctionPanel)).not.toBeVisible();
+    // ⚠️ 这个选择器在 `ANALYSIS_PANEL.coreFunction`，**不在** `MICRO`（MICRO 没有该字段）。
+    // 旧写法 `page.locator(MICRO.coreFunctionPanel)` 传入 `undefined`，Playwright 会解析成
+    // `<html>` 而它永远 visible ⇒ `not.toBeVisible()` **永久红**（与产品无关）。
+    await expect(page.locator(ANALYSIS_PANEL.coreFunction)).not.toBeVisible();
   });
 });

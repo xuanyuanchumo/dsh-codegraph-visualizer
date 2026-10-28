@@ -10,10 +10,17 @@ import { describe, it, expect, vi } from 'vitest';
 import { GraphSpace } from '../../../src/xuanji/core/graph-space.ts';
 import type { NodeAttrs } from '../../../src/xuanji/core/graph-space.ts';
 import type { PathRule } from '../../../src/xuanji/core/path-rule.ts';
+import { effectiveMaxEdges } from '../../../src/xuanji/core/path-rule.ts';
 import { PathIndex } from '../../../src/xuanji/index/path-index.ts';
 import type { PathEntry } from '../../../src/xuanji/core/path-entry.ts';
 import { makeEntry } from '../../../src/xuanji/core/path-entry.ts';
-import { enumerate, query, existsWalk, hasDirectedCycle } from '../../../src/xuanji/query/query-engine.ts';
+import {
+  enumerate,
+  query,
+  existsWalk,
+  hasDirectedCycle,
+  readPathPage,
+} from '../../../src/xuanji/query/query-engine.ts';
 import { topK } from '../../../src/xuanji/query/topk.ts';
 
 type NodeSpec = string | { id: string; role?: string; tags?: string[] };
@@ -480,5 +487,225 @@ describe('topK：稳定选择', () => {
     expect(topK([2, 7, 3], 2)).toEqual([7, 3]);
     const mixed: Array<number | string> = ['x', 5, 'y', 2];
     expect(topK(mixed, 2)).toEqual([5, 2]);
+  });
+});
+
+/**
+ * XJ-07：截断语义收口。
+ *
+ * 规范 §7.3 写「路径数爆炸 → Top-K 截断，保留高权重路径」，实现一直按 DFS 序截断，
+ * 于是高权重路径可能正好是被丢掉的那条。这里把两种语义都钉住：
+ * - `maxPaths` 本身只是条数上限（默认 DFS 序）；
+ * - 要保权重必须显式 `truncation: 'top-k-weight'`。
+ */
+describe('XJ-07 截断语义：DFS 序 vs top-k-weight', () => {
+  /** a→b→c（权重 1+1）与 a→d→c（权重 5+5），DFS 序先走 b 那条。 */
+  function weightedDiamond(): GraphSpace {
+    const graph = new GraphSpace();
+    for (const id of ['a', 'b', 'c', 'd']) graph.addNode(id, { label: id });
+    graph.addEdge({ id: 'ab', source: 'a', target: 'b', type: 'r', weight: 1 });
+    graph.addEdge({ id: 'bc', source: 'b', target: 'c', type: 'r', weight: 1 });
+    graph.addEdge({ id: 'ad', source: 'a', target: 'd', type: 'r', weight: 5 });
+    graph.addEdge({ id: 'dc', source: 'd', target: 'c', type: 'r', weight: 5 });
+    return graph;
+  }
+
+  it('默认（DFS 序）截断留下的是先发现的那条，不是高权重那条', () => {
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 2, lMax: 2, simple: true });
+    const index = new PathIndex();
+    const entries = enumerate(graph, rule, ['a'], index, { maxPaths: 1 });
+    expect(sequences(entries)).toEqual(['a>b>c']);
+  });
+
+  it("truncation: 'top-k-weight' 保留权重最高的路径（本项的核心断言）", () => {
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 2, lMax: 2, simple: true });
+    const index = new PathIndex();
+    const entries = enumerate(graph, rule, ['a'], index, { maxPaths: 1, truncation: 'top-k-weight' });
+    expect(sequences(entries)).toEqual(['a>d>c']);
+    // 只物化被选中的那条：top-k 不是「先全物化再筛」
+    expect(index.counters.total).toBe(1);
+  });
+
+  it('缺省 truncation 等价于 dfs-order（结果逐元素相等）', () => {
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 1, lMax: 2, simple: true });
+    const implicit = sequences(enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 1 }));
+    const explicit = sequences(
+      enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 1, truncation: 'dfs-order' }),
+    );
+    expect(implicit).toEqual(explicit);
+  });
+
+  it('权重全缺省时 top-k 退化为 DFS 序（稳定且确定，不制造伪优先级）', () => {
+    const graph = buildGraph(['a', 'b', 'c', 'd'], [
+      ['a', 'b', 'r'],
+      ['b', 'c', 'r'],
+      ['a', 'd', 'r'],
+      ['d', 'c', 'r'],
+    ]);
+    const rule = ruleOf({ lMin: 2, lMax: 2, simple: true });
+    const topk = sequences(
+      enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 1, truncation: 'top-k-weight' }),
+    );
+    const dfs = sequences(enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 1 }));
+    expect(topk).toEqual(dfs);
+  });
+
+  it('未知 truncation 策略抛 RuleCompositionError（不静默当作 DFS 序）', () => {
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 1, lMax: 2, simple: true });
+    expect(() =>
+      enumerate(graph, rule, ['a'], new PathIndex(), {
+        maxPaths: 1,
+        truncation: 'bogus' as unknown as 'dfs-order',
+      }),
+    ).toThrow(/unknown truncation strategy/);
+  });
+
+  it('top-k 的候选集超预算显式抛错（不静默退回 DFS 序）', () => {
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 1, lMax: 2, simple: true });
+    expect(() =>
+      enumerate(graph, rule, ['a'], new PathIndex(), {
+        maxPaths: 1,
+        truncation: 'top-k-weight',
+        candidateBudget: 1,
+      }),
+    ).toThrow(/candidate set exceeds budget/);
+  });
+});
+
+/**
+ * XJ-10：`effectiveMaxEdges` 单一实现，且非法规则不再静默近似。
+ *
+ * 旧实现的 `Number.isFinite(lMax) ? lMax : |V|` 在 incremental / rebalance / query-engine
+ * 各写一份，并且把「无界 lMax + 非 simple」这种非法规则静默按 |V| 截断——
+ * 得到一份「看起来完整、其实缺一半」的结果。
+ */
+describe('XJ-10 effectiveMaxEdges：单一实现 + 非法规则显式拒绝', () => {
+  it('有限 lMax 直接用（取整、夹到 ≥ 0）', () => {
+    expect(effectiveMaxEdges({ lMax: 3, simple: false }, 100)).toBe(3);
+    expect(effectiveMaxEdges({ lMax: 3.9, simple: true }, 100)).toBe(3);
+    expect(effectiveMaxEdges({ lMax: -1, simple: true }, 100)).toBe(0);
+  });
+
+  it('无界 lMax + simple ⇒ 用 |V| 兜底（简单路径天然不超过 |V|-1 条边）', () => {
+    expect(effectiveMaxEdges({ lMax: Number.POSITIVE_INFINITY, simple: true }, 7)).toBe(7);
+  });
+
+  it('无界 lMax + 非 simple ⇒ 抛错（路径集合无限，属调用方违约）', () => {
+    expect(() =>
+      effectiveMaxEdges({ lMax: Number.POSITIVE_INFINITY, simple: false }, 7),
+    ).toThrow(/unbounded lMax requires simple/);
+  });
+
+  it('enumerate 也不再把非法规则静默近似成 |V|（生产路径同样抛错）', () => {
+    const graph = buildGraph(['a', 'b'], [['a', 'b', 'r']]);
+    const rule = ruleOf({ lMin: 1, lMax: Number.POSITIVE_INFINITY, simple: false });
+    expect(() => enumerate(graph, rule, ['a'], new PathIndex())).toThrow(/unbounded lMax requires simple/);
+  });
+
+  it('无界 + simple 的合法规则仍然终止于 |V|（回归：不能把合法输入也拒掉）', () => {
+    const graph = buildGraph(['a', 'b', 'c'], [
+      ['a', 'b', 'r'],
+      ['b', 'c', 'r'],
+      ['c', 'b', 'r'],
+    ]);
+    const rule = ruleOf({ lMin: 1, lMax: Number.POSITIVE_INFINITY, simple: true });
+    const entries = enumerate(graph, rule, ['a'], new PathIndex());
+    expect(sequences(entries)).toEqual(['a>b', 'a>b>c']);
+  });
+});
+
+/**
+ * XJ-03：Ω（惰性输出）接到查询返回面。
+ *
+ * `readPathPage` 是「条目 → 当前页 + Ω 输出 + 下一页游标」的唯一入口；
+ * 宿主（`graph_path_enumerate` / `graph_cycles`）经适配层拿到的 `labels` 就是它。
+ */
+describe('XJ-03 readPathPage：Ω 惰性输出 + 分页', () => {
+  function labelRule(output?: (nodes: readonly string[]) => unknown): PathRule {
+    return ruleOf({
+      lMin: 1,
+      lMax: 1,
+      simple: true,
+      ...(output ? { output } : {}),
+    });
+  }
+
+  function entriesOf(count: number, rule: PathRule, graphVersion = 1): PathEntry[] {
+    const result: PathEntry[] = [];
+    for (let i = 0; i < count; i++) result.push(makeEntry(rule, ['a', 'n' + i], graphVersion));
+    return result;
+  }
+
+  it('不传 cursor / pageSize 时返回全部条目（不分页），nextCursor 为 null', () => {
+    const rule = labelRule();
+    const entries = entriesOf(4, rule);
+    const page = readPathPage(rule, entries);
+    expect(page.entries).toHaveLength(4);
+    expect(page.labels).toHaveLength(4);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('分页：pageSize=2 翻两页，条目与 labels 一一对应且不重复', () => {
+    const rule = labelRule((nodes) => nodes.join('->'));
+    const entries = entriesOf(5, rule);
+
+    const first = readPathPage(rule, entries, { cursor: 0, pageSize: 2 });
+    expect(first.entries.map((e) => e.nodes[1])).toEqual(['n0', 'n1']);
+    expect(first.labels).toEqual(['a->n0', 'a->n1']);
+    expect(first.nextCursor).toBe(2);
+
+    const second = readPathPage(rule, entries, { cursor: first.nextCursor!, pageSize: 2 });
+    expect(second.entries.map((e) => e.nodes[1])).toEqual(['n2', 'n3']);
+    expect(second.labels).toEqual(['a->n2', 'a->n3']);
+    expect(second.nextCursor).toBe(4);
+
+    const third = readPathPage(rule, entries, { cursor: second.nextCursor!, pageSize: 5 });
+    expect(third.entries.map((e) => e.nodes[1])).toEqual(['n4']);
+    expect(third.nextCursor).toBeNull();
+
+    // 三页并起来 == 全部条目，无重复
+    const seen = [...first.entries, ...second.entries, ...third.entries].map((e) => e.nodes[1]);
+    expect(new Set(seen).size).toBe(5);
+  });
+
+  it('Ω 只对当前页求值，且首次结果缓存（再次读同一页不重复调用 output）', () => {
+    const output = vi.fn((nodes: readonly string[]) => nodes.join('>'));
+    const rule = labelRule(output);
+    const entries = entriesOf(5, rule);
+
+    readPathPage(rule, entries, { cursor: 0, pageSize: 2 });
+    expect(output).toHaveBeenCalledTimes(2);
+
+    // 第二页只求值新增的两条
+    readPathPage(rule, entries, { cursor: 2, pageSize: 2 });
+    expect(output).toHaveBeenCalledTimes(4);
+
+    // 重复读第一页：条目上的 labels 已缓存，不再求值（惰性缓存的全部意义）
+    readPathPage(rule, entries, { cursor: 0, pageSize: 2 });
+    expect(output).toHaveBeenCalledTimes(4);
+  });
+
+  it('output 缺省时 labels 就是 nodes（path-entry 的 `: entry.nodes` 分支）', () => {
+    const rule = labelRule();
+    const entries = entriesOf(2, rule);
+    const page = readPathPage(rule, entries);
+    expect(page.labels).toEqual([
+      ['a', 'n0'],
+      ['a', 'n1'],
+    ]);
+  });
+
+  it('cursor 超过条目数返回空页且 nextCursor 为 null（不抛错）', () => {
+    const rule = labelRule();
+    const entries = entriesOf(2, rule);
+    const page = readPathPage(rule, entries, { cursor: 10, pageSize: 5 });
+    expect(page.entries).toEqual([]);
+    expect(page.labels).toEqual([]);
+    expect(page.nextCursor).toBeNull();
   });
 });

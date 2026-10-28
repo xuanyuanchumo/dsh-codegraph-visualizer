@@ -10,6 +10,7 @@ import { ToolbarWorkspace } from './toolbar/ToolbarWorkspace.tsx';
 import { ToolbarViewMode } from './toolbar/ToolbarViewMode.tsx';
 import { ToolbarActions } from './toolbar/ToolbarActions.tsx';
 import { ToolbarSettings } from './toolbar/ToolbarSettings.tsx';
+import { buildMoreMenuSections } from './toolbar/moreMenu.ts';
 import type { ToolbarProps, ExportFormat } from './toolbarTypes.ts';
 
 export type {
@@ -37,20 +38,31 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const { viewMode } = viewConfig;
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
 
-  const moreDropdownItems: { key: string; titleKey: string; icon: React.ReactNode; active: boolean; onClick: () => void; role: 'menuitem' | 'menuitemcheckbox' }[] = [];
-  if (isNarrow && availablePanels.has('showSearch')) {
-    moreDropdownItems.push({ key: 'search', titleKey: 'toolbar.search', icon: <SearchIcon size={14} />, active: panelControls.showSearch, onClick: panelControls.onToggleSearch, role: 'menuitemcheckbox' });
-  }
-  moreDropdownItems.push(
-    { key: 'minimap', titleKey: 'toolbar.minimap', icon: <MapIcon size={14} />, active: panelControls.showMiniMap, onClick: panelControls.onToggleMiniMap, role: 'menuitemcheckbox' },
-    { key: 'legend', titleKey: 'toolbar.legend', icon: <FilterIcon size={14} />, active: panelControls.showLegend, onClick: panelControls.onToggleLegend, role: 'menuitemcheckbox' },
-    { key: 'theme', titleKey: 'toolbar.theme', icon: theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />, active: false, onClick: onThemeToggle, role: 'menuitem' },
-    { key: 'lang', titleKey: 'toolbar.lang', icon: null, active: false, onClick: toggleLang, role: 'menuitem' },
-    { key: 'tour', titleKey: 'toolbar.tour', icon: <StarIcon size={14} />, active: panelControls.showTour, onClick: panelControls.onToggleTour, role: 'menuitemcheckbox' },
-  );
-  if (onCollapseAll) {
-    moreDropdownItems.push({ key: 'collapseAll', titleKey: 'detail.collapse', icon: null, active: false, onClick: onCollapseAll, role: 'menuitem' });
-  }
+  // 「更多」下拉的分段结构：构造 + 过滤空段都在纯函数里完成（见 toolbar/moreMenu.ts），
+  // 组件只渲染结果，因此结构上不可能出现「只有标题、没有条目」的空段。
+  const moreSections = buildMoreMenuSections({
+    isNarrow,
+    searchAvailable: availablePanels.has('showSearch'),
+    showSearch: panelControls.showSearch,
+    onToggleSearch: panelControls.onToggleSearch,
+    showMiniMap: panelControls.showMiniMap,
+    onToggleMiniMap: panelControls.onToggleMiniMap,
+    showLegend: panelControls.showLegend,
+    onToggleLegend: panelControls.onToggleLegend,
+    themeIsDark: theme === 'dark',
+    onThemeToggle,
+    onToggleLang: toggleLang,
+    showTour: panelControls.showTour,
+    onToggleTour: panelControls.onToggleTour,
+    onCollapseAll,
+    icons: {
+      search: <SearchIcon size={14} />,
+      minimap: <MapIcon size={14} />,
+      legend: <FilterIcon size={14} />,
+      theme: theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />,
+      tour: <StarIcon size={14} />,
+    },
+  });
 
   return (
     <div
@@ -91,7 +103,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           collapsed={collapsed}
           onExport={handleExport}
           onCollapse={onCollapse}
-          moreDropdownItems={moreDropdownItems}
+          moreSections={moreSections}
         />
       </div>
     </div>

@@ -36,6 +36,7 @@ import {
   registerTreeSitterRoute,
 } from './routes/analysisRoutes.ts';
 import { registerLayoutWorkerRoute } from './routes/workerRoutes.ts';
+import { resetSnapshotShrinkState } from './compat/index.ts';
 
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
@@ -73,4 +74,8 @@ export function registerRoutes(deps: RouteDeps): void {
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');
+  // 快照防缩水守卫的「上一轮被拒指纹」是模块级状态：必须随插件卸载清空，
+  // 否则同一进程内重新加载插件（HMR / profile 重载）会继承上一轮的拒绝记录，
+  // 让本该被拦下的第一次缩水写入直接以「两次确认」放行。
+  ctx.effect(() => () => resetSnapshotShrinkState(), 'codegraph: snapshot shrink guard reset');
 }

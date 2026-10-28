@@ -268,3 +268,126 @@ describe('PathIndex sample / clear / revive', () => {
     expect(indexed.stale).toBe(true);
   });
 });
+
+/**
+ * XJ-06：I5 抽样偏差。
+ *
+ * 旧实现 `sample(n)` 按 `hashIndex` 的**插入序**取前 n 条，于是条目数超过 n 之后
+ * 「新插入的条目永不入样」——而 I5 要抓的恰恰是新写入的坏条目（版本高于图版本、
+ * 边已删）。这里把新契约钉死：**均匀铺满 + 必含尾部**，并且顺序确定。
+ */
+describe('XJ-06 I5 抽样：均匀铺满 + 必含尾部', () => {
+  /** 造 n 条互不相同的条目（节点 id 带序号，hash 必不同）。 */
+  function fill(index: PathIndex, r: PathRule, n: number, staleEvery = 0): PathEntry[] {
+    const made: PathEntry[] = [];
+    for (let i = 0; i < n; i++) {
+      const e = entry(r, ['a', 'n' + String(i).padStart(4, '0')]);
+      index.add(e);
+      made.push(e);
+      if (staleEvery > 0 && (i + 1) % staleEvery === 0) index.markStale('a->n' + String(i).padStart(4, '0'));
+    }
+    return made;
+  }
+
+  it('200 条里 sample(10)：恰好 10 条、含首条与**最后插入**那条（引用相等）', () => {
+    const r = rule();
+    const index = new PathIndex();
+    const made = fill(index, r, 200);
+
+    const sampled = index.sample(10);
+    expect(sampled).toHaveLength(10);
+    // 首条入样：均匀抽样的第一个采样点就是 0 号。
+    expect(sampled).toContain(made[0]);
+    // 尾部必含：旧实现（前 N 条）在这一条上必红——这是本项的红灯断言。
+    expect(sampled).toContain(made[199]);
+  });
+
+  it('均匀铺满：采样下标严格递增且覆盖整个区间（不是前 10 条）', () => {
+    const r = rule();
+    const index = new PathIndex();
+    const made = fill(index, r, 200);
+    const order = new Map<PathEntry, number>(made.map((e, i) => [e, i]));
+
+    const positions = index.sample(10).map((e) => order.get(e)!);
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]!).toBeGreaterThan(positions[i - 1]!);
+    }
+    // 覆盖到中段与尾段：只取前 n 条的实现，最大值会是 9 而不是 199。
+    expect(positions[0]).toBe(0);
+    expect(positions[positions.length - 1]).toBe(199);
+    expect(positions.some((p) => p > 100)).toBe(true);
+  });
+
+  it('尾部配额取的是「最新插入的 live 条目」：末尾置 stale 时补上一条', () => {
+    const r = rule();
+    const index = new PathIndex();
+    const made = fill(index, r, 200);
+    index.markStale('a->n0199');
+
+    const sampled = index.sample(10);
+    expect(sampled).toHaveLength(10);
+    expect(sampled).not.toContain(made[199]);
+    expect(sampled).toContain(made[198]);
+  });
+
+  it('条目数 ≤ n 时返回全部 live（且是副本：调用方改数组不影响索引）', () => {
+    const r = rule();
+    const index = new PathIndex();
+    const made = fill(index, r, 3);
+
+    const sampled = index.sample(10);
+    expect(sampled).toHaveLength(3);
+    expect(sampled).toEqual(made);
+    sampled.length = 0;
+    expect(index.sample(10)).toHaveLength(3);
+  });
+
+  it('sample(0) 返回空、sample(Infinity) 返回全部 live', () => {
+    const r = rule();
+    const index = new PathIndex();
+    fill(index, r, 20);
+
+    expect(index.sample(0)).toEqual([]);
+    expect(index.sample(Number.POSITIVE_INFINITY)).toHaveLength(20);
+  });
+});
+
+/**
+ * XJ-09：长度分桶契约。
+ *
+ * 契约是**分桶只服务查询**（`queryByStart` / `queryByEnd` 的边数升序返回），
+ * 增量引擎已改为 DFS 方案（见 `incremental.ts` 模块头与设计方案 §12.2），
+ * 不再依赖「前缀桶 × 新边 × 后缀桶」的配对。这条契约以前只写在注释里，
+ * 所以「桶序」这个唯一可观测行为没有任何用例——排序被删也不会红。
+ */
+describe('XJ-09 长度分桶契约：只服务查询，桶序确定', () => {
+  it('按 3、1、2 顺序插入 ⇒ queryByStart 仍按边数升序返回 [1,2,3]', () => {
+    const r = rule();
+    const index = new PathIndex();
+    index.add(entry(r, ['s', 'x1', 'x2', 'x3'])); // 3 边
+    index.add(entry(r, ['s', 'y1'])); // 1 边
+    index.add(entry(r, ['s', 'z1', 'z2'])); // 2 边
+
+    expect(index.queryByStart('s').map((e) => e.nodes.length - 1)).toEqual([1, 2, 3]);
+  });
+
+  it('终点桶同契约：queryByEnd 也按边数升序', () => {
+    const r = rule();
+    const index = new PathIndex();
+    index.add(entry(r, ['p3', 'x', 'y', 'end'])); // 3 边
+    index.add(entry(r, ['p1', 'end'])); // 1 边
+    index.add(entry(r, ['p2', 'z', 'end'])); // 2 边
+
+    expect(index.queryByEnd('end').map((e) => e.nodes.length - 1)).toEqual([1, 2, 3]);
+  });
+
+  it('桶键就是边数（nodes.length - 1），零长度条目入 0 号桶', () => {
+    const r = rule({ lMin: 0 });
+    const index = new PathIndex();
+    index.add(entry(r, ['s']));
+    index.add(entry(r, ['s', 'a']));
+
+    expect([...index.getStartBuckets('s').keys()].sort((a, b) => a - b)).toEqual([0, 1]);
+    expect(index.queryByStart('s').map((e) => e.nodes.length - 1)).toEqual([0, 1]);
+  });
+});

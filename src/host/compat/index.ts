@@ -9,3 +9,16 @@ export type { FeatureFlags, CapabilityProbe, FeatureFlagResolution } from './Fea
 export { createHostCapabilityProbe } from './HostCapabilityProbe.ts';
 export { createApiCompatLayer, createToolNameMapping, TOOL_MAPPING_BY_GENERATION } from './ApiCompatLayer.ts';
 export type { ApiCompatLayer, ToolNameMapping } from './ApiCompatLayer.ts';
+export {
+  evaluateSnapshotShrink,
+  rememberRefusedSnapshot,
+  wasRefusedBefore,
+  clearRefusedSnapshot,
+  resetSnapshotShrinkState,
+} from './snapshotShrinkGuard.ts';
+export type {
+  SnapshotSize,
+  SnapshotShrinkReason,
+  SnapshotShrinkDecision,
+  SnapshotShrinkOptions,
+} from './snapshotShrinkGuard.ts';
