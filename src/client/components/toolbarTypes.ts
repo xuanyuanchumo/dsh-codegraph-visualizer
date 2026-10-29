@@ -40,6 +40,13 @@ export interface ToolbarVisibilityState {
    * 结构层与行为层有图可标，运行时层没有图，因此该面板在运行时层不可用。
    */
   showDiff: boolean;
+  /**
+   * 关键词图检索面板（cycle-111 / N-5）。
+   *
+   * 与 `showDiff` 同一条层判据：检索的产出是一张**子图**（种子可点、命中集合要在
+   * 画布上高亮），所以它需要一层有图的视图；运行时层没有图，该面板在这一层不可用。
+   */
+  showKeywordQuery: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -63,6 +70,8 @@ export interface ToolbarToggleHandlers {
   onToggleTour: () => void;
   onToggleRuntime: () => void;
   onToggleDiff: () => void;
+  /** 关键词图检索面板开关（cycle-111 / N-5）。 */
+  onToggleKeywordQuery: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}

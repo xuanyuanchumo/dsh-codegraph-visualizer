@@ -1,4 +1,5 @@
-import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
+import { TreeSitterAdapter, isTreeSitterRuntimePresent } from '../adapters/TreeSitterAdapter.ts';
+import { setAstSourceProbe } from './prerequisites.ts';
 import { createRateLimiter } from './RateLimiter.ts';
 import type { CorsConfig } from './HttpHelpers.ts';
 
@@ -36,6 +37,7 @@ import {
   registerTreeSitterRoute,
 } from './routes/analysisRoutes.ts';
 import { registerLayoutWorkerRoute } from './routes/workerRoutes.ts';
+import { registerKeywordQueryRoute } from './routes/queryRoute.ts';
 import { resetSnapshotShrinkState } from './compat/index.ts';
 
 export function registerRoutes(deps: RouteDeps): void {
@@ -44,6 +46,26 @@ export function registerRoutes(deps: RouteDeps): void {
   const corsConfig: CorsConfig = { origins: config.allowedOrigins };
   const rateLimiter = createRateLimiter();
   const sharedTreeSitterAdapter = new TreeSitterAdapter();
+
+  /**
+   * 把「AST 分析通道是否可用」接进能力位（`docs/需求分析.md` §61.10）。
+   *
+   * 能力位由 `checkPrerequisites(ctx)` 在**每次请求**里同步计算，而它拿不到适配器实例 ——
+   * 所以这里把探针登记到模块级槽位，让那条同步路径能读到这个实例的真实状态。
+   * 判据是「已初始化 **或** 运行时包可解析」：只用 `isAvailable()` 会在启动后很长一段时间
+   * 恒为 false（初始化发生在第一次解析时），见 `isTreeSitterRuntimePresent` 的注释。
+   *
+   * 探针失败必须落到 `false` 而不是 `true`：这里任何异常都不该冒泡进 `checkPrerequisites`
+   * 的 `catch` 分支（那会把 `codegraph` / `lens` 的真实探测结果一起丢掉）。
+   */
+  const probeAstSource = (): boolean => {
+    try {
+      return sharedTreeSitterAdapter.isAvailable() || isTreeSitterRuntimePresent();
+    } catch {
+      return false;
+    }
+  };
+  ctx.effect(() => setAstSourceProbe(probeAstSource), 'codegraph: ast source capability probe');
 
   const rc: RouteContext = { deps, corsConfig, rateLimiter, invokeUpstream };
 
@@ -71,6 +93,11 @@ export function registerRoutes(deps: RouteDeps): void {
   // 那种「改一个新增功能、红一片无关测试」的改动无法证明自己是对的。
   // 所有路由都是 `kind: 'exact'` 的精确路径，注册顺序不影响匹配语义。
   registerChurnRoute(rc);
+  // 关键词图检索（cycle-111 / N-5）追加在 churn **之后**，理由同上：
+  // 既有用例最高只引到 churn 这一格（索引 20），把新路由放在它前面会让 churn 变成 21，
+  // 而 `getHandler(ctx, 20)` 一类断言就会错位。追加是唯一「零错位」的位置——
+  // 代价是新路由的索引依赖 churn 先注册，因此两行必须保持相邻（下面有守卫测试）。
+  registerKeywordQueryRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');

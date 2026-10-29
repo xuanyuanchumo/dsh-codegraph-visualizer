@@ -27,17 +27,19 @@
 | [06-dsh-anic插件开发规范.md](./06-dsh-anic插件开发规范.md) | dsh-anic 独立工程的开发规范：六域分区路由、模块架构、适配器、测试金字塔 | 改 `dsh-anic/src/**` 时 |
 | [07-界面与功能域规划.md](./07-界面与功能域规划.md) | 功能域 × 界面组件 × 入口通道 × 状态源 × 测试锚点矩阵；技能/插件能力面怎么进界面 | 改界面、加面板/入口时 |
 | [08-质量属性与评审标准.md](./08-质量属性与评审标准.md) | 什么数值才算过？用什么命令验？哪些只有人工评审？ | 评审、发版、判断「够不够」时 |
-| [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) | 承诺分几层？真门是哪个字段？宿主换代怎么办？ | 抬版本窗、兼容事故、上游插件突然不加载时 |
+| [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) | 承诺分几层？真门是哪个字段？宿主换代怎么办？**本轮新增 §9：我们自己跨进程的 API 形状变更怎么判两个方向的兼容** | 抬版本窗、兼容事故、上游插件突然不加载时 |
+| [10-璇玑图算法库使用规范.md](./10-璇玑图算法库使用规范.md) | `src/xuanji/**` 分成哪几层？某个需求该用哪个 API？`GraphSpace.log` 与 `drainChangeLog` 的边界？`InvariantChecker` 的 I1–I5 与接线点？截断契约？池的生命周期与 `syncGraph` 三态？**什么绝对不能做**？ | 改 `src/xuanji/**` 或 `src/shared/analysis/XuanjiAdapter.ts`、写路径/环/关键词算法时 |
+| [11-图检索与关键词查询.md](./11-图检索与关键词查询.md) | `/query` 路由的参数/响应/etag 五维请求键？面板四态？token 预算口径为什么**不是** `len/3`？截断为什么必须可见？和 `graph_query` 工具是什么关系？ | 做关键词检索、改 token 口径、评审「这能力到底做完没有」时 |
 
 ## 与既有文档的关系（避免重复，各司其职）
 
 | 文档 | 定位 | 不要在这里找 |
 |---|---|---|
 | `CLAUDE.md` | 命令速查 + 事故教训清单（R10 编码化） | 完整 API 签名 |
-| `docs/agents/*`（本目录） | 规范 / API / 设计三件套 | 需求原文、测试用例清单 |
-| `docs/需求分析.md` | 需求与缺陷分析全集（341 KB，含 §59.x 系列） | 快速上手 |
+| `docs/agents/*`（本目录） | 规范 / API / 设计三件套（cycle-111 增至 11 份） | 需求原文、测试用例清单 |
+| `docs/需求分析.md` | 需求与缺陷分析全集（341 KB，含 §59.x / §61 / §62 系列） | 快速上手 |
 | `docs/测试体系.md` | 七层测试策略与覆盖矩阵 | 架构说明 |
-| `docs/用户旅程.md` | J1–J44 用户旅程定义 | 实现细节 |
+| `docs/用户旅程.md` | J0–J51 用户旅程定义 | 实现细节 |
 | `docs/anic/*` | **另一个独立工程** `dsh-anic/` 的设计文档 | 本插件的 API |
 | `docs/research/dsh-多代API规范差异与兼容矩阵.md` | 多代 API 差异与兼容矩阵（行级证据） | 快速上手 |
 | `docs/research/dsh-round110-规范与破坏性变更.md` | cycle-110 官方规范检索与变更面影响判定（来源 URL） | 本项目的承诺口径（在 09） |
@@ -69,13 +71,15 @@
 ```bash
 # 1) 目录与文件存在性
 ls docs/agents/
+# 期望：01 … 11 共 11 份 + README.md
+
 # 2) 关键行号是否仍然指向声称的内容
 grep -n "export const inject" src/index.ts
 grep -n "export const inject" src/client/index.ts
 grep -n "DSH_SUPPORTED_RANGE" src/shared/dshGeneration.ts
 grep -n "manifestVersion" package.json
-# 3) 路由数量（应为 19 个 register*Route 调用，含 /churn）
-grep -c "register.*Route(" src/host/routes.ts
+# 3) 路由数量（应为 19 个 register*Route 定义；/query 属 T3，落地后为 20）
+grep -rho "^export function register[A-Za-z]*Route" src/host/routes/*.ts | wc -l
 # 4) tool 数量（应为 11 个 defineTool，且与 src/index.ts 的注册数相等）
 grep -c "defineTool(" src/tools.ts
 grep -c "ctx.tools.register" src/index.ts
@@ -87,6 +91,14 @@ grep -r "from.*\.\./\.\./src/" dsh-anic/src/ || echo "G-IND OK"
 ls dsh-anic/src/host/routes/*.ts | wc -l
 # 8) dsh-anic 测试金字塔
 cd dsh-anic && pnpm run typecheck && pnpm run test && pnpm run build
+# 9) cycle-111：璇玑图库规模与宿主深挖点（10-璇玑图算法库使用规范.md §1-§2）
+find src/xuanji -name '*.ts' | wc -l                                 # → 16
+grep -rnE "from '.*xuanji/(core|index|query|ops|registry)/" src/ \
+  --include="*.ts" | grep -v "^src/xuanji/"                          # → 10 行，落在 3 个宿主文件
+
+# 10) cycle-111：关键词查询的两个口径点（11-图检索与关键词查询.md §2-§8）
+grep -n "cjk \* 1 + other / 3.5" src/xuanji/query/keyword-query.ts   # CJK 1 字 = 1 token
+grep -rnE "registerKeywordQueryRoute|keywordQuery" src/              # → 0（本轮未落地）
 ```
 
 > 第 3/4/5 项的**精确口径**见 [02-宿主API参考.md](./02-宿主API参考.md) §3.2 / §7 / §6.1；
@@ -99,4 +111,8 @@ cd dsh-anic && pnpm run typecheck && pnpm run test && pnpm run build
 - **声明**的宿主范围：`>=0.2.0-rc.2 <0.4.0-0`（见 [01-插件开发规范.md](./01-插件开发规范.md) §2）
 - **已验证**的运行宿主：`0.2.1-rc.3`（gen2 补丁；取证见 [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) §2）
 - ⚠️ 「声明范围」与「已验证版本」是两列事实，下限永远写 `0.2.0-rc.2`，不得写成已验证版本
-- 文档族版本：`1.2.0`（cycle-110 新增 07/08/09、工具 10→11、路由 18→19、错误码口径 27→25）
+- 文档族版本：`1.3.0`（cycle-111：新增 10/11 两份、05 新增 §6、09 新增 §9、02/03/04/07 刷新）
+- cycle-110 的 `1.2.0` 记录（保留以便追溯）：新增 07/08/09、工具 10→11、路由 18→19、错误码口径 27→25
+- ⚠️ **cycle-111 的数字口径**：路由仍是 **19**（`/query` 属 T3，未落地）、工具仍是 **11**（未增删）、
+  组件 **49**、hooks **39**、CSS **19**、`AnalysisPanelKey` **18**（文档曾误写 17，本轮修正）。
+  这些数字的复验命令见 §事实基座自检；**不要**从本节抄数字去写别处（本节只在改动时更新）。

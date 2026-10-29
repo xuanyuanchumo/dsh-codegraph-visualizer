@@ -383,6 +383,161 @@ describe('XuanjiAdapter.applyDelta 增量等价（宿主级 C3）', () => {
   });
 });
 
+describe('XuanjiAdapter.applyDelta 的 I4 体检（XJ-04 第 3 步 / D-10）', () => {
+  /** 三个不相交的三角形 ⇒ 3 条物化环；删掉任一三角形的一条边 ⇒ 1/3 = 33% > 0.3。 */
+  function threeTriangles(): GraphData {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 3; i++) {
+      const [a, b, c] = [`a${i}`, `b${i}`, `c${i}`];
+      nodes.push(node(a), node(b), node(c));
+      edges.push(edge(a, b), edge(b, c), edge(c, a));
+    }
+    return graphData(nodes, edges);
+  }
+
+  it('体检通过时 byRule 有该规则的 I4=ok 结论，degradedRules 为空', () => {
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(threeTriangles());
+    adapter.registerRule(CYCLES_RULE);
+    materializeAll(adapter, CYCLES_RULE);
+
+    const delta = emptyDelta();
+    delta.addedNodes.push(node('d0'));
+    delta.addedEdges.push(edge('a0', 'd0'));
+    const result = adapter.applyDelta(delta);
+
+    expect(result.degradedRules).toEqual([]);
+    const i4 = result.invariants.byRule.get('cycles');
+    expect(i4?.id).toBe('I4');
+    expect(i4?.ok).toBe(true);
+    expect(result.invariants.violated).toEqual([]);
+    // 分母是**全量**计数（含 stale），detail 里能直接读到分数
+    expect(i4?.detail).toContain('stale/total');
+  });
+
+  it('没有注册任何规则时体检结论是空表，而不是「全 ok」', () => {
+    // 「空集冒充全绿」是本仓库的复发形态：空 byRule 必须能被调用方与「全部通过」区分开。
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(graphData([node('a'), node('b')], [edge('a', 'b')]));
+    const result = adapter.applyDelta(emptyDelta());
+    expect(result.invariants.byRule.size).toBe(0);
+    expect(result.invariants.violated).toEqual([]);
+    expect(result.degradedRules).toEqual([]);
+  });
+
+  it('删节点会把经过它的路径置 stale（接线前 counters.stale 纹丝不动，这是真缺陷）', () => {
+    // 这条用例覆盖接线时发现的真缺陷：旧实现只做 space.removeNode(id)，
+    // 内部删掉的邻边**不经过** stale 通道，于是 counters.stale 纹丝不动、I4 报假健康。
+    // 必须同时看两个子场景，只看一个会漏掉半边：
+    //   (a) 失效比例低于阈值 ⇒ 只标记、不降级（证明「真的标记了」而非「碰巧被清空」）；
+    //   (b) 失效比例超阈值 ⇒ 降级（证明标记会汇入既有降级通道）。
+    const triRule: PathRule = CYCLES_RULE;
+
+    // (a) 10 个互不相交的三角形；删掉某一三角形的中间节点 ⇒ 1/10 = 10% < 30%
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 10; i++) {
+      const [a, b, c] = [`a${i}`, `b${i}`, `c${i}`];
+      nodes.push(node(a), node(b), node(c));
+      edges.push(edge(a, b), edge(b, c), edge(c, a));
+    }
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(graphData(nodes, edges));
+    const index = adapter.registerRule(triRule).index!;
+    enumerate(adapter.graph, triRule, [...adapter.graph.nodeIds()], index);
+    expect(index.counters.total).toBe(10);
+
+    const deltaA = emptyDelta();
+    deltaA.removedNodes.push(node('b0'));
+    const resultA = adapter.applyDelta(deltaA);
+
+    // 接线前这里是 0（条目仍指向已删节点，计数却干净）；现在至少 1 条被如实标记。
+    expect(resultA.stalePaths).toBeGreaterThan(0);
+    expect(index.counters.stale).toBe(resultA.stalePaths);
+    // 10% 未超阈值 ⇒ 不降级：证明「标记」与「清空」是两件被正确区分的事
+    expect(resultA.degradedRules).toEqual([]);
+    expect(adapter.graph.hasNode('b0')).toBe(false);
+
+    // (b) 单三角形；删中间节点 ⇒ 该三角形相关路径全部失效 ⇒ 超阈值降级
+    const adapterB = new XuanjiAdapter();
+    adapterB.loadGraph(
+      graphData([node('a'), node('b'), node('c')], [edge('a', 'b'), edge('b', 'c'), edge('c', 'a')]),
+    );
+    const indexB = adapterB.registerRule(triRule).index!;
+    enumerate(adapterB.graph, triRule, ['a', 'b', 'c'], indexB);
+    expect(indexB.counters.total).toBe(1);
+
+    const deltaB = emptyDelta();
+    deltaB.removedNodes.push(node('b'));
+    const resultB = adapterB.applyDelta(deltaB);
+
+    expect(resultB.stalePaths).toBeGreaterThan(0);
+    expect(resultB.degradedRules).toContain('cycles');
+    expect(indexB.counters).toEqual({ total: 0, stale: 0 });
+    expect(adapterB.graph.hasNode('b')).toBe(false);
+  });
+
+  it('I4 是终态兜底：若其它路径把索引弄脏而逐边通道没拦，末尾体检会降级它', () => {
+    // 诚实边界（实测）：在「纯删边 / 删节点」的 delta 上，逐边的 needsRebuild 与末尾 I4
+    // 阈值同为 0.3，前者先触发，I4 拿到的是已清空的索引——此时两者判定等价。
+    // I4 真正独立的价值是**终态兜底**：任何「把条目标成 stale 但没有检查阈值」的通道
+    // （本次修的删节点、将来新增的失效来源）都会在这里被抓住。
+    // 这里直接调用库的 markStale 来模拟这种通道，若没有末尾体检，索引会带着
+    // 100% 失效继续对外服务。
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(
+      graphData([node('a'), node('b'), node('c')], [edge('a', 'b'), edge('b', 'c'), edge('c', 'a')]),
+    );
+    const index = adapter.registerRule(CYCLES_RULE).index!;
+    materializeAll(adapter, CYCLES_RULE);
+    expect(index.counters.total).toBe(1);
+
+    // 模拟「别的通道"标记了失效却不检查比例"」：直接把唯一一条路径置 stale
+    index.markStale('a->b');
+    expect(index.counters.stale).toBe(1);
+    expect(index.liveCount()).toBe(0);
+
+    // 一个**不涉及任何边增删**的 delta：逐边通道完全不会跑，只有末尾 I4 能发现
+    const delta = emptyDelta();
+    delta.addedNodes.push(node('d'));
+    const result = adapter.applyDelta(delta);
+
+    expect(result.invariants.violated).toEqual(['cycles']);
+    expect(result.degradedRules).toContain('cycles');
+    expect(index.counters).toEqual({ total: 0, stale: 0 });
+  });
+
+  it('thetaStale 由构造函数传入检查器：严格阈值下同一比例结论相反', () => {
+    // 钉住「参数真的抵达了 InvariantChecker」，而不是被丢掉后用了缺省 0.3。
+    // 造 1/3 ≈ 33% stale：缺省 0.3 会判不达标，thetaStale=0.9 会判达标。
+    function staleRatioOf(thetaStale: number | undefined): boolean {
+      const adapter = thetaStale === undefined ? new XuanjiAdapter() : new XuanjiAdapter({ thetaStale });
+      adapter.loadGraph(
+        graphData([node('a'), node('b'), node('c')], [edge('a', 'b'), edge('b', 'c'), edge('c', 'a')]),
+      );
+      const index = adapter.registerRule(CYCLES_RULE).index!;
+      materializeAll(adapter, CYCLES_RULE);
+      index.markStale('a->b'); // 1/1 = 100%
+      const result = adapter.applyDelta(emptyDelta());
+      return result.invariants.byRule.get('cycles')?.ok ?? true;
+    }
+
+    expect(staleRatioOf(undefined)).toBe(false); // 100% > 0.3
+    expect(staleRatioOf(0.9)).toBe(false); // 100% > 0.9 仍不达标
+    expect(staleRatioOf(1)).toBe(true); // 100% <= 1 ⇒ 达标（阈值确实生效）
+  });
+
+  it('lastInvariantReport 暴露最近一次结论（未跑过时为 null）', () => {
+    const adapter = new XuanjiAdapter();
+    expect(adapter.lastInvariantReport).toBeNull();
+    adapter.loadGraph(graphData([node('a'), node('b')], [edge('a', 'b')]));
+    adapter.registerRule(CYCLES_RULE);
+    const result = adapter.applyDelta(emptyDelta());
+    expect(adapter.lastInvariantReport).toBe(result.invariants);
+  });
+});
+
 describe('XuanjiAdapter.registerRule 校验闸门（XJ-05）', () => {
   /** 合法但可被逐项改坏的规则模板。 */
   function templateRule(overrides: Partial<PathRule> = {}): PathRule {

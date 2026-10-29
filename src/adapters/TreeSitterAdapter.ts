@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { scoped } from '../shared/Logger.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
@@ -7,6 +8,49 @@ import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import { TREE_SITTER } from '../shared/constants.ts';
 
 const log = scoped('tree-sitter-adapter');
+
+/**
+ * 同步探测「本宿主上是否**存在** AST 分析通道」——给能力位 `astSource` 用
+ * （`src/host/prerequisites.ts` 登记探针，`src/host/routes.ts` 接线）。
+ *
+ * ## 为什么不能直接用 `adapter.isAvailable()`
+ *
+ * `isAvailable()` 的语义是「解析器**已经**初始化」（`parserCtor !== null`），而初始化发生在
+ * 第一次 `parseFile()`/`parseToAst()` 里的 `await this.init()`。插件 `apply()` 时还没有任何
+ * 文件被解析过，于是它在**启动后的一整段时间里恒为 false** —— 用它当能力位会让 `/status`
+ * 在一个完全正常的宿主上报告「AST 通道不可用」，那是与 `builtin: true` 相反方向但同样虚假的
+ * 叙事。能力位回答的是「这条通道存在吗」，不是「它此刻已热了吗」。
+ *
+ * ## 判据是两条真实探针的**析取**，没有第三条字面量
+ *
+ *   1. `isAvailable()` —— 已初始化（最强证据，进程生命周期后段基本恒真）；
+ *   2. 运行时模块**可解析** —— `web-tree-sitter`（解析器）与 `tree-sitter-wasm`（语法 wasm）
+ *      都能被 Node 解析到。缺依赖、装坏、profile 里漏装都会让它变 false。
+ *
+ * ## 诚实边界
+ *
+ * 本探针**不能**证明语法 wasm 真的能加载（那是异步 `Language.load()` 的事）。它证明的是
+ * 「这两个包在这台宿主上存在」。这个窄化的失败面是刻意接受的：它比 `true` 严格更强
+ * （字面量 `true` 在任何安装状态下都为真），而要做到「真的能加载」就必须把
+ * `checkPrerequisites` 改成 async，代价是 20 余处同步调用点。
+ * 非 Node 环境（理论上不该发生：本适配器只在宿主进程运行）直接返回 `false`。
+ */
+export function isTreeSitterRuntimePresent(): boolean {
+  if (typeof process === 'undefined' || !process.versions?.node) return false;
+  try {
+    // 用 `createRequire(import.meta.url)` 而不是 `import.meta.resolve`：后者在 vitest 的
+    // 转换管道里是 `undefined`（实测 `typeof import.meta.resolve === 'undefined'`），
+    // 而本函数是能力位的判据 —— 一个在测试环境里恒抛的探针会让 `astSource` 假阴性，
+    // 而假阴性比假阳性更难被发现（界面上只是「没有 AST 通道」，没有任何报错）。
+    const req = createRequire(import.meta.url);
+    req.resolve('web-tree-sitter');
+    req.resolve('tree-sitter-wasm');
+    return true;
+  } catch (e) {
+    log.debug('tree-sitter runtime not resolvable', { error: e });
+    return false;
+  }
+}
 
 const SUPPORTED_LANGUAGES = ['typescript', 'javascript', 'python', 'java', 'rust', 'go'] as const;
 type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
@@ -423,12 +467,33 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
             nodeMap.set(id, graphNode);
 
             if (parentId) {
+              // 边来源归因（P1-N4）：这是 `edgeOrigin: 'ast'` 在全仓的**第一个生产者**。
+              //
+              // 修前 `properties` 是空对象，而 `src/merger/GraphDataMerger.ts` 的
+              // `EDGE_ORIGIN_RANK.ast = 3`（最高档）因此**从未在真实数据上生效过** ——
+              // 那一层裁决只是"为将来留位"，没有任何一条边能走到它。本仓反复记录过这类
+              // 缺陷（"特性实现了但永远不会运行"），所以这里不是"顺便补个字段"，
+              // 而是让一条已声明的裁决规则第一次真的具备输入。
+              //
+              // 为什么可以断言是 `ast`：这条边不是从任何索引表读出来的，也不是启发式拼的，
+              // 它是**语法树父子关系**的直接投影 —— 子符号节点就在父符号节点的子树里，
+              // 归属无歧义。`db` 档位（SQLite edges 行）与 `heuristic` 档位都不是这种证据。
+              //
+              // `edgeLocatable`：两端都是本文件里的符号节点，且都带 `lineNumber`
+              // （`node.startPosition.row + 1`），因此这一行走源码可回溯。
+              //
+              // **已知代价（有意接受）**：`properties` 参与 `computeGraphFingerprint`
+              // （`src/shared/graphFingerprint.ts:108` 的 `stableStringify(edge.properties)`），
+              // 加键会让已存快照**一次性**失配 ⇒ 每次升级后的第一次扫描会多写一行快照
+              // （`saveSnapshot` 按指纹去重，不 bump `FINGERPRINT.VERSION`）。选择不 bump：
+              // bump 会让所有历史快照永久不可比，而这一次失配是自愈的。
+              const line = node.startPosition.row + 1;
               edges.push({
                 id: EdgeId(`tsedge:${parentId}->${id}`),
                 source: NodeId(parentId),
                 target: NodeId(id),
                 type: 'contains',
-                properties: {},
+                properties: { edgeOrigin: 'ast', edgeLocatable: true, line },
               });
             }
           }

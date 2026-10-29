@@ -8,7 +8,7 @@
  *     带 sink 的四个按需端点仍在 `api/index.ts`（有用例按文件+函数文本钉住，不能搬走）。
  *   · 失败语义各不相同，且是**有意的**，逐条固定：
  *       `fetchBootstrap` / `fetchWorkspace` 回落成安全的空骨架；
- *       `fetchStatus` 回落成「codegraph 不可用、builtin 可用」；
+ *       `fetchStatus` 回落成「四个能力位全 false」（不知道 ≠ 可用，见 §61.10）；
  *       `requestScan` / `requestInit` / `fetchGraphDiff` / `fetchHotspotChurn` 回落成 `null`
  *         ——「这次没做成」必须能与「做成了但没有数据」区分，绝不用空对象冒充成功。
  *   · `workspace` 参数一律在 `!== '.'` 时才发送：`'.'` 是「未指定」的哨兵值，
@@ -21,6 +21,7 @@ import { coerceNode, coerceEdge } from '../../shared/GraphValidator.ts';
 import type { ChurnResult } from '../../shared/churn.ts';
 import { API } from '../../shared/constants.ts';
 import { withAbortGuard, fetchWithTimeout } from './requestCore.ts';
+import { normalizePrerequisiteStatus, type PrerequisiteStatus } from '../../shared/prerequisiteStatus.ts';
 
 export interface BootstrapData {
   rootNodes: GraphNode[];
@@ -57,13 +58,26 @@ export async function fetchBootstrap(signal?: AbortSignal, workspace?: string): 
   }, null);
 }
 
-export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean; builtin: boolean }> {
+/**
+ * 取能力位。
+ *
+ * 三个回落方向都被 `normalizePrerequisiteStatus` 统一处理，这里不再自己拼一遍字段：
+ *   · **新宿主**：四个位齐全，原样采纳；
+ *   · **旧宿主**（只有 `builtin`）：`astSource` 取 `builtin`，`graphSource` 降级为 `false`；
+ *   · **请求失败**：全 `false`。
+ *
+ * 修前的失败回落写的是 `builtin: true` —— 那正是 §61.10 的假叙事在客户端的镜像：
+ * 宿主根本没应答，客户端却断言"内置通道可用"。**不知道**必须是 `false`：它会让空态不显示
+ * 「降级模式」（因为确实无法确认有降级手段），而这比承诺一个不存在的通道更接近真相。
+ */
+export async function fetchStatus(): Promise<PrerequisiteStatus> {
+  const failure = normalizePrerequisiteStatus({});
   return withAbortGuard('fetchStatus', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/status');
-    if (!res.ok) return { codegraph: false, lens: false, builtin: true };
+    if (!res.ok) return normalizePrerequisiteStatus({});
     const data = await res.json();
-    return { codegraph: !!data.codegraph, lens: !!data.lens, builtin: data.builtin ?? true };
-  }, { codegraph: false, lens: false, builtin: true }, { url: '/api/v1/codegraph/status' });
+    return normalizePrerequisiteStatus(data);
+  }, failure, { url: '/api/v1/codegraph/status' });
 }
 
 export interface WorkspaceInfo {

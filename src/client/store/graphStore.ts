@@ -17,18 +17,27 @@ import { createPathFocusSlice } from './slices/pathFocusSlice.ts';
 import { createFilterSlice } from './slices/filterSlice.ts';
 import { createAnalysisSlice } from './slices/analysisSlice.ts';
 import { createPanelLodSlice } from './slices/panelLodSlice.ts';
+import { createKeywordQuerySlice } from './slices/keywordQuerySlice.ts';
 import { clearEtagCache } from '../api/index.ts';
 import { getMinPanelSize } from '../../shared/constants.ts';
+import { getSafeStorage, safeGetItem } from '../utils/safeStorage.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 export type { GraphType, WorkspaceInfo } from './types.ts';
 
-const memoryStorage: StateStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {},
-};
+/**
+ * 持久化后端的选取**必须走 `getSafeStorage()`**，不能在这里直接摸 `window.localStorage`。
+ *
+ * 修前是 `typeof window !== 'undefined' ? window.localStorage : memoryStorage`：跨源 iframe
+ * （`dsh-remote-web-ui`）里读 `window.localStorage` 这个属性**本身**就抛 `SecurityError`，
+ * 而这段代码在 `create()` 的初始化路径上执行 ⇒ store 建不出来 ⇒ 插件白屏，且**没有任何
+ * 可见错误**（只有一行被吞掉的异常）。选一个会抛的后端，等于把"持久化失效"升级成"整块 UI 挂了"。
+ *
+ * 模块级求值只在**一次**做：`getSafeStorage()` 内含一次真读真写探测（`setItem` + `removeItem`），
+ * 每个请求/每次渲染都探测一遍是不必要的开销，而它探测的是环境属性、不是状态。
+ */
+const persistedStorage: StateStorage = getSafeStorage('graphStore');
 
 export function disposeStore(): void {
   abortAllControllers(internals.prefetchAbortControllers);
@@ -87,6 +96,9 @@ export const useGraphStore = create<GraphState>()(
         ...createFilterSlice(set, get),
         ...createAnalysisSlice(set, get),
         ...createPanelLodSlice(set, get),
+        // 关键词图检索的请求状态（cycle-111 / N-5）。`GraphState` 的形状由该切片用
+        // 声明合并扩展（见 `keywordQuerySlice.ts` 顶部的说明），因此这里只需并进来。
+        ...createKeywordQuerySlice(set, get),
       };
       registerStoreGetter(get);
       return store as GraphState;
@@ -94,9 +106,7 @@ export const useGraphStore = create<GraphState>()(
     {
       name: 'dsh-codegraph-visualizer/ui',
       version: 10,
-      storage: createJSONStorage(() =>
-        typeof window !== 'undefined' ? window.localStorage : memoryStorage,
-      ),
+      storage: createJSONStorage(() => persistedStorage),
       merge: (persisted, current) => {
         const p = persisted as Record<string, unknown>;
         const raw = p.expandedNodeIds;
@@ -178,6 +188,9 @@ export const useGraphStore = create<GraphState>()(
     },
   ),
 );
-if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && localStorage.getItem('__cg_debug') === '1') {
+// 调试开关同样不能直接摸 `localStorage`：这一句在**模块顶层**，跨源 iframe 里它会抛
+// `SecurityError`，一个纯调试用途的开关不该能把整个模块求值干掉（与上面 `persistedStorage`
+// 同一类缺陷，只是位置更早、症状更直接）。
+if (typeof window !== 'undefined' && safeGetItem('__cg_debug') === '1') {
   (window as unknown as Record<string, unknown>).__graphStore = useGraphStore;
 }

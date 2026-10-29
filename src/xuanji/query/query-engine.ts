@@ -47,17 +47,35 @@ function resolveCandidateBudget(value: number | undefined): number {
  *
  * `weight` 此前全库零使用点（XJ-07 / #32）。未标注权重的边贡献 0，于是「所有权重都是 0」
  * 时 top-k 的分数全相同、`topK` 的稳定性保证它退化为 DFS 序——**确定且可复现**。
+ *
+ * ## 为什么每步取「可用边里的最大权重」而不是「第一条命中的边」（cycle-111 修正）
+ *
+ * 图空间允许多重边（同端不同型是两条边，见 `edgeKey` 的 `source->target->type`）。
+ * 原实现 `for (const type of rule.edgeTypes) { … break; }` 取**迭代序里第一条存在的边**，
+ * 而 `PathRule.edgeTypes` 是 `Set`——于是同一个图、同一条规则，只要改变 `Set` 的声明顺序，
+ * top-k 的结果就会翻转。实测（a→b 同时有 `call(1)` 与 `import(100)`，另有 a→d→c 权重 2+2）：
+ * 默认顺序选出 `a>d>c`；把 Set 改成 `['import','call']` 后选出 `a>b>c`。
+ * 这与本函数承诺的「确定且可复现」直接冲突，也与「高权重路径该被保留」的语义冲突。
+ *
+ * 取 **max** 而不是 sum 的理由：一步只走一条边，把两条边的权重相加会凭空放大分数；
+ * 而 `isLegalPath` 判定的是「存在任一允许类型的边」，所以这一步在语义上确实可以
+ * 走权重最高的那一条。max 是「不夸大、不依赖顺序」的唯一选择。
  */
 function pathWeight(graph: GraphSpace, rule: PathRule, nodes: readonly NodeId[]): number {
   let total = 0;
   for (let i = 0; i + 1 < nodes.length; i++) {
+    let best = 0;
+    let found = false;
     for (const type of rule.edgeTypes) {
       const edge = graph.getEdge(nodes[i]!, nodes[i + 1]!, type);
-      if (edge) {
-        total += edge.weight ?? 0;
-        break;
+      if (!edge) continue;
+      const weight = edge.weight ?? 0;
+      if (!found || weight > best) {
+        best = weight;
+        found = true;
       }
     }
+    total += best;
   }
   return total;
 }

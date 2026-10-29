@@ -251,8 +251,13 @@ export const en: Record<string, string> = {
   'empty.copied': 'Copied!',
   'empty.scanWorkspace': 'Scan Current Workspace',
 
-  'empty.degradedMode': 'Degraded Mode — using built-in TreeSitter and dependency analysis',
-  'empty.degradedHint': 'Built-in analysis provides basic code structure parsing without additional plugins.',
+  // cycle-111 / P0-N3: after the capability split these two entries render only when
+  // `graphSource === true` (the built-in manifest dependency graph alone is available).
+  // The old wording ("built-in TreeSitter and dependency analysis") implied a TreeSitter-produced
+  // graph — exactly the false narrative this cycle removed: AST structure analysis is real,
+  // but it does not produce a graph.
+  'empty.degradedMode': 'Degraded Mode — built-in dependency graph only',
+  'empty.degradedHint': 'No upstream plugin installed — only module dependencies from package.json / Cargo.toml / go.mod are available. AST structure analysis works, but it does not produce a graph.',
 
   // Keyboard shortcuts
   'shortcut.title': 'Keyboard Shortcuts',
@@ -686,4 +691,37 @@ export const en: Record<string, string> = {
   // Common
   'common.close': 'Close',
   'common.noVisibleNodes': 'No nodes match the current filter',
+
+  // Keyword graph query (cycle-111 / T3). Same algorithm and same vocabulary as the
+  // `graph_query` tool — "token budget" and "truncated" are deliberately reused so the
+  // UI and the tool never describe the same limit in two different ways.
+  'toolbar.keywordQuery': 'Keyword search',
+  'toolbar.keywordSection': 'Search',
+  'keywordQuery.title': 'Keyword graph query',
+  'keywordQuery.inputLabel': 'Keywords',
+  'keywordQuery.placeholder': 'Type keywords (CJK supported)…',
+  'keywordQuery.submit': 'Search',
+  'keywordQuery.clear': 'Clear',
+  'keywordQuery.idle': 'Type a keyword and press Enter',
+  'keywordQuery.loading': 'Searching…',
+  'keywordQuery.empty': 'No matching node — try another keyword',
+  'keywordQuery.emptyHint': 'Chinese, identifiers and file-path fragments are matched',
+  'keywordQuery.error': 'Query failed',
+  'keywordQuery.timeout': 'Query timed out',
+  'keywordQuery.retry': 'Retry',
+  'keywordQuery.seeds': 'Seeds ({n})',
+  'keywordQuery.subgraph': 'Subgraph summary',
+  'keywordQuery.summary': '{nodes} nodes / {edges} edges / {tokens} tokens',
+  'keywordQuery.truncated': 'Truncated by token budget ({reason}) — not the full result',
+  'keywordQuery.reasonFits': 'complete',
+  'keywordQuery.reasonNodesOnly': 'edges omitted',
+  'keywordQuery.reasonTruncated': 'nodes truncated',
+  'keywordQuery.sourceSlot': 'cached graph',
+  'keywordQuery.sourceFetched': 'freshly fetched',
+  'keywordQuery.rawText': 'Raw subgraph text',
+  'keywordQuery.announce': 'Query finished: {n} seeds / {nodes} nodes',
+  'keywordQuery.score': 'score {score}',
+  'keywordQuery.matched': 'matched: {terms}',
+  'keywordQuery.depth': 'depth {depth}',
+  'keywordQuery.budget': 'budget {budget}',
 };

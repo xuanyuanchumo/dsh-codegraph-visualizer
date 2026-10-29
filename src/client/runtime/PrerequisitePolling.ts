@@ -14,8 +14,13 @@ export function setupPrerequisitePolling(ctx: Context): void {
   const checkStatus = async () => {
     const status = await fetchStatus();
     const store = useGraphStore.getState();
-    store.setPrerequisites({ codegraph: status.codegraph, lens: status.lens, builtin: status.builtin ?? true });
-    const statusKey = `${status.codegraph}:${status.lens}`;
+    // `fetchStatus` 已经归一化过（`normalizePrerequisiteStatus`），这里**原样**写入：
+    // 再兜一次 `?? true` 会让"宿主没应答"重新变成"内置可用"，那正是 §61.10 的假叙事。
+    store.setPrerequisites(status);
+    // 变化检测键必须包含 `graphSource`：它决定空态是否显示「降级模式」（客户端唯一的
+    // 图数据通道判据）。只比 codegraph/lens 会让"通道位翻转了但日志一声不响"，
+    // 而这正是排查 §61.10 那类假叙事时唯一能看的线索。
+    const statusKey = `${status.codegraph}:${status.lens}:${status.graphSource}`;
     if (statusKey !== lastStatusKey) {
       log.info('prerequisite status', status);
       lastStatusKey = statusKey;

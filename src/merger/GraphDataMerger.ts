@@ -4,14 +4,28 @@ import { sanitizeGraphData } from '../shared/GraphValidator.ts';
 import { stableStringify } from '../shared/graphFingerprint.ts';
 
 /**
- * 边来源归因的取值 —— 与 `CodeGraphAdapter` 写进 `properties.edgeOrigin` 的那一套同源。
+ * 边来源归因的取值 —— 与 `CodeGraphAdapter` / `TreeSitterAdapter` 写进 `properties.edgeOrigin`
+ * 的那一套同源。
  *
  * 只有**可证明**的取值在这里：`ast`（语法结构造出来的边，无歧义）、`db`（SQLite 索引的 edges
  * 行）、`heuristic`（适配器靠启发式拼出来的边）。上游边表没有 confidence 列，所以这里也
  * 刻意不出现 `EXTRACTED`/`INFERRED` —— 那种取值无法由本仓库的任何数据证明。
  *
- * `ast` 目前**没有生产者**：`TreeSitterAdapter` 的 `contains` 边尚未标注（本轮写域不含该文件）。
- * 保留该档位是为了让第一个标注者不必再来改裁决表，而不是宣称它已经在被使用。
+ * 生产代码里**实际有两个**档位在产出（cycle-111 收口 P1-N4）：
+ *   · `db`  —— `src/adapters/codeGraphRows.ts` 的 `readEdges*` 系列，来自 SQLite edges 行；
+ *   · `ast` —— `src/adapters/TreeSitterAdapter.ts` 的 `contains` 边（语法树父子关系的直接投影）。
+ *     修前该文件写的是 `properties: {}`，于是 `EDGE_ORIGIN_RANK.ast = 3` 这一档
+ *     **从未在真实数据上生效过** —— 一条写着却永不触发的裁决规则。
+ *
+ * `heuristic` 至今**仍然没有生产者**（全仓只有 `tests/unit/mergeDeterminism.test.ts` 的 fixture
+ * 在用它）。保留该档位是因为它描述的是"适配器靠启发式拼出来的边"这一**可能**的来源，
+ * 删掉它会让将来第一个启发式适配器不得不连裁决表一起改；但**不宣称它已在被使用** ——
+ * 这正是本仓反复记录的"注释宣称的特性 vs 代码里真实发生的特性"的区别。若下一轮仍无生产者，
+ * 应当连同 `EDGE_ORIGIN_RANK` 的这一档一起删掉，而不是继续留着。
+ *
+ * 因此 `EDGE_ORIGIN_RANK.ast = 3` 现在是**可被观测**的：同一对端点的 `contains` 边若同时来自
+ * 索引行与语法树，语法树那份胜出（`compareEdgePreference` 第 1 层）。
+ * `tests/unit/mergeDeterminism.test.ts` 有一条用例直接钉住这个结果。
  */
 export type EdgeOrigin = 'ast' | 'db' | 'heuristic';
 

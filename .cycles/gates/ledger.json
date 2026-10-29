@@ -1281,7 +1281,52 @@
       "timestamp": "2026-10-28T06:54:07.764Z",
       "previousHash": "369af22e83793eb3a4b8179842501339f83d3b0bbb75aa93ad5fe28e0985d1f5",
       "hash": "788198ccb3150b63b3454b2d27d651c90dfbe46083385eb7d972e063a4a25c92"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-111 (16 dimension rows) [Q1:PASS,Q5:PASS]",
+      "timestamp": "2026-10-29T16:11:04.956Z",
+      "previousHash": "788198ccb3150b63b3454b2d27d651c90dfbe46083385eb7d972e063a4a25c92",
+      "hash": "6b6a2aca2b211c27de4aaed6c0de0ea6acc6ef51e644644cb86416264bea05ea"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "All 21 tasks completed §cycle-111 [Q7:PASS]",
+      "timestamp": "2026-10-29T16:11:04.974Z",
+      "previousHash": "6b6a2aca2b211c27de4aaed6c0de0ea6acc6ef51e644644cb86416264bea05ea",
+      "hash": "7d12dde200b28f7a5c63b8730fb8b6f50bd1d261d5d1f3ffddd7ed5536d70b2c"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "FAIL",
+      "detail": "Test report summary not recognized: test-report.md has no 通过/失败 rows (expected the §2 汇总 table) §cycle-111",
+      "timestamp": "2026-10-29T16:11:04.987Z",
+      "previousHash": "7d12dde200b28f7a5c63b8730fb8b6f50bd1d261d5d1f3ffddd7ed5536d70b2c",
+      "hash": "23eb8c6edc054f242b850ca01bcebb5cb6672d7bb923a6a1f881ac8ad68d622b"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "Build passed: pnpm run build §cycle-111 [dist=absent] [Q3:PASS,Q4:PASS]",
+      "timestamp": "2026-10-29T16:11:21.006Z",
+      "previousHash": "23eb8c6edc054f242b850ca01bcebb5cb6672d7bb923a6a1f881ac8ad68d622b",
+      "hash": "d8f92e8e4c9b1d182c84df4fafcf70eefff8a70da0bed7f4e7a34d6ff6566914"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "Zero failures, zero errors (test-report.md + journey coverage verified) §cycle-111 [Q2:PASS]",
+      "timestamp": "2026-10-29T16:11:57.605Z",
+      "previousHash": "d8f92e8e4c9b1d182c84df4fafcf70eefff8a70da0bed7f4e7a34d6ff6566914",
+      "hash": "516ba7b63c3d203e48b90c0914f88e31a9ce766d9e05f9da1da67d9818467618"
     }
   ],
-  "chainHead": "788198ccb3150b63b3454b2d27d651c90dfbe46083385eb7d972e063a4a25c92"
+  "chainHead": "516ba7b63c3d203e48b90c0914f88e31a9ce766d9e05f9da1da67d9818467618"
 }

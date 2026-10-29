@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TreeSitterAdapter } from '../../src/adapters/TreeSitterAdapter.ts';
+import { TreeSitterAdapter, isTreeSitterRuntimePresent } from '../../src/adapters/TreeSitterAdapter.ts';
 import type { GraphNode } from '../../src/types/index.ts';
 import type { ASTNode } from '../../src/shared/CFGTypes.ts';
 
@@ -290,6 +290,48 @@ describe('TreeSitterAdapter symbol extraction (real wasm)', () => {
     expect(result.edges.length).toBeGreaterThan(0);
     const containsEdge = result.edges.find((e) => e.type === 'contains');
     expect(containsEdge).toBeDefined();
+  });
+
+  it('attributes contains edges to the ast origin (P1-N4: the first producer of that tier)', async () => {
+    // 修前 `contains` 边的 `properties` 是 `{}`，于是 `GraphDataMerger` 的
+    // `EDGE_ORIGIN_RANK.ast = 3`（最高档）**没有任何边能走到**——一条写在裁决表里、
+    // 却永远不生效的规则。这里钉住三件事：
+    //   · `edgeOrigin` 真的是 `'ast'`（不是 db、也不是缺失）；
+    //   · `edgeLocatable` 为 true 且带 `line`（两端都在本文件里，源码可回溯）；
+    //   · 每一行都有 line —— 不是只有第一条（循环里漏写是最常见的形态）。
+    const code = 'class Foo {\n  bar() { return 1; }\n}';
+    const result = await adapter.parseFile('foo.ts', code);
+    const containsEdges = result.edges.filter((e) => e.type === 'contains');
+    expect(containsEdges.length).toBeGreaterThan(0);
+    for (const edge of containsEdges) {
+      expect(edge.properties.edgeOrigin).toBe('ast');
+      expect(edge.properties.edgeLocatable).toBe(true);
+      expect(typeof edge.properties.line).toBe('number');
+      expect(edge.properties.line as number).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps the ast line number matching the child symbol node it points at', async () => {
+    // line 必须是**目标节点**的行号，不是父节点的、也不是 0。写死一个常量也能让上面那条
+    // 通过（只要它是 number 且 > 0），所以这里做一次真实的对应检查。
+    const code = 'class Foo {\n  bar() { return 1; }\n  baz() { return 2; }\n}';
+    const result = await adapter.parseFile('foo.ts', code);
+    const byId = new Map(result.nodes.map((n) => [String(n.id), n]));
+    const containsEdges = result.edges.filter((e) => e.type === 'contains');
+    expect(containsEdges.length).toBeGreaterThan(0);
+    for (const edge of containsEdges) {
+      const target = byId.get(String(edge.target));
+      expect(target).toBeDefined();
+      expect(edge.properties.line).toBe(target!.lineNumber);
+    }
+  });
+
+  it('reports whether the tree-sitter runtime is present', () => {
+    // 能力位 `astSource` 的判据之一。这个仓的 node_modules 里两个包都在，
+    // 所以这里期望 true；若它变 false，说明打包/安装形态变了，能力位会静默降级成
+    // 「没有 AST 通道」——一个不会被任何界面断言发现的假阴性。
+    expect(typeof isTreeSitterRuntimePresent()).toBe('boolean');
+    expect(isTreeSitterRuntimePresent()).toBe(true);
   });
 
   it('extracts TODO tags from comments inside functions', async () => {

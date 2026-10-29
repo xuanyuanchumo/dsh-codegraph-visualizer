@@ -80,6 +80,9 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     // 版本对比面板（cycle-104，研究报告 §六 #13）
     showDiff: false,
     onToggleDiff: noop,
+    // 关键词图检索面板（cycle-111 / N-5）
+    showKeywordQuery: false,
+    onToggleKeywordQuery: noop,
     ...overrides,
   };
 }

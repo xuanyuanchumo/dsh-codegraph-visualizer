@@ -6,7 +6,7 @@ import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
   HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  StarIcon, GhostIcon, WatchIcon, DiffIcon,
+  StarIcon, GhostIcon, WatchIcon, DiffIcon, SearchIcon,
 } from './Icons.tsx';
 import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
@@ -132,11 +132,33 @@ export const DIFF_ITEMS: ToolMenuItem[] = [
   { panel: 'showDiff', Icon: DiffIcon, key: 'toolbar.diff', btnClass: 'cg-diff-btn', toggle: 'onToggleDiff' },
 ];
 
+/**
+ * 关键词图检索的工具项（cycle-111 / N-5）。
+ *
+ * 单独一段而不是并进 `ANALYSIS_ITEMS`：那 5 项都是「对**已有画布**做一次图算法分析」
+ * （调用链/环/影响/继承/路径），而关键词检索是**换一个输入**（自由文本词）再去图上定位。
+ * 并进去会让「为什么这一项要打字」无法从分组标题读出来——与 `DIFF_ITEMS`（换两个 git 引用）
+ * 是同一个理由。
+ *
+ * 由 `availablePanels.has('showKeywordQuery')` 门控：结构层与行为层有图可定位，
+ * 运行时层没有图，该段在运行时层整体消失（段标题也一并消失，靠 `ToolbarActions` 的
+ * `visibleSections` 过滤，不会留下一个点不动的空标题）。
+ *
+ * 图标复用 `SearchIcon` 而不是新增：本仓图标文件（`Icons.tsx`）是本模块之外的文件，
+ * 为一个开关新增一条 SVG 只会让「两套搜索外观」并存的疑虑多一层；语义上它确实就是搜索。
+ */
+export const KEYWORD_QUERY_ITEMS: ToolMenuItem[] = [
+  { panel: 'showKeywordQuery', Icon: SearchIcon, key: 'toolbar.keywordQuery', btnClass: 'cg-keywordquery-btn', toggle: 'onToggleKeywordQuery' },
+];
+
 export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] }[] = [
   { labelKey: 'toolbar.analysis', items: ANALYSIS_ITEMS },
   { labelKey: 'toolbar.quality', items: QUALITY_ITEMS },
   { labelKey: 'toolbar.runtimeSection', items: RUNTIME_ITEMS },
   { labelKey: 'toolbar.diffSection', items: DIFF_ITEMS },
+  // 追加在末尾（不重排既有四段）：段的分隔符位置取决于「这是第几个**可见**分组」，
+  // 插在中间会让 `ToolbarActions` 的分隔符索引与既有 E2E 的段序断言一起漂移。
+  { labelKey: 'toolbar.keywordSection', items: KEYWORD_QUERY_ITEMS },
 ];
 export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
   { value: 'png', key: 'export.png' },

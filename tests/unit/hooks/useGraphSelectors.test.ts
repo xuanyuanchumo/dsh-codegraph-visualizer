@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useGraphStore } from '../../../src/client/store/graphStore.ts';
+import { makePrerequisiteStatus } from '../../helpers.ts';
 import { NodeId } from '../../../src/types/index.ts';
 import {
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus,
@@ -23,7 +24,7 @@ describe('useGraphSelectors', () => {
       pathFilterInclude: null, pathFilterExclude: null,
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
       totalNodeCount: 0, totalEdgeCount: 0,
-      prerequisites: { codegraph: false, lens: false, builtin: true },
+      prerequisites: makePrerequisiteStatus({ astSource: true }),
       watchEnabled: false, initStatus: 'idle', initMessage: null,
       currentWorkspace: '', workspaceList: [],
       pathStartId: null, pathEndId: null,

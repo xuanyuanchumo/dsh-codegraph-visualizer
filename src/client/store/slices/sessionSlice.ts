@@ -1,4 +1,5 @@
 import type { GraphState } from '../types.ts';
+import { emptyPrerequisiteStatus } from '../../../shared/prerequisiteStatus.ts';
 import { POLLING, internals, clearLoadingFailsafe, abortAllControllers } from '../internals.ts';
 
 type SetFn = (partial: Partial<GraphState>) => void;
@@ -12,7 +13,10 @@ export function createSessionSlice(_set: SetFn, _get: GetFn): Partial<GraphState
     error: null,
     lastUpdated: 0,
     graphEtag: null,
-    prerequisites: { codegraph: false, lens: false, builtin: true },
+    // 初始值全 `false`。修前默认 `builtin: true` —— 那在 store 还没拿到 `/status` 的**第一帧**
+    // 就断言"内置图通道可用"，于是空态会先闪一下「降级模式」再消失（真实宿主上再从没出现过
+    // 那条通道）。缺省方向必须是"不知道 ⇒ 不可用"，理由见 `src/shared/prerequisiteStatus.ts`。
+    prerequisites: emptyPrerequisiteStatus(),
     integrationMode: 'unknown',
     panelVisible: true,
     urlRestored: false,

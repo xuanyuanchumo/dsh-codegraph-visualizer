@@ -9,6 +9,8 @@ import { ImpactPanel } from './ImpactPanel.tsx';
 import { CyclePanel } from './CyclePanel.tsx';
 import { RuntimePanel } from './RuntimePanel.tsx';
 import { DiffPanel } from './DiffPanel.tsx';
+import { KeywordQueryPanel } from './KeywordQueryPanel.tsx';
+import { useGraphStore } from '../store/graphStore.ts';
 import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
 import type { HotspotNode, GodModule, ImpactStats, ChurnStatus } from '../hooks/useAnalysisPanels.ts';
@@ -55,6 +57,7 @@ interface RightPanelStackProps {
     cycles: string;
     cyclesEmpty: string;
     runtime: string;
+    keywordQuery: string;
     godModuleStats: (n: number, e: number) => string;
   };
 }
@@ -126,6 +129,24 @@ export function RightPanelStack(props: RightPanelStackProps) {
         onCompare={props.onDiffCompare}
         onClear={props.onDiffClear}
         onClose={() => { props.onDiffClear(); panel.setShowDiff(false); }}
+      />,
+    },
+    {
+      // 关键词图检索面板（cycle-111 / N-5）。与运行时/版本对比同一条判断：
+      // **不**附加「有没有结果」的前置条件——首次打开必须能看到输入框，
+      // 否则「点开开关什么都没发生」。
+      //
+      // 关闭时清空结果：`clearKeywordQuery` 会推进请求令牌，在途的旧请求因此
+      // 无法把结果写回一个已经关闭的面板（否则下次打开会闪一下上一个词的结果）。
+      visible: panel.showKeywordQuery,
+      children: <KeywordQueryPanel
+        label={props.labels.keywordQuery}
+        onClose={() => {
+          // 从 store 直接取动作而不经 props：这两个动作属于该面板自己的状态机，
+          // 让 `RightPanelStack` 的 props 多背一层只会让"谁负责清空"更难回答。
+          useGraphStore.getState().clearKeywordQuery();
+          panel.setShowKeywordQuery(false);
+        }}
       />,
     },
   ];

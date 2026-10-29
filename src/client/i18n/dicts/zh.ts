@@ -250,8 +250,11 @@ export const zh: Record<string, string> = {
   'empty.copied': '已复制！',
   'empty.scanWorkspace': '扫描当前工作区',
 
-  'empty.degradedMode': '降级模式 — 使用内置 TreeSitter 和依赖分析',
-  'empty.degradedHint': '内置分析支持基础代码结构解析，无需安装额外插件。',
+  // cycle-111 / P0-N3：能力位拆分后这两个词条只在 `graphSource === true`（仅内置 manifest
+  // 依赖图可用）时渲染。旧文案「使用内置 TreeSitter **和**依赖分析」暗示还有一张由 TreeSitter
+  // 产出的图——那正是本轮拆掉的假叙事：AST 结构分析真实可用，但它**不产出图谱**。
+  'empty.degradedMode': '降级模式 — 仅提供内置依赖图',
+  'empty.degradedHint': '未安装上游插件，当前只能查看 package.json / Cargo.toml / go.mod 的模块依赖。AST 结构分析可用，但它不产出图谱。',
 
   // 键盘快捷键
   'shortcut.title': '键盘快捷键',
@@ -686,4 +689,36 @@ export const zh: Record<string, string> = {
   // 通用
   'common.close': '关闭',
   'common.noVisibleNodes': '当前筛选条件下无可见节点',
+
+  // 关键词图检索（cycle-111 / T3）。与 `graph_query` 工具**同一套算法、同一套口径**，
+  // 文案刻意复用「token 预算」「截断」这些词，避免界面与工具各说一套。
+  'toolbar.keywordQuery': '关键词检索',
+  'toolbar.keywordSection': '检索',
+  'keywordQuery.title': '关键词图检索',
+  'keywordQuery.inputLabel': '关键词',
+  'keywordQuery.placeholder': '输入关键词（支持中文）…',
+  'keywordQuery.submit': '检索',
+  'keywordQuery.clear': '清空',
+  'keywordQuery.idle': '输入关键词后回车开始检索',
+  'keywordQuery.loading': '检索中…',
+  'keywordQuery.empty': '没有匹配的节点，换个词试试',
+  'keywordQuery.emptyHint': '支持中文、标识符与文件路径片段',
+  'keywordQuery.error': '检索失败',
+  'keywordQuery.timeout': '检索超时',
+  'keywordQuery.retry': '重试',
+  'keywordQuery.seeds': '种子（{n}）',
+  'keywordQuery.subgraph': '子图概要',
+  'keywordQuery.summary': '{nodes} 节点 / {edges} 边 / {tokens} tokens',
+  'keywordQuery.truncated': '已按 token 预算截断（{reason}），这不是完整结果',
+  'keywordQuery.reasonFits': '完整结果',
+  'keywordQuery.reasonNodesOnly': '边被省略',
+  'keywordQuery.reasonTruncated': '节点被截断',
+  'keywordQuery.sourceSlot': '来自缓存图',
+  'keywordQuery.sourceFetched': '现场取图',
+  'keywordQuery.rawText': '原始子图文本',
+  'keywordQuery.announce': '检索完成：{n} 个种子 / {nodes} 个节点',
+  'keywordQuery.score': '得分 {score}',
+  'keywordQuery.matched': '命中：{terms}',
+  'keywordQuery.depth': '深度 {depth}',
+  'keywordQuery.budget': '预算 {budget}',
 };

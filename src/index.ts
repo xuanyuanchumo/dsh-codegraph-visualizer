@@ -13,6 +13,7 @@ import { McpServer } from './host/McpServer.ts';
 import { closeAllDbConnections } from './adapters/CodeGraphAdapter.ts';
 import { detectHostVersion, createFeatureFlags, createApiCompatLayer, createHostCapabilityProbe } from './host/compat/index.ts';
 import { GraphRepository } from './host/db/GraphRepository.ts';
+import { contributeGraphSkill } from './host/skills.ts';
 
 
 export { PLUGIN_VERSION };
@@ -96,17 +97,44 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   registerService(routeDeps);
   registerRoutes(routeDeps);
 
+  // 把 11 个 graph_* 工具注册成一条运行时 Skill（`ctx.skills.register`）。
+  //
+  // 为什么放在这里而不是放进静态 `inject`：`skills` 是可选服务，写进静态 inject 会让
+  // 「宿主没挂 skill 子系统」的 profile 把**整个插件**置为 INACTIVE —— 拿一条可选指令换
+  // 插件不加载是不可接受的（与客户端 `betterSidebar`/`commandUi` 的处置同源）。
+  // `contributeGraphSkill` 内部用响应式 `ctx.inject(['skills'], …)`，依赖不到齐只是
+  // 静默不贡献，不影响工具与路由。
+  //
+  // 返回值刻意不丢：它是「模型侧到底有没有这条指令」的唯一证据，也是失败时唯一的原因来源。
+  const skillContribution = contributeGraphSkill(ctx);
+  ctx.effect(() => () => {
+    // Skill 的 disposer 由 contributeGraphSkill 内部的 scope.effect 管理，
+    // 这里只做一次状态收尾（没有要撤销的外部资源，保留钩子是为了将来加审计）。
+    if (!skillContribution.registered) {
+      log.info('codegraph skill not active on this host', { reason: skillContribution.reason });
+    }
+  }, 'codegraph: skill contribution summary');
+
 
   let lastStatus = '';
+  /**
+   * 变化检测键。包含**四个**位：`astSource` / `graphSource` 是独立能力，只看 codegraph/lens
+   * 会让"通道位翻转了但日志一声不响"，而那条 `prerequisite status` 日志是排查
+   * `docs/需求分析.md` §61.10 那类假叙事时唯一的线索。
+   */
+  const prereqStatusKey = (s: ReturnType<typeof checkPrerequisites>): string =>
+    `${s.codegraph}:${s.lens}:${s.astSource}:${s.graphSource}`;
   const emitPrereqStatus = () => {
     const status = checkPrerequisites(ctx, apiCompat);
-    const statusKey = `${status.codegraph}:${status.lens}:${status.builtin}`;
     ctx.emit('codegraph-visualizer/prerequisite/status', {
       codegraph: status.codegraph,
       lens: status.lens,
+      astSource: status.astSource,
+      graphSource: status.graphSource,
       builtin: status.builtin,
       timestamp: Date.now(),
     });
+    const statusKey = prereqStatusKey(status);
     if (statusKey !== lastStatus) {
       log.info('prerequisite status', status);
       lastStatus = statusKey;
@@ -119,13 +147,15 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     const prereqTimer = setInterval(() => {
       pollCount++;
       const status = checkPrerequisites(ctx, apiCompat);
-      const statusKey = `${status.codegraph}:${status.lens}:${status.builtin}`;
       ctx.emit('codegraph-visualizer/prerequisite/status', {
         codegraph: status.codegraph,
         lens: status.lens,
+        astSource: status.astSource,
+        graphSource: status.graphSource,
         builtin: status.builtin,
         timestamp: Date.now(),
       });
+      const statusKey = prereqStatusKey(status);
       if (statusKey !== lastStatus) {
         log.info('prerequisite status', status);
         lastStatus = statusKey;

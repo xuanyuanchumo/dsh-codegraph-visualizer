@@ -30,10 +30,16 @@ import type { PathRule, RuleValidation } from '../../xuanji/core/path-rule.ts';
 import { RuleCompositionError, validateRule as validateRuleSpec } from '../../xuanji/core/path-rule.ts';
 import { PathIndex } from '../../xuanji/index/path-index.ts';
 import {
+  DEFAULT_THETA_STALE,
   onEdgeAdded,
   onEdgeRemovedDetailed,
   wasLastIncrementalDegraded,
 } from '../../xuanji/index/incremental.ts';
+import {
+  InvariantChecker,
+  type InvariantResult,
+  type InvariantThresholds,
+} from '../../xuanji/ops/invariants.ts';
 import { enumerate, readPathPage } from '../../xuanji/query/query-engine.ts';
 
 /** 允许的边类型（项目 `GraphEdge.type` 的取值域）。 */
@@ -126,6 +132,8 @@ export interface DeltaApplicationResult {
   readonly stalePaths: number;
   /** stale 超阈值 / 增量超预算而**被清空**的规则名：这些索引需全量重枚举。 */
   readonly degradedRules: readonly string[];
+  /** 本轮 I4 体检的逐规则结论（XJ-04 第 3 步 / D-10）。 */
+  readonly invariants: DeltaInvariantReport;
 }
 
 /** {@link XuanjiAdapterPool.applyDelta} 的结果。 */
@@ -134,12 +142,33 @@ export interface PoolDeltaResult extends DeltaApplicationResult {
   readonly applied: boolean;
 }
 
+/**
+ * 本轮 `applyDelta` 跑到的 I4 不变量结论（XJ-04 第 3 步 / D-10）。
+ *
+ * 为什么把结论**返回**而不是只写日志：`degradedRules` 只能回答「最后有没有被降级」，
+ * 无法区分「规则本来就没有条目（total=0）」与「有 40% 失效但阈值仍放行」。
+ * 两者对调用方的意义完全不同，而 `InvariantResult.detail` 里恰好带着
+ * `stale/total = 3/10 = 0.300` 这种可直接内省的事实。
+ */
+export interface DeltaInvariantReport {
+  /** 规则名 → I4 结论（按规则首次注册序）。 */
+  readonly byRule: ReadonlyMap<string, InvariantResult>;
+  /** I4 判为不达标的规则名（它们同时也是 elapsed 的 `degradedRules` 成员）。 */
+  readonly violated: readonly string[];
+}
+
 /** 未应用 delta 的固定返回（不可变，避免调用方误改共享对象）。 */
 const DELTA_SKIPPED: PoolDeltaResult = Object.freeze({
   applied: false,
   addedPaths: 0,
   stalePaths: 0,
   degradedRules: Object.freeze([]) as readonly string[],
+  // 没跑过就没有结论：空 map 而不是「全 ok」，否则调用方无法区分
+  // 「体检通过」与「根本没体检」（本项目反复出现的「空集冒充全绿」形态）。
+  invariants: Object.freeze({
+    byRule: new Map<string, InvariantResult>(),
+    violated: Object.freeze([]) as readonly string[],
+  }) as DeltaInvariantReport,
 });
 
 /** 空枚举结果的固定返回。 */
@@ -213,7 +242,29 @@ type SpaceDiff =
   | { kind: 'additive'; addedNodes: GraphNode[]; addedEdges: GraphEdge[] }
   | { kind: 'incompatible' };
 
-/** 结点集合与边集合的图空间视图。 */
+/**
+ * 结点集合与边集合的图空间视图。
+ *
+ * ## XJ-04 第 3 步 / D-10：`InvariantChecker` 在本层的接线点（cycle-111）
+ *
+ * `applyDelta` 末尾对**每条已注册规则**跑 I4（stale 比例），不达标即入 `degradedRules`
+ * 并清空该索引。这不是「为了花掉一个死符号」的仪式：接线前必须先修一条真缺陷——
+ *
+ * **删节点从来没有在索引上留下任何痕迹**。旧实现只做 `space.removeNode(id)`，而
+ * `removeNode` 内部删掉的相邻边**不经过** `dropEdge`，于是 `index.counters.stale` 纹丝不动。
+ * 实测（3 节点 a→b→c、物化 2 条路径后删 b）：`counters = {total: 2, stale: 0}`，
+ * 而索引里两条条目都指向已不存在的 b。I4 读的正是这两个计数，所以它会对一个**全线失效**
+ * 的索引给出 `ok: true`——分母含 stale 却看不出失效，与 `incremental.ts` 里
+ * 「用过滤后的 live 当分母，于是 0% 失效」是同一个坑的镜像。
+ *
+ * 因此这里的删节点分支改成：先按真实邻接**逐边走 `dropEdge`**（与删边同一条 stale 通道），
+ * 再删节点。I4 随后读到的是全量口径（`counters.total` 做分母，含已 stale 的条目），
+ * 与 `onEdgeRemovedDetailed` 同源。
+ *
+ * 与 `onEdgeRemovedDetailed` 的关系要说清楚，否则会觉得这道检查是重复的：两者阈值同为
+ * `0.3`，在**纯删边**的 delta 上判定等价；I4 真正多覆盖的是「删/改节点」以及
+ * 「一次 delta 里多种变更叠加后的终态」——那时的失效不是任何单条边删除的结论。
+ */
 export class XuanjiAdapter {
   private space = new GraphSpace();
   /** 已注册规则名 → 索引（增量维护）。 */
@@ -223,6 +274,22 @@ export class XuanjiAdapter {
   private loaded = false;
   /** 最近一次「适配层 == 某份图数据」的结构戳；applyDelta 后必然作废。 */
   private lastSyncStamp: SyncStamp | null = null;
+  /** 最近一次 `applyDelta` 的 I4 结论（见 {@link lastInvariantReport}）。 */
+  private lastInvariants: DeltaInvariantReport | null = null;
+  /** I4 的阈值。缺省 `thetaStale` 与增量引擎的 `DEFAULT_THETA_STALE` 取同一个常量。 */
+  private readonly invariantThresholds: InvariantThresholds;
+
+  /**
+   * @param thresholds I4/I3 阈值；`thetaStale` 缺省复用 `DEFAULT_THETA_STALE`（0.3）。
+   * 复用而非另写字面量：两处阈值一旦分叉，就会出现「增量引擎说该重建、不变量说还健康」
+   * 的自相矛盾，而两者都自称是 stale 比例的判据。
+   */
+  constructor(thresholds: InvariantThresholds = {}) {
+    this.invariantThresholds = {
+      thetaStale: thresholds.thetaStale ?? DEFAULT_THETA_STALE,
+      ...(thresholds.thetaDepth === undefined ? {} : { thetaDepth: thresholds.thetaDepth }),
+    };
+  }
 
   /** 图空间是否已装载过。未装载时 delta 无基线可依，池层必须拒绝应用。 */
   get isReady(): boolean {
@@ -342,7 +409,13 @@ export class XuanjiAdapter {
       }
     };
 
-    for (const node of delta.removedNodes) this.space.removeNode(node.id);
+    // 删节点必须**先按真实邻边逐条走 dropEdge**：GraphSpace.removeNode 内部删掉的相邻边
+    // 不经过上面那条 stale 通道（实测 counters.stale 纹丝不动），于是索引会留下指向已删
+    // 节点的条目而 I4 仍报健康。取删除前的邻接快照，逐条构造出等价的 XJEdge 再走 dropEdge。
+    for (const node of delta.removedNodes) {
+      for (const ej of this.incidentEdges(node.id)) dropEdge(ej);
+      this.space.removeNode(node.id);
+    }
     for (const node of delta.addedNodes) this.space.addNode(node.id, nodeAttrs(node));
     for (const node of delta.modifiedNodes) this.space.addNode(node.id, nodeAttrs(node));
 
@@ -356,7 +429,70 @@ export class XuanjiAdapter {
 
     for (const edge of delta.addedEdges) addEdge(xjEdge(edge));
 
-    return { addedPaths, stalePaths, degradedRules: [...degraded] };
+    // XJ-04 第 3 步：所有变更落地后，用 I4 对自己的索引做一次体检。
+    // 放在最后而不是每条边上：I4 问的是「这条规则现在还能不能用」，那是 delta 的**终态**。
+    const invariants = this.checkStaleInvariant(degraded);
+
+    return { addedPaths, stalePaths, degradedRules: [...degraded], invariants };
+  }
+
+  /** 最近一次 `applyDelta` 的 I4 结论（未跑过时为 null）。 */
+  get lastInvariantReport(): DeltaInvariantReport | null {
+    return this.lastInvariants;
+  }
+
+  /**
+   * 对每条已注册规则跑 I4，把不达标者清空并记入 `degraded`。
+   *
+   * 分母口径：`InvariantChecker.checkI4` 内部用 `index.counters.total`——**含已 stale 的条目**，
+   * 与 `incremental.ts` 的 `onEdgeRemovedDetailed` 完全同源。用 `liveCount()` 当分母是这一族
+   * 缺陷的复发形态（一个全部失效的索引会被算成 0% 失效，阈值永不触发）。
+   *
+   * 已被其它原因降级（stale 超阈 / 预算超限）的规则不重复检查：它们的索引已是空的
+   * （`retire` 里 `clear()` 过，total=0 ⇒ 比率按 0 处理），再跑一次只会得到一条
+   * 无信息的 ok:true，反而稀释了 `byRule` 的可读性。
+   */
+  private checkStaleInvariant(degraded: Set<string>): DeltaInvariantReport {
+    const byRule = new Map<string, InvariantResult>();
+    const violated: string[] = [];
+    const checker = new InvariantChecker(this.invariantThresholds);
+    for (const [name, index] of this.indexes) {
+      if (degraded.has(name)) continue;
+      const result = checker.checkI4(index);
+      byRule.set(name, result);
+      if (!result.ok) {
+        // 与 stale 超阈走同一个动作：留空索引好过留半成品。
+        index.clear();
+        degraded.add(name);
+        violated.push(name);
+      }
+    }
+    this.lastInvariants = { byRule, violated };
+    return this.lastInvariants;
+  }
+
+  /**
+   * 某个节点当前的**全部**相邻边快照（出边 + 入边），用于「删节点前先逐条失效」。
+   *
+   * 必须是快照：`dropEdge` 会改动邻接表，边遍历边删会漏掉元素（与 `GraphSpace.removeNode`
+   * 里 `Array.from` 的理由相同）。
+   */
+  private incidentEdges(nodeId: string): XJEdge[] {
+    const types = this.space.edgeTypes();
+    const edges: XJEdge[] = [];
+    for (const target of this.space.outNeighbors(nodeId, types)) {
+      for (const type of types) {
+        const edge = this.space.getEdge(nodeId, target, type);
+        if (edge) edges.push(edge);
+      }
+    }
+    for (const source of this.space.inNeighbors(nodeId, types)) {
+      for (const type of types) {
+        const edge = this.space.getEdge(source, nodeId, type);
+        if (edge) edges.push(edge);
+      }
+    }
+    return edges;
   }
 
   /**

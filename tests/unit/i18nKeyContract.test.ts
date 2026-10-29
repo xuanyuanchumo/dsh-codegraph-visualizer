@@ -24,6 +24,8 @@ import { PANEL_DROPDOWN_SECTIONS, EXPORT_FORMATS } from '../../src/client/compon
 
 const ROOT = join(__dirname, '..', '..');
 const TOOLBAR_CONFIG = join(ROOT, 'src', 'client', 'components', 'toolbarConfig.ts');
+/** `AnalysisPanelKey` 联合声明的真源（cycle-111：白名单改为从这里反解）。 */
+const VIEW_MODE_UTILS = join(ROOT, 'src', 'shared', 'viewModeUtils.ts');
 
 describe('i18n dictionaries: key parity', () => {
   it('zh and en declare the same key set', () => {
@@ -81,18 +83,51 @@ describe('toolbarConfig: every referenced key exists', () => {
   it('every ToolMenuItem panel key is a known AnalysisPanelKey', () => {
     // 反向：`panel` 字段被拿去查 `availablePanels.has(panel)`，写错一个字母
     // 会让该工具项永远被过滤掉（段标题还在，内容空了）。
+    //
+    // ## cycle-111：这份清单从「手写白名单」改为「从联合类型反解」
+    //
+    // 旧版是一个手写的 `new Set([...18 个 key])`。它有两个方向的缺陷：
+    //   · 新增一个 `AnalysisPanelKey` 时必须记得来这里加一行，否则守卫报红 —— 那不是
+    //     "缺陷被抓住了"，而是"守卫需要人工同步"（本轮 `showKeywordQuery` 就是这种红）；
+    //   · 更糟的反方向：手写清单**永远不会**自己变短，联合类型里删掉一个成员时它照旧通过 ——
+    //     于是"这个 panel key 根本不存在"这类拼写错误只要拼进清单就永久免检。
+    //
+    // 改成从 `src/shared/viewModeUtils.ts` 的 `AnalysisPanelKey` 联合声明里反解成员：
+    // 真源是类型定义本身，"新增/删除一个 panel"因此只需要改一处（类型），
+    // 这条守卫自动跟上，且**两个方向**都成立。
+    const viewModeUtils = readFileSync(VIEW_MODE_UTILS, 'utf8');
+    const unionMatch = viewModeUtils.match(/export type AnalysisPanelKey\s*=([\s\S]*?);/);
+    expect(unionMatch, '找不到 AnalysisPanelKey 联合声明（正则失效会让下面的断言恒绿）').toBeTruthy();
+    const knownPanels = new Set(
+      [...(unionMatch![1] ?? '').matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1] ?? ''),
+    );
+    // 防空转：联合声明解析失败会让 `knownPanels` 为空，那样上面声明的每个 panel 都会
+    // 被报成 unknown —— 失败原因从"源码漂移了"变成"守卫坏了"。先证明它真的读到了成员。
+    expect(knownPanels.size, 'AnalysisPanelKey 解析出 0 个成员，说明解析器坏了').toBeGreaterThan(10);
+
     const source = readFileSync(TOOLBAR_CONFIG, 'utf8');
     const declared = new Set(
       [...source.matchAll(/panel:\s*'([a-zA-Z]+)'/g)].map((m) => m[1] ?? ''),
     );
     expect(declared.size).toBeGreaterThan(10);
-    // 与 viewModeUtils 的联合成员比对（运行时读不到类型，只能比对已知清单）
-    const knownPanels = new Set([
-      'showSearch', 'showPathFind', 'showHealthScore', 'showRules', 'showImport', 'showFilterPanel',
-      'showCallChain', 'showCycles', 'showImpact', 'showInheritance', 'showHotspot', 'showGodModule',
-      'showCoreFunction', 'showDeadCode', 'showRuntime', 'showDiff', 'showMiniMap', 'showLegend',
-    ]);
     const unknown = [...declared].filter((p) => !knownPanels.has(p));
-    expect(unknown).toEqual([]);
+    expect(
+      unknown,
+      'toolbarConfig 里出现不是 AnalysisPanelKey 成员的 panel —— availablePanels.has(panel) 会永久为假，'
+        + '该工具项永远被过滤掉（段标题还在、内容空了）',
+    ).toEqual([]);
+
+    // 反向自检：一个合成的、不在联合里的 panel key 必须被判红。
+    // 样本用字符串拼接构造，避免扫描器扫到本文件自己的字面量（本仓踩过三次）。
+    const fakePanel = 'show' + 'NotARealPanel';
+    expect(knownPanels.has(fakePanel)).toBe(false);
+    const synthetic = `const items = [{ panel: '${fakePanel}' }];`;
+    const syntheticDeclared = [...synthetic.matchAll(/panel:\s*'([a-zA-Z]+)'/g)].map((m) => m[1] ?? '');
+    expect(syntheticDeclared.filter((p) => !knownPanels.has(p))).toEqual([fakePanel]);
+
+    // 另一半反向自检：`showKeywordQuery`（本轮新增）必须真的在联合里 —— 否则上面那条
+    // "unknown = []" 会因为两边同时缺失而恒绿（这正是旧白名单最危险的退化形态）。
+    expect(knownPanels.has('showKeywordQuery')).toBe(true);
+    expect(declared.has('showKeywordQuery')).toBe(true);
   });
 });

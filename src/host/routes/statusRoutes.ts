@@ -1,6 +1,7 @@
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from '../prerequisites.ts';
 import { sendJson } from '../HttpHelpers.ts';
 import { computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
+import { isGraphServiceHealthy } from '../../shared/prerequisiteStatus.ts';
 import { withRouteMiddleware, ensureWorkspaceRootsAllowed, type RouteContext } from './shared.ts';
 
 export function registerStatusRoute(rc: RouteContext): void {
@@ -16,6 +17,11 @@ export function registerStatusRoute(rc: RouteContext): void {
       sendJson(res, 200, {
         codegraph: status.codegraph,
         lens: status.lens,
+        // 「AST 分析通道」与「图数据通道」是两个不同的能力位（docs/需求分析.md §61.10）。
+        // 客户端据此决定空态是否显示降级提示，宿主据此决定 `/health` 的 healthy。
+        astSource: status.astSource,
+        graphSource: status.graphSource,
+        // 兼容别名（= astSource），下一轮移除。旧客户端读它；新代码一律读上面两个字段。
         builtin: status.builtin,
         // Diagnostics only: the generation-dated capability record resolved at boot. Runtime
         // behaviour is decided by which upstream tools are actually available, not by these flags.
@@ -39,11 +45,18 @@ export function registerHealthRoute(rc: RouteContext): void {
         const mem = process.memoryUsage();
         const lastGraph = deps.getLastGraphData();
         const hasGraphData = lastGraph !== null;
-        const healthy = status.codegraph || status.lens || status.builtin;
+        // 修前是 `codegraph || lens || builtin`，而 `builtin` 被硬编码为 `true` ⇒ 恒 healthy，
+        // 「degraded」这条分支从未在任何宿主上出现过。`astSource` 刻意不参与判定：
+        // 「能做 AST 分析」不等于「能画出一张图」，把两者当成一件事正是旧实现恒真的原因。
+        const healthy = isGraphServiceHealthy(status);
         sendJson(res, healthy ? 200 : 503, {
           status: healthy ? 'healthy' : 'degraded',
           codegraph: status.codegraph,
           lens: status.lens,
+          // 两个内置能力位都上报（判定只用了 graphSource），这样 503 时能一眼看出
+          // 「是 AST 有、图没有」还是「两个都没有」。
+          astSource: status.astSource,
+          graphSource: status.graphSource,
           builtin: status.builtin,
           hasGraphData,
           // P0-6: the current structural fingerprint, so an operator can tell whether the graph

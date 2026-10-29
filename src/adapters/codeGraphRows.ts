@@ -185,9 +185,9 @@ export function mapRowsToGraphEdges(
     // 上游 `codegraph.db` 的 edges 表只有 `id/source/target/kind/line`，**没有 confidence 列**
     // （`DbEdgeRow` 是本文件对它的逐字段转写）。因此这里刻意**不**产出 `EXTRACTED`/`INFERRED`
     // 之类的取值 —— 那会是凭空编造的证据。能证明的只有：
-    //   - `edgeOrigin: 'db'`：这条边来自 SQLite 索引的 edges 行。`ast` 档位保留给
-    //     TreeSitterAdapter 的 `contains` 边，但本轮尚未在那里标注，
-    //     见 `EDGE_ORIGIN_RANK` —— 这里不冒充它；
+    //   - `edgeOrigin: 'db'`：这条边来自 SQLite 索引的 edges 行。`ast` 档位（同一条 `contains`
+    //     边由语法树父子关系直接给出）现在由 `TreeSitterAdapter` 生产（cycle-111 P1-N4）。
+    //     两个档位互斥：本文件只写 `db`，**不冒充** `ast`；
     //   - `edgeLocatable`：这一行有没有 `line`。有 line 才能回溯到源码位置，`null` 只能信其存在；
     //   - `rawKind`：被 `EDGE_KIND_MAP` 压平**之前**的上游 kind。`type` 已经丢失了这个信息
     //     （未知 kind 一律压成 `dependency`），而冲突裁决需要区分"具体关系"与兜底值。

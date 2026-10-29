@@ -8,7 +8,24 @@
  * - 边键为 `source->target->type`（多重边按类型区分，同型同端幂等）；
  * - outAdj / inAdj 都按边类型分桶，路径规则的边谓词 Φ 取对应子数组即 O(1) 裁剪；
  * - version 单调递增，供 PathEntry 版本一致性与不变量 I5 使用；
- * - changeLog append-only，供增量引擎消费。
+ * - changeLog **有界环形**（`MAX_CHANGE_LOG`），供增量引擎消费。
+ *
+ * ## 为什么 changeLog 必须有上界（cycle-111 / N-1）
+ *
+ * 旧注释写的是「changeLog append-only」，实现也确实只 push 不 pop。在 cycle-107～108 的
+ * 生命周期下这是**无害**的：`XuanjiAdapter` 每次工具调用都 `new` 一次，日志随对象一起被 GC。
+ * cycle-109 把 `XuanjiAdapterPool` 接进 `src/tools.ts` 之后，同一个 `GraphSpace` 改为
+ * **按 repoId 常驻**，而唯一消费入口 `drainChangeLog()` 在生产侧 0 调用点——日志只进不出，
+ * 随进程运行时长线性增长。同一段代码，换一个生命周期就从无害变成泄漏。
+ *
+ * 修法选择「加上界」而不是「让适配层 drain 后丢弃」：
+ * - drain 并丢弃会把**内存缺陷换成数据丢失缺陷**——将来的真正消费者（增量重放 / 审计）
+ *   会看到一份「看起来完整、其实开头被吃掉」的日志，而且没有任何信号；
+ * - 加上界则保留 `drainChangeLog()` 的语义（返回自上次 drain 以来的事件），只是当未消费
+ *   事件超过上界时丢弃**最旧**的，并用 {@link GraphSpace.droppedChangeEvents} 把丢弃量
+ *   显式暴露出来——截断可见，与仓库「降级必须可观测」的纪律一致。
+ *
+ * 上界的作用域是**单个实例**：库不假设调用方会 drain，也不假设实例是短命的。
  *
  * 零宿主依赖：库内只用 string 标识，不感知 cytoscape / graphology / branded type。
  *
@@ -42,6 +59,19 @@ export interface XJEdge {
   readonly weight?: number;
 }
 
+/**
+ * 变更日志的**实例级**上限（未消费事件条数）。
+ *
+ * 标定依据：日志只服务增量重放与审计，没有「保留全部历史」的调用方；而池化后实例常驻，
+ * 不设界就是无界增长。10 000 条足以覆盖「一次批量装载 + 若干次 delta」的重放窗口
+ * （宿主一次 `graph_data` 装载的边数在千级，见 `PATH_FINDER.MAX_NODES_FOR_BFS` 的量级），
+ * 又能在病态长跑下把内存钉在常数。
+ *
+ * 注意这是**常量而不是可选项**：让调用方自行配置上界等于允许传 `Infinity`，
+ * 而那正是本项要修掉的缺陷形态。
+ */
+export const MAX_CHANGE_LOG = 10_000;
+
 /** 变更事件（append-only，增量引擎的输入）。 */
 export interface ChangeEvent {
   readonly kind: 'add-node' | 'remove-node' | 'add-edge' | 'remove-edge';
@@ -67,11 +97,50 @@ export class GraphSpace {
   /** inAdj[node][edgeType] = 来源节点列表（前缀枚举必需，spec §4.1 契约）。 */
   private readonly inAdj = new Map<NodeId, Map<EdgeType, NodeId[]>>();
   private readonly edgeMap = new Map<string, XJEdge>();
+  /**
+   * 未消费的变更事件。物理长度最多 `MAX_CHANGE_LOG`；`logHead` 是逻辑起点的偏移。
+   *
+   * 用「覆盖式环形」而不是 `push` + `splice(0, over)`：满之后每次写入都要搬动整个数组，
+   * 10 000 条时单次开销已可测（本文件的首版实现就是这样，一次批量装载实测 350 ms）。
+   * 环形下 record 是 O(1)，只有 drain 需要 O(n)——而 drain 本来就要复制整份结果。
+   */
   private readonly log: ChangeEvent[] = [];
+  /** 逻辑起点在 `log` 中的物理偏移；只在写满之后才非零。 */
+  private logHead = 0;
+  private _droppedChangeEvents = 0;
   private _version = 0;
 
   get version(): number {
     return this._version;
+  }
+
+  /**
+   * 因超出 {@link MAX_CHANGE_LOG} 而被丢弃的最旧事件数（自构造/clear 起累计）。
+   *
+   * 存在理由：截断本身是正确性上的让步（重放窗口变小），**静默截断**会让将来的消费者
+   * 把「被吃掉的日志」当成「没发生过的事」。计数必须可读：`XuanjiAdapter.stats()`
+   * 把它透出到宿主面，测试也直接断言它。
+   * `drainChangeLog()` 不清零它——清零会掩盖「这条适配层从未被消费过」的事实。
+   */
+  get droppedChangeEvents(): number {
+    return this._droppedChangeEvents;
+  }
+
+  /** 当前未消费的事件条数（有界，≤ {@link MAX_CHANGE_LOG}）。 */
+  get pendingChangeEvents(): number {
+    return this.log.length;
+  }
+
+  /** 追加一条事件并维持上界：写满后覆盖最旧的一条。 */
+  private record(event: ChangeEvent): void {
+    if (this.log.length < MAX_CHANGE_LOG) {
+      this.log.push(event);
+      return;
+    }
+    // 已满：head 指向最旧的一条，就地覆盖并把它挪到下一位。
+    this.log[this.logHead] = event;
+    this.logHead = (this.logHead + 1) % MAX_CHANGE_LOG;
+    this._droppedChangeEvents += 1;
   }
 
   get nodeCount(): number {
@@ -88,7 +157,7 @@ export class GraphSpace {
     if (isNew) {
       // 版本号只为「结构变化」递增：属性覆盖不改变可达性
       this._version++;
-      this.log.push({ kind: 'add-node', node: { id, attrs }, version: this._version });
+      this.record({ kind: 'add-node', node: { id, attrs }, version: this._version });
     }
   }
 
@@ -110,7 +179,7 @@ export class GraphSpace {
     }
     this.nodes.delete(id);
     this._version++;
-    this.log.push({ kind: 'remove-node', node: { id, attrs: { label: id } }, version: this._version });
+    this.record({ kind: 'remove-node', node: { id, attrs: { label: id } }, version: this._version });
   }
 
   /** 幂等：同 (source,target,type) 只保留第一条。 */
@@ -121,7 +190,7 @@ export class GraphSpace {
     this.pushAdj(this.outAdj, edge.source, edge.type, edge.target);
     this.pushAdj(this.inAdj, edge.target, edge.type, edge.source);
     this._version++;
-    this.log.push({ kind: 'add-edge', edge, version: this._version });
+    this.record({ kind: 'add-edge', edge, version: this._version });
     return true;
   }
 
@@ -132,7 +201,7 @@ export class GraphSpace {
     this.popAdj(this.outAdj, edge.source, edge.type, edge.target);
     this.popAdj(this.inAdj, edge.target, edge.type, edge.source);
     this._version++;
-    this.log.push({ kind: 'remove-edge', edge, version: this._version });
+    this.record({ kind: 'remove-edge', edge, version: this._version });
     return true;
   }
 
@@ -197,10 +266,22 @@ export class GraphSpace {
     return byType ? [...byType.keys()] : [];
   }
 
-  /** 消费变更日志（增量引擎接管后清空）。 */
+  /**
+   * 消费变更日志（增量引擎接管后清空）。
+   *
+   * 语义保持不变：返回**自上次 drain 以来仍保留**的事件，顺序即写入序，`version` 严格递增。
+   * 唯一的差异是日志有上界——若期间发生溢出，返回数组会比「事件真实条数」短，
+   * 差额由 {@link droppedChangeEvents} 给出（截断可见，不静默）。
+   * 被丢弃的**只会是最旧的**事件，所以返回序列本身仍是连续且单调的。
+   */
   drainChangeLog(): ChangeEvent[] {
-    const drained = [...this.log];
+    // 环形的逻辑序 = [head..末尾] + [0..head)：复制时一次性拉直，调用方拿到的仍是普通数组。
+    const drained =
+      this.logHead === 0
+        ? [...this.log]
+        : [...this.log.slice(this.logHead), ...this.log.slice(0, this.logHead)];
     this.log.length = 0;
+    this.logHead = 0;
     return drained;
   }
 
@@ -210,6 +291,9 @@ export class GraphSpace {
     this.inAdj.clear();
     this.edgeMap.clear();
     this.log.length = 0;
+    this.logHead = 0;
+    // 丢弃计数随图本身归零：clear 之后这个实例等于新建，旧实例的截断历史不再属于它。
+    this._droppedChangeEvents = 0;
     this._version = 0;
   }
 

@@ -64,6 +64,7 @@ import './styles/hotspot-godmodule-panel.css'; import './styles/impact-panel.css
 import './styles/tour-panel.css'; import './styles/responsive.css'; import './styles/misc.css';
 import './styles/runtime-panel.css';
 import './styles/diff-panel.css';
+import './styles/keyword-query-panel.css';
 
 const log = scoped('panel');
 
@@ -612,6 +613,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           cycles: t('toolbar.cycles'),
           cyclesEmpty: t('cycles.empty'),
           runtime: t('runtime.title'),
+          keywordQuery: t('keywordQuery.title'),
           godModuleStats: (n, e) => t('godmodule.stats', { nodes: n, edges: e }),
         }}
       />

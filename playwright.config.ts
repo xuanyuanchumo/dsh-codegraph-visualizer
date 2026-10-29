@@ -81,7 +81,7 @@ export default defineConfig({
       // 注意：testMatch 里**只能列真实存在的 spec**。cycle-110 清理时移除了
       // `conversation-remote-web-ui`——该文件已不存在（历史遗留），列在这里的后果是
       // 「以为有 21 个 spec 在跑，实际 20 个」，属 §2.20 那类「套件比你以为的小」的静默缺口。
-      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|graph-browsing|on-demand-loading|conditional-requests)\.spec\.ts$/,
+      testMatch: /^.*(user-journey|plugin-install|search-and-analysis|realtime|filter-and-export|view-modes|focus-mode|chaos|integration-and-lifecycle|diff-and-integration|keyboard-shortcuts|i18n|v020-features|view-layers|micro-views|resource-exhaustion|local-repos|graph-browsing|on-demand-loading|conditional-requests|keyword-query)\.spec\.ts$/,
     },
     // 独立集：视觉快照（手动触发）
     {

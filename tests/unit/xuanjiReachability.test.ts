@@ -489,18 +489,14 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
       },
       {
         symbol: 'ChangeEvent',
-        reason: 'D-06 同族：变更日志事件类型；消费侧 drainChangeLog 也没有宿主调用方，日志只进不出',
+        reason:
+          'D-06 同族：变更日志事件类型；生产侧只经 drainChangeLog 的返回值消费（适配层不 import 类型名），日志本身已有上界 MAX_CHANGE_LOG',
         owner: 'D-06',
       },
       {
         symbol: 'compareNodeSequences',
         reason: '库内自用：路径字典序比较器；宿主不排序路径条目，返回的是映射后的 plain 对象',
         owner: 'library-internal',
-      },
-      {
-        symbol: 'compileLengthNfa',
-        reason: 'XJ-08 方案 A 待删除：NFA 整块 57 行无宿主调用方，仅 states = lMax - lMin + 1 一个减法',
-        owner: 'XJ-08',
       },
       {
         symbol: 'concatHash',
@@ -511,11 +507,6 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
         symbol: 'concatRules',
         reason: 'D-07 组合代数：宿主无规则组合需求（规范 §六 已判定「不引入」）；cycle-108 只修了正确性',
         owner: 'D-07',
-      },
-      {
-        symbol: 'DEFAULT_THETA_STALE',
-        reason: 'XJ-04 的阈值常量由库内 resolveTheta 使用；适配层调用 onEdgeRemovedDetailed 时不传 thetaStale',
-        owner: 'XJ-04',
       },
       {
         symbol: 'differenceRules',
@@ -630,21 +621,6 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
         owner: 'D-07',
       },
       {
-        symbol: 'InvariantChecker',
-        reason: 'D-10：I1-I5 健康监控从未运行；XJ-04 第 3 步计划在 applyDelta 末尾接线，本轮未做',
-        owner: 'XJ-04',
-      },
-      {
-        symbol: 'InvariantResult',
-        reason: 'D-10：不变量检查结果类型，检查器本身无调用方',
-        owner: 'XJ-04',
-      },
-      {
-        symbol: 'InvariantThresholds',
-        reason: 'D-10：不变量阈值类型，检查器本身无调用方',
-        owner: 'XJ-04',
-      },
-      {
         symbol: 'isLegalPath',
         reason: '库内自用 19 处（剪枝后的精确终判）；宿主不直接判定路径合法性，只消费枚举结果',
         owner: 'library-internal',
@@ -708,14 +684,15 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
         owner: 'library-internal',
       },
       {
-        symbol: 'minimalRotationIndex',
-        reason: '同 isMinimalRotation：仅由 CycleDFS 对称 re-export，无消费者',
+        symbol: 'MAX_CHANGE_LOG',
+        reason:
+          'N-1 的日志上界常量：由 GraphSpace.record 内部使用，宿主不读数也不配置（上界刻意不做成选项，否则就等于允许传 Infinity）',
         owner: 'library-internal',
       },
       {
-        symbol: 'NfaCompileResult',
-        reason: 'XJ-08 方案 A 待删除：与 compileLengthNfa 同时移除（nfa.test.ts 一并删除）',
-        owner: 'XJ-08',
+        symbol: 'minimalRotationIndex',
+        reason: '同 isMinimalRotation：仅由 CycleDFS 对称 re-export，无消费者',
+        owner: 'library-internal',
       },
       {
         symbol: 'NodeId',

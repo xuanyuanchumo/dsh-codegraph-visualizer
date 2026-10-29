@@ -5,6 +5,7 @@ import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 import type { LayeredDiagram } from '../diagram/index.ts';
 import { type LayoutType, type ThemeType, type RankDir } from '../../shared/viewModeUtils.ts';
 import type { IntegrationMode } from '../../shared/constants.ts';
+import type { PrerequisiteStatus } from '../../shared/prerequisiteStatus.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
@@ -100,7 +101,14 @@ export interface GraphState {
    */
   graphEtag: string | null;
 
-  prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
+  /**
+   * 能力位。形状与语义见 `src/shared/prerequisiteStatus.ts` —— 宿主 `/status` 与客户端 store
+   * **共用**同一个类型，避免"宿主加了一个位、客户端读的是旧形状"这类静默漂移。
+   *
+   * `builtin` 是 `astSource` 的**已弃用别名**（下一轮移除）：保留它只为了让既有组件/测试
+   * 不必在同一轮里全部改签名。新代码一律读 `astSource` / `graphSource`。
+   */
+  prerequisites: PrerequisiteStatus;
   integrationMode: IntegrationMode;
   panelVisible: boolean;
   urlRestored: boolean;
@@ -215,7 +223,7 @@ export interface GraphState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;
-  setPrerequisites: (status: { codegraph: boolean; lens: boolean; builtin: boolean }) => void;
+  setPrerequisites: (status: PrerequisiteStatus) => void;
   setIntegrationMode: (mode: IntegrationMode) => void;
   setPanelVisible: (visible: boolean) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;

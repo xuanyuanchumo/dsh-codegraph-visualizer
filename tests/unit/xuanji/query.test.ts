@@ -553,6 +553,69 @@ describe('XJ-07 截断语义：DFS 序 vs top-k-weight', () => {
     expect(topk).toEqual(dfs);
   });
 
+  it('缺省 DFS 序截断**不看权重**：高权重路径照样被丢掉（契约的核心区分）', () => {
+    // 这一条与上面「top-k 保留高权重」构成一对反向断言，缺任何一半都能让实现偷懒：
+    // - 只有「top-k 选中 a>d>c」⇒ 一个把 weight 无条件参与排序的实现也能过；
+    // - 只有「DFS 留下 a>b>c」⇒ 一个完全忽略 weight 的实现也能过。
+    // 两条一起才钉住「权重只在显式 top-k 时参与」这个契约。
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 2, lMax: 2, simple: true });
+    const entries = enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 1 });
+    // a>b>c 权重 1+1=2，a>d>c 权重 5+5=10；DFS 序先走 b，于是**丢掉的是高权重那条**
+    expect(sequences(entries)).toEqual(['a>b>c']);
+  });
+
+  it('缺省截断是确定且可复现的：同图两次枚举逐元素相等', () => {
+    // 任务书要求的「缺省确定性断言」。不能只比长度——排序不稳定时长度照样相等。
+    const graph = weightedDiamond();
+    const rule = ruleOf({ lMin: 1, lMax: 2, simple: true });
+    const first = sequences(enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 2 }));
+    const second = sequences(enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 2 }));
+    expect(first).toEqual(second);
+    // 同时也与显式 dfs-order 逐元素相等（缺省就是它，不是第三种隐藏策略）
+    const explicit = sequences(
+      enumerate(graph, rule, ['a'], new PathIndex(), { maxPaths: 2, truncation: 'dfs-order' }),
+    );
+    expect(first).toEqual(explicit);
+  });
+
+  it('同端多种边类型时取权重的 max：结果不随 edgeTypes 的声明顺序变化', () => {
+    // 回归用例（cycle-111 实测发现）：原实现 `for (type of edgeTypes) { …break }` 取
+    // **迭代序第一条**存在的边，而 edgeTypes 是 Set ⇒ 改变声明顺序就改变 top-1。
+    // 构造：a→b 同时有 r(1) 与 i(100)，另有 a→d→c 权重 2+2=4。
+    // 取 max 时 a→b→c 的分数是 100+1=101 > 4，两种声明顺序都必须选它。
+    function multiTypeGraph(): GraphSpace {
+      const graph = new GraphSpace();
+      for (const id of ['a', 'b', 'c', 'd']) graph.addNode(id, { label: id });
+      graph.addEdge({ id: 'ab-r', source: 'a', target: 'b', type: 'r', weight: 1 });
+      graph.addEdge({ id: 'ab-i', source: 'a', target: 'b', type: 'i', weight: 100 });
+      graph.addEdge({ id: 'bc', source: 'b', target: 'c', type: 'r', weight: 1 });
+      graph.addEdge({ id: 'ad', source: 'a', target: 'd', type: 'r', weight: 2 });
+      graph.addEdge({ id: 'dc', source: 'd', target: 'c', type: 'r', weight: 2 });
+      return graph;
+    }
+    const ruleFor = (order: readonly string[]): PathRule =>
+      ruleOf({ lMin: 2, lMax: 2, simple: true, edgeTypes: new Set(order) });
+
+    const graph = multiTypeGraph();
+    const byDefaultOrder = sequences(
+      enumerate(graph, ruleFor(['r', 'i']), ['a'], new PathIndex(), {
+        maxPaths: 1,
+        truncation: 'top-k-weight',
+      }),
+    );
+    const byReversedOrder = sequences(
+      enumerate(graph, ruleFor(['i', 'r']), ['a'], new PathIndex(), {
+        maxPaths: 1,
+        truncation: 'top-k-weight',
+      }),
+    );
+
+    // 两种声明顺序必须给出同一个答案，且都是高权重那条
+    expect(byDefaultOrder).toEqual(['a>b>c']);
+    expect(byReversedOrder).toEqual(['a>b>c']);
+  });
+
   it('未知 truncation 策略抛 RuleCompositionError（不静默当作 DFS 序）', () => {
     const graph = weightedDiamond();
     const rule = ruleOf({ lMin: 1, lMax: 2, simple: true });

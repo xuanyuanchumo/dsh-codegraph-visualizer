@@ -96,8 +96,12 @@ export function commitEtag(sink: EtagSink): void {
  *
  * 校验值只能**原样回传**，不能由客户端按时间戳拼——host 的校验值含资源维度与请求键维度
  * （见 `computeGraphEtag`），客户端无从推导。
+ *
+ * 导出给同目录的 `keywordQuery.ts`：关键词检索是第五个参与条件请求的端点，它必须复用
+ * **同一套**头构造与同一个校验值缓存。复制一份的代价不是重复代码，而是两侧的缓存上限/
+ * 淘汰策略悄悄分叉，最后表现为「某个请求永远拿不到 304」，或更糟——假 304。
  */
-function conditionalHeaders(clientEtag: string | null | undefined): Record<string, string> {
+export function conditionalHeaders(clientEtag: string | null | undefined): Record<string, string> {
   return clientEtag ? { 'if-none-match': clientEtag } : {};
 }
 
@@ -114,7 +118,15 @@ function conditionalHeaders(clientEtag: string | null | undefined): Record<strin
 const etagByRequestKey = new Map<string, string>();
 const MAX_ETAG_ENTRIES = 256;
 
-function rememberEtag(key: string, etag: string | null): void {
+/**
+ * 登记某个请求键的校验值（条件请求的写入侧）。
+ *
+ * 与 `etagForRequestKey` 成对，两者一起导出给 `keywordQuery.ts`：第五个参与条件请求的
+ * 端点必须读写**同一张表**。若它自建一张，两侧的容量上限与淘汰策略会分叉，且
+ * `clearEtagCache()` 只能清一半 ——「整图替换后旧校验值必须失效」这条纪律就会出现
+ * 一个静默的逃逸口（重新展开会带着旧值拿到 304，而客户端已经没有那份载荷）。
+ */
+export function rememberEtag(key: string, etag: string | null): void {
   if (!etag) return;
   // 重新插入以把它移到"最新"位置（Map 保序，最旧的在头部）。
   etagByRequestKey.delete(key);
@@ -124,6 +136,17 @@ function rememberEtag(key: string, etag: string | null): void {
     if (oldest.done) break;
     etagByRequestKey.delete(oldest.value);
   }
+}
+
+/**
+ * 取某个请求键上一次拿到的校验值（条件请求的读取侧）。
+ *
+ * 与 `rememberEtag` 成对存在，导出给 `keywordQuery.ts`：第五个参与条件请求的端点必须
+ * 读写同一张表。若它自己建一张，两侧的淘汰策略会分叉，且 `clearEtagCache()` 只能清一半 ——
+ * 「整图替换后旧校验值必须失效」这条纪律就会出现一个逃逸口。
+ */
+export function etagForRequestKey(key: string): string | null {
+  return etagByRequestKey.get(key) ?? null;
 }
 
 /** 仅供测试：清空校验值缓存，避免用例之间互相影响。 */

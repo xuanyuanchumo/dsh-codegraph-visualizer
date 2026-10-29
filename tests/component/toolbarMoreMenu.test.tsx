@@ -43,13 +43,14 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     showImport: false, showPathFind: false, showHealthScore: false, showRules: false,
     showHotspot: false, showGodModule: false, showCoreFunction: false, showDeadCode: false,
     showFilterPanel: false, showTour: false, showRuntime: false, showDiff: false,
+    showKeywordQuery: false,
     onToggleSearch: noop, onToggleCallChain: noop, onToggleCycles: noop,
     onToggleCycleIsolation: noop, onToggleImpact: noop, onToggleInheritance: noop,
     onToggleMiniMap: noop, onToggleLegend: noop, onToggleImport: noop,
     onTogglePathFind: noop, onToggleHealthScore: noop, onToggleRules: noop,
     onToggleHotspot: noop, onToggleGodModule: noop, onToggleCoreFunction: noop,
     onToggleDeadCode: noop, onToggleFilterPanel: noop, onToggleTour: noop,
-    onToggleRuntime: noop, onToggleDiff: noop,
+    onToggleRuntime: noop, onToggleDiff: noop, onToggleKeywordQuery: noop,
     ...overrides,
   };
 }

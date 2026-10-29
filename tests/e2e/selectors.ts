@@ -108,6 +108,8 @@ export const TOOL_ITEM = {
   coreFunction: '.cg-corefunction-btn',
   deadCode: '.cg-deadcode-btn',
   isolateCycles: '.cg-isolate-btn',
+  /** 关键词图检索（cycle-111 / N-5）。它是「工具」下拉里的一项，与上面同族。 */
+  keywordQuery: '.cg-keywordquery-btn',
 } as const;
 
 /** 「数据」下拉内的条目。 */
@@ -143,14 +145,36 @@ export const SEARCH = {
   results: '.cg-search-results',
 } as const;
 
+/**
+ * 关键词图检索面板（cycle-111 / N-5，旅程 J50）。
+ *
+ * 这里的每一个字面量都必须在 `src/client/components/KeywordQueryPanel.tsx` 里真实存在——
+ * `e2eSelectorContract.test.ts` 会反向扫描「代码里有没有这个类名」，写错即红。
+ * 登记在此（而不是散落在 spec 里）是本仓的单一事实源纪律：spec 里裸写选择器会让
+ * 「改了一个类名、全部 E2E 静默等超时」这种缺陷无法被任何单测发现。
+ *
+ * 注意 `input` 用 `#` 而不是 `.`：组件把 `cg-keywordquery-input` 同时写在 `id` 与
+ * `className` 上（`KeywordQueryPanel.tsx:143-145`），但 id 是稳定的那一侧。
+ */
+export const KEYWORD_QUERY = {
+  panel: '.cg-keywordquery-panel',
+  input: '#cg-keywordquery-input',
+  submit: '.cg-keywordquery-submit',
+  clear: '.cg-keywordquery-clear',
+  seed: '.cg-keywordquery-seed',
+  summary: '.cg-keywordquery-summary',
+  idle: '.cg-keywordquery-idle',
+  truncated: '.cg-keywordquery-truncated',
+  live: '.cg-keywordquery-live',
+} as const;
+
 /** 筛选面板（checkbox 网格，不是 `<select>`）。
  *  注意：节点/边类型 checkbox 只把 `cg-filter-node-*` / `cg-filter-edge-*`
  *  写在 `id` 与 `name` 上，**没有 className**（`FilterPanel.tsx:143-172`），
  *  所以这里必须用 `#` 前缀而不是 `.`。 */
 export const FILTER = {
   panel: '.cg-filter-panel',
-  nodeType: (type: string) => `#cg-filter-node-${type}`,
-  edgeType: (type: string) => `#cg-filter-edge-${type}`,
+  nodeType: (type: string) => `#cg-filter-node-${type}`,  edgeType: (type: string) => `#cg-filter-edge-${type}`,
   includeInput: '#cg-filter-include',
   excludeInput: '#cg-filter-exclude',
   reset: '.cg-filter-reset-btn',

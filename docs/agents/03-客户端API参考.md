@@ -257,6 +257,7 @@ export const PLUGIN_TAB_KIND = 'codegraph-visualizer';
 | `viewModeTransition.ts` | 视图模式切换时的状态搬迁 |
 | `cluster/`（8 文件） | 聚类节点/边模型 |
 | `slices/`（10 文件） | `panelLod` / `pathFocus` / `viewMode` / `filter` / `analysis` / `session` / `workspace` / `graphData` / `expand` / `edge` |
+| `slices/`（⟨待 T3⟩ +1） | 关键词检索切片（`loading` / `error` / `result`）。**当前不存在**；任务书要求「组件内不留业务状态」，见 [11](./11-图检索与关键词查询.md) §6.4 |
 
 ### 5.2 `GraphState` 关键字段（`types.ts`）
 
@@ -284,10 +285,23 @@ export const PLUGIN_TAB_KIND = 'codegraph-visualizer';
   （`hasMore: false`）；用户一旦要明细，之后每页都必须继续要未聚合的边。
 - `astPageByNodeId: Map<string, AstPageInfo>`（`:120`）—— `AstPageInfo { loaded, total, hasMore, cursor }`（`:20-29`）
 
-**面板可见性**（`AnalysisPanelKey` 共 17 个）：`showSearch` / `showPathFind` /
+**面板可见性**（`AnalysisPanelKey` 共 **18** 个，`src/shared/viewModeUtils.ts:100-106`）：`showSearch` / `showPathFind` /
 `showHealthScore` / `showRules` / `showImport` / `showFilterPanel` / `showCallChain` /
 `showCycles` / `showImpact` / `showInheritance` / `showHotspot` / `showGodModule` /
-`showCoreFunction` / `showDeadCode` / `showRuntime` / `showMiniMap` / `showLegend`
+`showCoreFunction` / `showDeadCode` / `showRuntime` / **`showDiff`** / `showMiniMap` / `showLegend`
+
+> **文档修正记录（cycle-111 实测）**：本节原写「共 17 个」且列表里**没有 `showDiff`**，
+> 与源码不符。按 `src/shared/viewModeUtils.ts:100-106` 的联合类型逐个计数，真实值是
+> **18**（补上 `showDiff`）。复验：
+>
+> ```bash
+> node -e "const s=require('fs').readFileSync('src/shared/viewModeUtils.ts','utf8');const m=s.match(/export type AnalysisPanelKey =([\s\S]*?);/);console.log([...m[1].matchAll(/'([a-zA-Z]+)'/g)].map(x=>x[1]).length)"  # → 18
+> ```
+>
+> 三层的可用集合（同一命令可复验）：`STRUCTURAL_PANELS` **10**、`BEHAVIORAL_PANELS` **13**、
+> `RUNTIME_PANELS` **3**（`viewModeUtils.ts:119`/`:126`/`:146`）。三集合**不是**对
+> `AnalysisPanelKey` 的划分（`showMiniMap`/`showLegend` 三层都有，`showDiff` 在
+> structural 与 behavioral 两层都有）——**不要**用「某 key 只属于一层」做判断。
 
 ### 5.3 全部 action（60 个，`types.ts:161-241`）
 
@@ -643,7 +657,117 @@ tokens → layout → overlays → graph → node-detail → import-workspace
 | 交互 | `Dropdown`、`ContextMenu`、`GraphTooltip`、`SearchBar`、`FilterPanel`、`KeyboardHelp`、`OverlayBar` |
 | 信息 | `StatusBar`、`StatsPanel`、`Legend`、`NodeDetail`、`NodeEdgeList`、`MicroViewBar`、`PathBar`、`FocusModeBar` |
 | 流程 | `EmptyState`、`LoadingOverlay`、`ErrorOverlay`、`ImportPanel`、`WorkspaceSelector`、`TourPanel`、`Icons` |
+| 检索（⟨待 T3⟩） | `KeywordQueryPanel` + `styles/keyword-query-panel.css` —— **当前不存在**（`ls src/client/components/ \| grep -i keyword` = 空）。契约见 [11](./11-图检索与关键词查询.md) §6 |
+
+### 13.1 工具栏入口的承载点（改入口前必读）
+
+结构化入口不是散落在 `Toolbar.tsx` 里的 JSX，而是由 `toolbarConfig.ts` 的常量驱动：
+
+| 常量 | 行 | 内容 | 渲染者 |
+|---|---|---|---|
+| `ANALYSIS_ITEMS` | `:89-93` | `showCallChain` / `showCycles` / `showImpact` / `showInheritance` / `showPathFind` | `ToolbarViewMode` / 更多菜单 |
+| `QUALITY_ITEMS` | `:97-102` | `showHealthScore` / `showRules` / `showHotspot` / `showGodModule` / `showCoreFunction` / `showDeadCode` | 同上 |
+| `RUNTIME_ITEMS` | `:118` | `showRuntime` | 同上 |
+| `DIFF_ITEMS` | `:132` | `showDiff` | 同上 |
+| **`PANEL_DROPDOWN_SECTIONS`** | `:135-140` | 把上面四组按**段**组装：`toolbar.analysis` / `toolbar.quality` / `toolbar.runtimeSection` / `toolbar.diffSection` | `toolbar/moreMenu.ts` → `ToolbarSettings` |
+
+**新增一个面板入口的最小改动**（三步，不是一步）：
+
+1. 在对应的 `*_ITEMS` 里加一条（`{ panel, Icon, key, btnClass, toggle }`）；
+2. 若需要新段，加进 `PANEL_DROPDOWN_SECTIONS`（`labelKey` 必须同步到 `zh`/`en` 字典）；
+3. `panel` 字段必须是 `AnalysisPanelKey` 的成员（**18** 个，见 §5.2）——**不是**随便一个字符串。
+   加新 key 要同时改 `src/shared/viewModeUtils.ts:100` 的联合类型**与**
+   `STRUCTURAL_PANELS`/`BEHAVIORAL_PANELS`/`RUNTIME_PANELS` 三个集合（`setPanelVisible`
+   的白名单由 `getAvailablePanels` 的层决定，不是独立白名单）。
+
+**空段自动隐藏**：`moreMenu.ts:149-151` 的 `hasMoreMenu(sections)` 判据是
+「至少一段有 item」；`ToolbarSettings` 在无内容时**不渲染触发器**（`:147` 注释原文：
+*"触发器应当隐藏而不是打开一个空白面板"*）。⇒ 新增段但忘记加 item 时，
+你不会看到空面板，你会**看不到入口**——症状是「加了没生效」。
+
+**⟨待 T3 落地后回填⟩**：关键词检索的入口落在哪一段。T3 的写域包含
+`toolbarConfig.ts`（只允许追加 item，不允许重排），且**不得改 `Toolbar.tsx`**
+（Lead 独占）。若发现 `toolbarConfig.ts` 无法承载（需要新段 / 新 `panel` key），
+T3 必须在报告里给出最小 diff 建议而不是直接改。
 
 > `Dropdown` 的定位规范：`position: fixed` + viewport 坐标 ⇒ **必须**有 `scroll` 监听，
 > 且必须用 `capture: true`（滚动祖先的 `scroll` 事件**不冒泡**到 `window`）。
 > 历史事故：只监听 `resize` 时，100 px 滚动把间隙从 6 px 变成 106 px 而触发器已走开。
+
+---
+
+## 14. 存储工具 `safeStorage`（cycle-111 / T2 已落地）
+
+### 14.1 为什么需要它（修前的缺陷）
+
+`src/client/store/graphStore.ts` 曾有两处**直接**取 `window.localStorage`：
+
+| 行（修前） | 代码 | 风险 |
+|---|---|---|
+| `:97-98` | `storage: createJSONStorage(() => typeof window !== 'undefined' ? window.localStorage : memoryStorage)` | 跨源 iframe（`dsh-remote-web-ui`）中 `localStorage` **getter 本身**抛 `SecurityError` ⇒ `persist` 在 **store 创建期**求值 storage 参数 ⇒ 整个 store 创建失败 ⇒ 面板白屏 |
+| `:181` | `if (typeof window !== 'undefined' && localStorage.getItem('__cg_debug') === '1')` | 模块顶层执行；同样抛错 |
+
+**`typeof window !== 'undefined'` 挡不住这个问题**：`window` 存在、但 `window.localStorage`
+的 getter 抛错。这是「存在性检查」与「可访问性检查」的区别。
+
+### 14.2 实现（`src/client/utils/safeStorage.ts`）
+
+| 导出 | 行 | 作用 |
+|---|---|---|
+| `interface SafeStorage` | `:40` | `getItem` / `setItem` / `removeItem`（**全部同步、不抛错**） |
+| `getSafeStorage(label = 'generic')` | `:83` | 取一个后端：优先真实 `localStorage`，不可用时**稳定**回退内存实现 |
+| `safeGetItem(key)` | `:133` | 读，抛错 ⇒ `null` |
+
+调用点（`graphStore.ts`）：
+
+| 行 | 内容 |
+|---|---|
+| `:22` | `import { getSafeStorage, safeGetItem } from '../utils/safeStorage.ts';` |
+| `:39` | `const persistedStorage: StateStorage = getSafeStorage('graphStore');` —— **模块级只求值一次** |
+| `:190` | `if (typeof window !== 'undefined' && safeGetItem('__cg_debug') === '1')` |
+
+`safeStorage.ts` 的选择逻辑（`getSafeStorage`，`:83` 起）含一次**真读真写探测**
+（`setItem` + `removeItem`），因为「`localStorage` 存在」与「`localStorage` 可写」是两件事
+（Safari 隐私模式的典型行为：存在、能读、写时抛 `QuotaExceededError`）。
+
+**四条契约**（缺一条都会退化）：
+
+1. **首次访问不得抛错**——`localStorage` getter 抛 `SecurityError` 时回退内存；
+2. **回退静默**（`log.debug` 记录，不弹错误）：这是**能力缺失**，不是操作失败；
+3. **同一进程内回退实现稳定**（同一个对象）——否则 `persist` 每次拿到新的空 storage，
+   已保存的 UI 偏好会「随机丢失」；`graphStore.ts:39` 把它提到模块级就是为了这条；
+4. **两条既有调用点都换掉**（`:39` 与 `:190`，修前分别是 `:97-98` 与 `:181`）。
+
+> `graphStore.ts:29-37` 的注释原文记录了修前的形状与为什么必须走这个函数——
+> 保留这段注释是有意的：它是「为什么不能直接摸 `window.localStorage`」的唯一现场说明。
+
+### 14.3 已有的正确形态（参照）
+
+`src/client/i18n/index.ts` 早就是 try/catch 形态：
+
+```ts
+// :17-21  读：抛错时返回缺省值
+try { const stored = window.localStorage.getItem(STORAGE_KEY); … }
+catch { /* localStorage unavailable */ return 'zh'; }
+
+// :28-30  写：抛错时静默放弃
+try { window.localStorage.setItem(STORAGE_KEY, lang); } catch { /* storage unavailable */ }
+```
+
+**差别只在调用时机**：i18n 是**函数内按需**访问（抛错可被就地捕获），
+而 zustand `persist` 的 `storage` 是**构造参数**（抛错发生在 store 创建期，
+没有就地捕获的机会）。这就是为什么 i18n 一直没事、而 store 会白屏。
+
+### 14.4 测试必须模拟 getter 抛错
+
+```ts
+Object.defineProperty(window, 'localStorage', {
+  get() { throw new DOMException('denied', 'SecurityError'); },
+});
+```
+
+**不能**只是「把 localStorage 换成内存对象」——那根本没测到抛错路径。
+
+> **仍无机器守卫的部分**：跨源真机场景没有 E2E（`conversation-remote-web-ui.spec.ts`
+> 已不存在，见 [测试体系 §2.20](../测试体系.md)）。单测能证明「回退实现可用」，
+> 不能证明「真实 iframe 里不再白屏」。

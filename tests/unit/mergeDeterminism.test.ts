@@ -112,6 +112,42 @@ describe('conflicting edge arbitration (one case per declared rule)', () => {
     return mergeEdge(a, 'codegraph', b, 'lens');
   }
 
+  it('rule 1 — the ast origin is the strongest signal and really picks a winner (P1-N4)', () => {
+    // `EDGE_ORIGIN_RANK.ast = 3` 是裁决表里最高的一档，但修前 `edgeOrigin: 'ast'` **没有任何
+    // 生产者**（`TreeSitterAdapter` 的 `contains` 边写的是 `properties: {}`），于是这一层
+    // 从来没有在真实数据上生效过。cycle-111 让 TreeSitter 开始标注之后，这条用例才第一次
+    // 有意义：同一条 `contains` 边同时来自索引行（db）与语法树（ast）时，必须选 ast。
+    //
+    // 用 `contains` 而不是 `call`：只有 `contains` 是真的会由这两个来源同时描述的关系
+    // （索引里也有 contains 行，TreeSitter 也直接给出父子关系）。用 `call` 写这条用例
+    // 在语义上就是编造的 —— 语法树不产出调用边。
+    const fromDb = withProperties(makeEdge('e1', 'n1', 'n2', 'contains'), {
+      edgeOrigin: 'db', edgeLocatable: true, rawKind: 'contains', marker: 'db',
+    });
+    const fromAst = withProperties(makeEdge('e1', 'n1', 'n2', 'contains'), {
+      edgeOrigin: 'ast', edgeLocatable: true, marker: 'ast', line: 7,
+    });
+
+    // 两个方向都要断言：裁决必须与入参排列无关（本文件的头号契约）。
+    expect(pair(fromDb, fromAst).properties.marker).toBe('ast');
+    expect(pair(fromAst, fromDb).properties.marker).toBe('ast');
+  });
+
+  it('rule 1 — ast also beats heuristic, so the top tier is not accidentally equal to db', () => {
+    // 反向多样性检查：如果实现把 ast 与 db 映射到同一个 rank，上面那条仍会通过
+    // （两条同为最高档时走到第 2 层方向/第 5 层序列化兜底，结果可能凑巧相同）。
+    // 这条直接比较 ast 与 heuristic，确保 rank 是**严格**有序的。
+    const heuristic = withProperties(makeEdge('e1', 'n1', 'n2', 'contains'), {
+      edgeOrigin: 'heuristic', edgeLocatable: true, marker: 'heuristic',
+    });
+    const fromAst = withProperties(makeEdge('e1', 'n1', 'n2', 'contains'), {
+      edgeOrigin: 'ast', edgeLocatable: true, marker: 'ast',
+    });
+
+    expect(pair(heuristic, fromAst).properties.marker).toBe('ast');
+    expect(pair(fromAst, heuristic).properties.marker).toBe('ast');
+  });
+
   it('rule 1 — attribution strength decides first (db beats heuristic, in both orders)', () => {
     const heuristic = withProperties(makeEdge('e1', 'n1', 'n2', 'call'), {
       edgeOrigin: 'heuristic', edgeLocatable: true, marker: 'heuristic',

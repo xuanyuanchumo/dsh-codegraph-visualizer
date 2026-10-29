@@ -320,6 +320,9 @@ describe('XuanjiAdapterPool.applyDelta：真实 delta 驱动增量索引', () =>
       addedPaths: 0,
       stalePaths: 0,
       degradedRules: [],
+      // 没体检过 ⇒ 空结论，不是「全 ok」：调用方必须能区分
+      // 「体检通过」与「根本没体检」（空集冒充全绿是本仓库的复发形态）。
+      invariants: { byRule: new Map(), violated: [] },
     });
     // 没有被应用 ⇒ 空间仍然是空的
     expect(pool.get('repo').isReady).toBe(false);

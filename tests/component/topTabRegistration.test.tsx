@@ -114,7 +114,11 @@ afterEach(() => {
   document.querySelectorAll('.cg-floating-container').forEach((el) => el.remove());
 });
 
-describe('conversation.view 三态可观测', () => {
+// 旅程覆盖：J46（主会话顶部标签栏同级动态注册）。
+// 真机半侧的证据在 `.cycles/cycles/cycle-111/evidence/J0-真机验证记录.md` §2：
+// 1440px 下 `[role="tab"]` = 对话/轨迹/代码图谱/ANIC 四个同级；420px 时代码图谱折叠进
+// 「更多会话视图」（宿主按容器宽度 slice，**不是**注册失败）。
+describe('conversation.view 三态可观测（J46）', () => {
   it('预留席位后状态为 reserved，并写进 <html data-cg-top-tab>', () => {
     const { ctx } = makeCtx();
     const state = new IntegrationState(ctx, makeFlags());

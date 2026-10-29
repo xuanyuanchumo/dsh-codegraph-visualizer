@@ -103,6 +103,7 @@ export type AnalysisPanelKey =
   | 'showDeadCode'
   | 'showRuntime'
   | 'showDiff'
+  | 'showKeywordQuery'
   | 'showMiniMap' | 'showLegend';
 
 /**
@@ -115,11 +116,26 @@ export type AnalysisPanelKey =
  *
  * 曾经考虑过「按 `hasGraphData` 单独门控」而不入矩阵：那会让「切到运行时层时该不该收起
  * 对比面板」这个问题没有答案，用户会带着一堆无处落地的标记停在一张空画布上。
+ *
+ * `showKeywordQuery`（cycle-111 / N-5）与 `showDiff` 同一条判据：关键词检索的**产出是一张
+ * 子图**——种子要能点、命中集合要在画布上高亮，所以它必须有图可标。结构层与行为层都提供。
+ *
+ * ### 为什么运行时层刻意**不**加它
+ *
+ * 两个理由，任一独立成立：
+ *   1. 运行时层的可用集合是 `RUNTIME_PANELS`（只有 `showRuntime` + 两个全局叠加层），
+ *      它的职责是 Trace / 日志 / 性能排查；关键词检索是**图查询**，在这一层没有落地面。
+ *   2. 更硬的一条：本仓踩过「`ViewLayer` 三个成员只有两个可达」的坑
+ *      （`docs/需求分析.md` §59.x）——一个可读但永不可达的成员会让「能力矩阵」变成叙事。
+ *      反过来同样成立：往 `RUNTIME_PANELS` 里加一个在这一层永远点不出结果的入口，
+ *      就是给用户一个死按钮。`tests/unit/viewModeUtils.test.ts` 的层矩阵用例对
+ *      三层逐层断言 `showKeywordQuery` 的有无，两个方向都钉住。
  */
 export const STRUCTURAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showSearch', 'showPathFind', 'showHealthScore', 'showRules', 'showImport', 'showFilterPanel',
   'showDeadCode',
   'showDiff',
+  'showKeywordQuery',
   'showMiniMap', 'showLegend',
 ]);
 
@@ -127,6 +143,7 @@ export const BEHAVIORAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showCallChain', 'showCycles', 'showImpact', 'showInheritance', 'showHotspot', 'showGodModule', 'showCoreFunction',
   'showDeadCode',
   'showDiff',
+  'showKeywordQuery',
   'showSearch', 'showPathFind', 'showMiniMap', 'showLegend',
 ]);
 

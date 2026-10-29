@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useGraphStore, disposeStore, type LayoutType } from '../../src/client/store/graphStore.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
-import { makeNode, makeEdge } from '../helpers.ts';
+import { makeNode, makeEdge, makePrerequisiteStatus } from '../helpers.ts';
 
 describe('graphStore (J6/J7/J10)', () => {
   beforeEach(() => {
@@ -180,9 +180,11 @@ describe('graphStore (J6/J7/J10)', () => {
   });
 
   it('should track prerequisites (J11 data source detection)', () => {
-    useGraphStore.getState().setPrerequisites({ codegraph: true, lens: false, builtin: true });
+    useGraphStore.getState().setPrerequisites(makePrerequisiteStatus({ codegraph: true, lens: false, astSource: true }));
     const s = useGraphStore.getState();
-    expect(s.prerequisites).toEqual({ codegraph: true, lens: false, builtin: true });
+    expect(s.prerequisites).toEqual({
+      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+    });
   });
 
   it('should track init status lifecycle (J1 init)', () => {
@@ -2314,8 +2316,10 @@ describe('graphStore additional setters', () => {
   });
 
   it('setPrerequisites updates prerequisites', () => {
-    useGraphStore.getState().setPrerequisites({ codegraph: true, lens: false, builtin: true });
-    expect(useGraphStore.getState().prerequisites).toEqual({ codegraph: true, lens: false, builtin: true });
+    useGraphStore.getState().setPrerequisites(makePrerequisiteStatus({ codegraph: true, lens: false, astSource: true }));
+    expect(useGraphStore.getState().prerequisites).toEqual({
+      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+    });
   });
 
   it('setInitStatus updates initStatus and initMessage', () => {

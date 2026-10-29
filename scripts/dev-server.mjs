@@ -1035,6 +1035,84 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // --- 关键词图检索：面板打开后按关键词检索子图（cycle-111 / N-5）。
+  //
+  // 契约逐字对齐 `src/host/routes/queryRoute.ts` 的 `buildPayload`：
+  // 参数 `q` / `depth` / `tokenBudget` / `workspace`，响应必须含
+  // `query` / `terms` / `seeds` / `nodes` / `edges` / `text` / `tokens` /
+  // `truncated` / `reason` / `meta` —— **少一个键客户端就走降级分支**，E2E 也就失去意义。
+  //
+  // 刻意**不**在这里复算 token 预算与 BFS：桩的职责是"给出宿主会给出的形状"，
+  // 而不是复制库算法（复制出来的第二份迟早与 `keyword-query.ts` 漂移）。
+  // 因此这里只做词匹配：命中 `label` 的节点即种子，其余节点按是否与种子相邻决定入子图。
+  // 截断用**固定触发条件**（tokenBudget 很小）而不是估算 token：桩要能被 E2E 稳定复现，
+  // 而"这次到底截没截断"若取决于桩自己的估算，用例就会随行数变化而不可复现。
+  if (path === '/api/v1/codegraph/query' && method === 'GET') {
+    const query = new URL(url, 'http://localhost').searchParams;
+    const q = (query.get('q') ?? '').trim();
+    const depth = Number.parseInt(query.get('depth') ?? '2', 10) || 2;
+    const tokenBudget = Number.parseInt(query.get('tokenBudget') ?? '800', 10) || 800;
+    if (q.length === 0) {
+      sendJson(res, 400, { success: false, error: 'FILEPATH_REQUIRED', message: 'filePath is required: q is required' });
+      return;
+    }
+    const terms = q.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+    const seedNodes = API_GRAPH.nodes.filter((n) => terms.some((t) => n.label.toLowerCase().includes(t)));
+    const seedIds = new Set(seedNodes.map((n) => n.id));
+    // 有界 BFS（深度用请求值，桩不钳制到 3：客户端只关心"参数被正确发送"）。
+    let frontier = new Set(seedIds);
+    const included = new Set(seedIds);
+    for (let hop = 0; hop < depth; hop++) {
+      const next = new Set();
+      for (const edge of API_GRAPH.edges) {
+        if (frontier.has(edge.source) && !included.has(edge.target)) next.add(edge.target);
+        if (frontier.has(edge.target) && !included.has(edge.source)) next.add(edge.source);
+      }
+      for (const id of next) included.add(id);
+      frontier = next;
+      if (frontier.size === 0) break;
+    }
+    const nodes = API_GRAPH.nodes.filter((n) => included.has(n.id));
+    const edges = API_GRAPH.edges.filter((e) => included.has(e.source) && included.has(e.target));
+    // 桩的截断条件：预算不足以容纳「每个节点一行」时标记截断。
+    // 每行按 8 token 估（刻意与库的估算不同——桩只需要**确定性**，不需要与库同值）。
+    const estimated = nodes.length * 8;
+    const truncated = estimated > tokenBudget;
+    const text = [
+      `seeds=${[...seedIds].join(',') || '(none)'}`,
+      ...nodes.map((n) => `NODE ${n.id} ${n.label}${seedIds.has(n.id) ? ' *' : ''}`),
+      ...edges.map((e) => `EDGE ${e.source} -> ${e.target} (${e.type})`),
+    ].join('\n');
+    conditionalJson(req, res, 'query', `query:${q}:${depth}:${tokenBudget}`, (etag) => {
+      sendJson(res, 200, {
+        query: q,
+        terms,
+        seeds: seedNodes.map((n) => ({
+          id: n.id,
+          label: n.label,
+          // 桩的得分按"是否完全等于 term"给两档，只为让面板的 score 列非空。
+          score: terms.includes(n.label.toLowerCase()) ? 1000 : 100,
+          matchedTerms: terms.filter((t) => n.label.toLowerCase().includes(t)),
+        })),
+        nodes,
+        edges,
+        text,
+        tokens: estimated,
+        truncated,
+        reason: truncated ? 'truncated' : 'fits',
+        meta: {
+          depth,
+          depthEffective: Math.min(depth, 3),
+          tokenBudget,
+          source: 'slot',
+          revision: DEV_REVISION,
+          reason: truncated ? 'truncated' : 'fits',
+        },
+      }, { ETag: etag });
+    });
+    return;
+  }
+
   // --- SSE：保持连接并周期心跳，让 `EventSource` 不报错 ---
   if (path === '/api/v1/codegraph/events') {
     res.writeHead(200, {

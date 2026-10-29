@@ -4,8 +4,23 @@
  * 为什么逐符号断言：漏一个导出在运行时是 undefined，调用点报错一行，
  * 而类型检查只覆盖「import 了却没用」的文件——只有把符号表钉死才能防止漏导出。
  * 同时用「与源模块引用相等」证明聚合层是 re-export，不是复制实现。
+ *
+ * ## XJ-08：本文件同时是「已删除模块」的墓碑
+ *
+ * `core/nfa.ts` 在 cycle-111 被删除（只有 `states = lMax - lMin + 1` 一个减法、
+ * `compileLengthNfa` 全仓 0 生产调用点，而规范 §5.6 要的存在性判定已由 `existsWalk` 覆盖）。
+ * 删除动作需要两条**互不替代**的守卫，缺一条就会留下一种「复活」：
+ * - 负向导出断言：挡住「文件回来了，又加回 barrel 导出」；
+ * - `core/` 目录清单断言：挡住「文件回来了，但没加导出」——那种状态下
+ *   负向断言依然是绿的，而库里已经多了一个没人用、却看起来像算法的模块。
+ *
+ * 两条都是**清单相等**而不是 `not.toContain`：清单相等还能抓出「悄悄新增了别的模块」，
+ * 而 `not.toContain('nfa.ts')` 对新增模块完全无感。
  */
 import { describe, it, expect } from 'vitest';
+import { readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as api from '../../../src/xuanji/index.ts';
 import { PathIndex as SourcePathIndex } from '../../../src/xuanji/index/path-index.ts';
 import { enumerate as sourceEnumerate } from '../../../src/xuanji/query/query-engine.ts';
@@ -20,7 +35,6 @@ import type {
   IndexCounters,
   InvariantResult,
   InvariantThresholds,
-  NfaCompileResult,
   NodeAttrs,
   NodeId,
   NodePredicate,
@@ -56,7 +70,6 @@ type TypeSurface = [
   EnumerateOptions,
   InvariantThresholds,
   InvariantResult,
-  NfaCompileResult,
 ];
 
 const typeSurface: TypeSurface | null = null;
@@ -82,8 +95,6 @@ const runtimeExports: Array<{ name: string; kind: 'function' | 'object' }> = [
   { name: 'makeEntry', kind: 'function' },
   { name: 'entryLabels', kind: 'function' },
   { name: 'isLiveEntry', kind: 'function' },
-  // core/nfa
-  { name: 'compileLengthNfa', kind: 'function' },
   // ops/booth
   { name: 'minimalRotationIndex', kind: 'function' },
   { name: 'boothMinimalRotation', kind: 'function' },
@@ -197,11 +208,39 @@ describe('index.ts：仅通过公共入口即可完成一次完整查询', () =>
     expect(registry.index('call')).toBeInstanceOf(api.PathIndex);
   });
 
-  it('纯函数工具可用：topK / Booth 旋转 / NFA 编译', () => {
+  it('纯函数工具可用：topK / Booth 旋转 / 哈希', () => {
     expect(api.topK([1, 4, 2], 2)).toEqual([4, 2]);
     expect(api.boothMinimalRotation(['b', 'a'])).toEqual(['a', 'b']);
     expect(api.isMinimalRotation(['a', 'b'])).toBe(true);
-    expect(api.compileLengthNfa({ lMin: 1, lMax: 2 })).toEqual({ states: 2, accepting: 2 });
     expect(api.hashToHex(api.hashNode('a'))).toMatch(/^[0-9a-f]{16}$/);
+  });
+});
+
+// ── XJ-08 墓碑：已删除的 core/nfa.ts 不得复活 ─────────────────────────────
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+/** 被扫描的目录（真实仓库的 `src/xuanji/core`，不是样本）。 */
+const CORE_DIR = resolve(HERE, '../../../src/xuanji/core');
+
+describe('XJ-08 墓碑：core/nfa.ts 已移除，两条守卫分别挡两种复活方式', () => {
+  it('负向导出断言：barrel 不得再导出 compileLengthNfa / NfaCompileResult', () => {
+    // 用 `in` 而不是 `api.compileLengthNfa === undefined`：后者对「导出了但值是 undefined」
+    // 也会绿，而那种状态下符号确实出现在了公共面上。
+    expect('compileLengthNfa' in api).toBe(false);
+    expect('NfaCompileResult' in api).toBe(false);
+  });
+
+  it('core/ 目录清单相等：nfa.ts 不得回来（连不带导出的版本也不许）', () => {
+    // 这一条与上一条**不可互相替代**：文件复活但没加导出时，负向导出断言依然为绿。
+    const files = readdirSync(CORE_DIR)
+      .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+      .sort();
+    expect(files).toEqual(['graph-space.ts', 'path-entry.ts', 'path-rule.ts']);
+  });
+
+  it('反向自检：清单断言真的会因多一个文件而红（否则上面的清单相等是空转）', () => {
+    // 不碰真实目录：把同一个比较逻辑喂给一个含 nfa.ts 的合成清单，必须先失败。
+    const synthetic = ['graph-space.ts', 'nfa.ts', 'path-entry.ts', 'path-rule.ts'];
+    expect(synthetic).not.toEqual(['graph-space.ts', 'path-entry.ts', 'path-rule.ts']);
   });
 });

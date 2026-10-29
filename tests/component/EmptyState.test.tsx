@@ -15,7 +15,7 @@ vi.stubGlobal('navigator', {
 
 describe('EmptyState', () => {
   const defaultProps = {
-    prerequisites: { codegraph: true, lens: true },
+    prerequisites: { codegraph: true, lens: true, graphSource: true },
     onImport: vi.fn(),
     onScanWorkspace: vi.fn(),
   };
@@ -166,6 +166,60 @@ describe('EmptyState', () => {
     const { container } = render(<EmptyState {...props} />);
     const dot = container.querySelector('.cg-prereq-status-dot');
     expect(dot?.classList.contains('cg-missing')).toBe(true);
+  });
+
+  // ── 降级提示的判据是 graphSource，不是 builtin（cycle-111 / P0-N3，§61.10）─────
+  //
+  // 修前判据是 `prerequisites.builtin ?? true`，而宿主把 `builtin` 硬编码成 true ⇒
+  // 只要上下游都缺，界面就无条件承诺「降级模式 — 使用内置 TreeSitter 和依赖分析」。
+  // 真实情况：AST 分析（`/ast`、`/outline`）确实可用，但它**产不出一张图**
+  // （`fetchMergedGraph` 的内置回落只记日志、不产节点，`src/tools.ts:132-134`）。
+  // 承诺了却给不出的降级路径比不显示更糟：用户点「扫描工作区」只会得到一个空画布。
+
+  it('两个上游都缺 + 有图数据通道 ⇒ 显示降级提示', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: false, graphSource: true },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    expect(container.querySelector('.cg-empty-degraded-notice')).not.toBeNull();
+  });
+
+  it('两个上游都缺 + 只有 AST 通道 ⇒ **不**显示降级提示', () => {
+    // 这条是 §61.10 的客户端落点。`astSource: true` 时若渲染降级提示，
+    // 界面就在承诺一条不存在的图数据通路 —— 旧实现的 `builtin` 同时代表这两件事。
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: false, astSource: true, graphSource: false },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    expect(container.querySelector('.cg-empty-degraded-notice')).toBeNull();
+  });
+
+  it('两个上游都缺 + builtin 为 true 但 graphSource 为 false ⇒ 不显示降级提示', () => {
+    // 兼容别名的语义边界：`builtin` 只是 `astSource` 的别名，**不许**再被当作图通道的判据。
+    // 这条用例的存在意义是：把判据改回 `prerequisites.builtin` 时它会立刻变红。
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: false, builtin: true, graphSource: false },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    expect(container.querySelector('.cg-empty-degraded-notice')).toBeNull();
+  });
+
+  it('旧宿主（不发 graphSource）⇒ 不显示降级提示', () => {
+    // 缺省方向是 false：不知道 ≠ 有。旧宿主无权声称存在图通道。
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: false },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    expect(container.querySelector('.cg-empty-degraded-notice')).toBeNull();
+  });
+
+  it('正常情况下（上游可用）不显示降级提示', () => {
+    const { container } = render(<EmptyState {...defaultProps} />);
+    expect(container.querySelector('.cg-empty-degraded-notice')).toBeNull();
   });
 
   it('应显示导入和扫描操作按钮', () => {
