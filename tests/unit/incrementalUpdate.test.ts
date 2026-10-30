@@ -42,12 +42,12 @@ function createWorkspace(dir: string, nodes: NodeRow[], edges: EdgeRow[] = []): 
   const db = new DatabaseSync(join(codegraphDir, 'codegraph.db'));
   db.exec(`
     CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-    CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+    CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
   `);
   const insertNode = db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)');
   for (const n of nodes) insertNode.run(n.id, n.kind, n.name, n.filePath, n.line, IS_EXPORTED);
-  const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)');
-  for (const e of edges) insertEdge.run(e.id, e.source, e.target, e.kind, e.line);
+  const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, metadata, line) VALUES (?, ?, ?, ?, ?, ?)');
+  for (const e of edges) insertEdge.run(e.id, e.source, e.target, e.kind, null, e.line);
   db.close();
   return dir;
 }
@@ -87,6 +87,7 @@ function graphFrom(nodes: NodeRow[], edges: EdgeRow[] = [], repoId = activeRepoI
     source: e.source,
     target: e.target,
     kind: e.kind,
+    metadata: null,
     line: e.line,
   })), validIds);
   const merged = new GraphDataMerger().merge(

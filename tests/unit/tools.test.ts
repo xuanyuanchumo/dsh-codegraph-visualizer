@@ -963,6 +963,42 @@ describe('createGraphTools - additional tools', () => {
     expect(result.truncated).toBe(true);
   });
 
+  // cycle-119：truncation 参数透传契约（修复前 schema 暴露但 execute 从未传给
+  // findPathsBetween——「参数加了、没人传」家族）。菱形图：低权重路径 DFS 序先到，
+  // top-k-weight 必须返回高权重路径，两者结果**必须不同**——相同则透传是死的。
+  it('graph_path_enumerate truncation=top-k-weight keeps the highest-weight path (passthrough contract)', async () => {
+    const nodes = ['n1', 'n2', 'n3', 'n4'].map((id, i) => ({
+      id, label: id, type: 'function' as const, filePath: `${id}.ts`, lineNumber: i + 1, properties: {},
+    }));
+    // 菱形：n1→n2→n4（权重 0.1+0.1=0.2，DFS 先到）vs n1→n3→n4（权重 0.8+0.8=1.6）。
+    // 权重必须落在 GraphEdge.weight 的 [0,1] 契约内（GraphValidator autoFix 会把 >1 钳成 1，
+    // 越界 fixture 会把「高权重」拍平成同分——那是夹具违约，不是产品缺陷）。
+    const getMockData = getMockFetchData('codegraph');
+    getMockData.mockResolvedValue({
+      nodes,
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call', weight: 0.1, properties: {} },
+        { id: 'e2', source: 'n2', target: 'n4', type: 'call', weight: 0.1, properties: {} },
+        { id: 'e3', source: 'n1', target: 'n3', type: 'call', weight: 0.8, properties: {} },
+        { id: 'e4', source: 'n3', target: 'n4', type: 'call', weight: 0.8, properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const dfsResult = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n4', maxHops: 2, limit: 1 },
+      mockExec,
+    ) as { paths: string[][] };
+    const topkResult = await tools.graphPathEnumerate.execute(
+      { repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n4', maxHops: 2, limit: 1, truncation: 'top-k-weight' },
+      mockExec,
+    ) as { paths: string[][] };
+    // DFS 序先发现 n2（低权重）；top-k-weight 必须保留 n3（高权重）。
+    expect(dfsResult.paths[0]).toEqual(['n1', 'n2', 'n4']);
+    expect(topkResult.paths[0]).toEqual(['n1', 'n3', 'n4']);
+  });
+
   it('graph_path_enumerate render should list paths and truncation', async () => {
     const tools = await createGraphTools(ctx);
     const renderFn = tools.graphPathEnumerate.output.render!;

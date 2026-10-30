@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { scoped } from '../shared/Logger.ts';
 import { SQLITE } from '../shared/constants.ts';
-import type { DbNodeRow, DbEdgeRow } from './codeGraphRows.ts';
+import { EDGE_ROW_COLUMNS, type DbNodeRow, type DbEdgeRow } from './codeGraphRows.ts';
 
 const log = scoped('codegraph-adapter');
 
@@ -91,8 +91,14 @@ function isDbNodeRow(row: unknown): row is DbNodeRow {
 function isDbEdgeRow(row: unknown): row is DbEdgeRow {
   if (typeof row !== 'object' || row === null) return false;
   const r = row as Record<string, unknown>;
-  return typeof r.source === 'string' && typeof r.target === 'string' &&
-    typeof r.kind === 'string';
+  if (!(typeof r.source === 'string' && typeof r.target === 'string' &&
+    typeof r.kind === 'string')) return false;
+  // metadata：cycle-119 起参与 SELECT。行级校验**容忍缺失**（undefined 归一为 null）——
+  // 直接喂字面量行的测试与旧 schema 的 fixture 不必同步建列；真正的列缺失会在
+  // SELECT 处 throw（catch 落 null 返回），不会走到这里。
+  if (r.metadata !== undefined && r.metadata !== null && typeof r.metadata !== 'string') return false;
+  (r as { metadata: string | null }).metadata = r.metadata ?? null;
+  return true;
 }
 
 export function validateNodeRows(rows: unknown[]): DbNodeRow[] {
@@ -126,7 +132,7 @@ export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: Db
       'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes',
     ).all());
     const edges = validateEdgeRows(db.prepare(
-      'SELECT id, source, target, kind, line FROM edges',
+      `SELECT ${EDGE_ROW_COLUMNS} FROM edges`,
     ).all());
     return { nodes, edges };
   } catch (e) {
@@ -184,7 +190,7 @@ export function readGraphFromDbPaged(
         state.phase = 'edges';
         state.nodeCursor = null;
         const edges = validateEdgeRows(db.prepare(
-          'SELECT id, source, target, kind, line FROM edges ORDER BY id LIMIT ?',
+          `SELECT ${EDGE_ROW_COLUMNS} FROM edges ORDER BY id LIMIT ?`,
         ).all(limit));
         state.totalEdges += edges.length;
         state.edgeCursor = edges.length > 0 ? edges[edges.length - 1]!.id : null;
@@ -207,7 +213,7 @@ export function readGraphFromDbPaged(
     }
 
     const edges = validateEdgeRows(db.prepare(
-      'SELECT id, source, target, kind, line FROM edges WHERE id > ? ORDER BY id LIMIT ?',
+      `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE id > ? ORDER BY id LIMIT ?`,
     ).all(state.edgeCursor ?? 0, limit));
     state.totalEdges += edges.length;
     const done = edges.length < limit;

@@ -455,6 +455,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         cursor?: number;
         pageSize?: number;
         edgeTypes?: string;
+        truncation?: string;
       };
       const data = await fetchMergedGraph(invoke, a.repoId);
       const nodeIds = new Set(data.nodes.map((n) => n.id));
@@ -474,6 +475,12 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         limit,
         ...(a.cursor === undefined ? {} : { cursor: clampInt(a.cursor, 0, Number.MAX_SAFE_INTEGER, 0) }),
         ...(a.pageSize === undefined ? {} : { pageSize: clampInt(a.pageSize, 1, 50, limit) }),
+        // cycle-119 修复：schema 暴露了 truncation 但 execute 从未透传——「参数加了、
+        // 没人传」家族（与 P3-R18-02 同形）。数据面（confidence→weight）贯通后这个参数
+        // 才真正有行为差异：无 weight 数据时 top-k-weight 与 dfs-order 结果一致。
+        ...(a.truncation === 'top-k-weight' || a.truncation === 'dfs-order'
+          ? { truncation: a.truncation }
+          : {}),
       });
       return toJsonValue(result);
     },

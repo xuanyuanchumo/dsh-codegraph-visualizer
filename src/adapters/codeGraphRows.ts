@@ -36,7 +36,47 @@ export interface DbEdgeRow {
   source: string;
   target: string;
   kind: string;
+  /**
+   * 上游 `edges.metadata` 列（JSON 文本，可空）。cycle-119 weight 数据面：
+   * `{"confidence":0.9,"resolvedBy":"exact-match"}` 是实测形态（本仓 .codegraph
+   * 6,556 条非空 / 10,869 条边）。解析为 `weight` 的规则见 {@link parseEdgeConfidence}：
+   * **保守降级**——列缺失 / 非 JSON / 非数 / 越界 [0,1] 一律不产出 weight，
+   * 宁可回到「无权重、DFS 序截断」，也不喂给 `'top-k-weight'` 一个编造的置信值。
+   */
+  metadata: string | null;
   line: number | null;
+}
+
+/**
+ * edges 行的共享 SELECT 列清单（不含 WHERE/ORDER BY，调用方按需拼接）。
+ *
+ * 单一来源的理由：8 处 `SELECT … FROM edges` 曾各自手写列清单——cycle-119 就是因为
+ * 「读侧漏了 `metadata` 列」而 `'top-k-weight'` 契约空转两轮。列变了改一处，
+ * 各读取面跟着编译期报错（解构不存在的键）而不是静默丢数据。
+ */
+export const EDGE_ROW_COLUMNS = 'id, source, target, kind, metadata, line' as const;
+
+/**
+ * 从 `metadata` JSON 文本解析置信度（[0,1] 数值），任何不合法形态返回 `undefined`。
+ *
+ * 为什么不 throw：单行 metadata 损坏不该让整页边读取失败（validateEdgeRows 的
+ * 「跳过坏行」是同一哲学）；也不该把 0.9 解析成 `undefined` 再被 `?? 1` 兜底成
+ * 「完全可信」——所以越界值与缺失值**同型**（undefined），消费侧用
+ * `weight === undefined` 显式分支，没有 `?? 默认值` 的静默兜底路径。
+ */
+export function parseEdgeConfidence(metadata: string | null | undefined): number | undefined {
+  if (typeof metadata !== 'string' || metadata.length === 0) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(metadata);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const confidence = (parsed as Record<string, unknown>).confidence;
+  if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return undefined;
+  if (confidence < 0 || confidence > 1) return undefined;
+  return confidence;
 }
 
 const NODE_KIND_MAP: Record<string, GraphNode['type']> = {
@@ -206,6 +246,15 @@ export function mapRowsToGraphEdges(
         edgeLocatable: locatable,
         rawKind: e.kind,
       },
+      // cycle-119 weight 数据面（§62.6 #4 / X-07 数据侧）：`edges.metadata.confidence`
+      // → `GraphEdge.weight`。解析失败/越界/缺失 → undefined → 键不产出（保守降级：
+      // 消费侧 `'top-k-weight'` 见到无权重边按 DFS 序兜底，绝不把编造值当真）。
+      // 注意：weight 在 GraphEdge 顶层而不在 properties 里——`graphFingerprint` 对
+      // 两者都计入哈希（指纹影响见交付清单的 re-fingerprint 披露），但 XuanjiAdapter
+      // 的 `xjEdge` 与 GraphologyAdapter 只读顶层 `edge.weight`。
+      ...(parseEdgeConfidence(e.metadata) !== undefined
+        ? { weight: parseEdgeConfidence(e.metadata) }
+        : {}),
     });
   }
   return edges;

@@ -451,10 +451,13 @@ describe('topK：稳定选择', () => {
     expect(topK([1, 2, 3], -2)).toEqual([]);
   });
 
-  it('k >= items.length 返回副本（不是同一引用）', () => {
+  it('k >= items.length 返回副本（不是同一引用），且顺序由 score 决定（cycle-119 修复）', () => {
     const items = [3, 1, 2];
     const result = topK(items, 3);
-    expect(result).toEqual([3, 1, 2]);
+    // cycle-119 前：k==len 短路返回插入序 [3,1,2]——「取前 k 项」的顺序语义被跳过，
+    // top-k-weight 在 k==候选数时退化为 DFS 序（实测菱形图透传失效）。
+    // 修复后：缺省 score（元素自身数值）降序 ⇒ [3,2,1]。
+    expect(result).toEqual([3, 2, 1]);
     expect(result).not.toBe(items);
   });
 

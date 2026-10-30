@@ -27,12 +27,12 @@ function createTestDb(dir: string): string {
   const db = new DatabaseSync(dbPath);
   db.exec(`
     CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-    CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+    CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
   `);
   db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n1', 'function', 'funcA', 'src/a.ts', 10, 'fn()', 'docs', 1);
   db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n2', 'class', 'ClassB', 'src/b.ts', 5, null, null, 0);
-  db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)').run(1, 'n1', 'n2', 'call', 12);
-  db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)').run(2, 'n1', 'n3', 'import', 3);
+  db.prepare('INSERT INTO edges (id, source, target, kind, metadata, line) VALUES (?, ?, ?, ?, ?, ?)').run(1, 'n1', 'n2', 'call', null, 12);
+  db.prepare('INSERT INTO edges (id, source, target, kind, metadata, line) VALUES (?, ?, ?, ?, ?, ?)').run(2, 'n1', 'n3', 'import', null, 3);
   db.close();
   return dbPath;
 }
@@ -292,26 +292,26 @@ describe('readEdgesFromDb pagination', () => {
     const db = new DatabaseSync(dbPath);
     db.exec(`
       CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
     `);
     const insertNode = db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     insertNode.run('n1', 'function', 'a', 'src/big.ts', 1, null, null, 1);
     insertNode.run('n2', 'function', 'b', 'src/big.ts', 2, null, null, 1);
     insertNode.run('n3', 'function', 'c', 'src/big.ts', 3, null, null, 1);
-    const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)');
+    const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, metadata, line) VALUES (?, ?, ?, ?, ?, ?)');
     // Interleave kept edges with both filtered kinds and self-loops, so an
     // implementation that filters AFTER slicing both short-pages and re-reads
     // rows on the next cursor.
-    insertEdge.run(1, 'n1', 'n2', 'call', 1);              // kept
-    insertEdge.run(2, 'n1', 'n3', 'uses_var', 2);          // filtered kind
-    insertEdge.run(3, 'n2', 'n3', 'call', 3);              // kept
-    insertEdge.run(4, 'n1', 'n1', 'call', 4);              // self-loop
-    insertEdge.run(5, 'n2', 'n1', 'func_imports_local', 5); // filtered kind
-    insertEdge.run(6, 'n3', 'n1', 'call', 6);              // kept
-    insertEdge.run(7, 'n3', 'n2', 'call', 7);              // kept
-    insertEdge.run(8, 'n1', 'n2', 'import', 8);            // kept
-    insertEdge.run(9, 'n3', 'n3', 'call', 9);              // self-loop
-    insertEdge.run(10, 'n2', 'n3', 'import', 10);          // kept
+    insertEdge.run(1, 'n1', 'n2', 'call', null, 1);              // kept
+    insertEdge.run(2, 'n1', 'n3', 'uses_var', null, 2);          // filtered kind
+    insertEdge.run(3, 'n2', 'n3', 'call', null, 3);              // kept
+    insertEdge.run(4, 'n1', 'n1', 'call', null, 4);              // self-loop
+    insertEdge.run(5, 'n2', 'n1', 'func_imports_local', null, 5); // filtered kind
+    insertEdge.run(6, 'n3', 'n1', 'call', null, 6);              // kept
+    insertEdge.run(7, 'n3', 'n2', 'call', null, 7);              // kept
+    insertEdge.run(8, 'n1', 'n2', 'import', null, 8);            // kept
+    insertEdge.run(9, 'n3', 'n3', 'call', null, 9);              // self-loop
+    insertEdge.run(10, 'n2', 'n3', 'import', null, 10);          // kept
     db.close();
     return dbPath;
   }
@@ -366,7 +366,7 @@ describe('readFilesFromDb', () => {
     const db = new DatabaseSync(dbPath);
     db.exec(`
       CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
     `);
     const insertNode = db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     insertNode.run('a1', 'function', 'alpha', 'src/a.ts', 1, null, null, 1);
@@ -374,10 +374,10 @@ describe('readFilesFromDb', () => {
     insertNode.run('b1', 'function', 'beta', 'src/nested/b.ts', 5, null, null, 1);
     insertNode.run('c1', 'function', 'gamma', 'src/c.ts', 7, null, null, 0);
     insertNode.run('d1', 'function', 'delta', 'lib/d.ts', 9, null, null, 1);
-    const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)');
-    insertEdge.run(1, 'a1', 'a2', 'call', 2);      // both ends changed
-    insertEdge.run(2, 'a1', 'd1', 'call', 3);      // one end changed
-    insertEdge.run(3, 'c1', 'd1', 'call', 4);      // neither end changed
+    const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, metadata, line) VALUES (?, ?, ?, ?, ?, ?)');
+    insertEdge.run(1, 'a1', 'a2', 'call', null, 2);      // both ends changed
+    insertEdge.run(2, 'a1', 'd1', 'call', null, 3);      // one end changed
+    insertEdge.run(3, 'c1', 'd1', 'call', null, 4);      // neither end changed
     db.close();
     return dbPath;
   }
@@ -515,7 +515,7 @@ describe('CodeGraphAdapter with real DB', () => {
     const db = new DatabaseSync(dbPath);
     db.exec(`
       CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
     `);
     db.close();
     const adapter = new CodeGraphAdapter();
@@ -560,7 +560,7 @@ describe('CodeGraphAdapter - isNoisePath filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n1', 'function', 'cleanFn', 'src/a.ts', 10, null, null, 0);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n2', 'function', 'noiseFn', 'node_modules/lib/b.ts', 5, null, null, 0);
@@ -588,10 +588,10 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n1', 'function', 'funcA', 'src/a.ts', 10, null, null, 0);
-      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(1, 'n1', 'n1', 'call', 12);
+      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(1, 'n1', 'n1', 'call', null, 12);
       db.close();
       const adapter = new CodeGraphAdapter();
       const invoke: UpstreamInvoker = async () => null;
@@ -613,13 +613,13 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n1', 'function', 'funcA', 'src/a.ts', 10, null, null, 0);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n2', 'function', 'funcB', 'src/b.ts', 5, null, null, 0);
-      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(1, 'n1', 'n2', 'uses_var', 12);
-      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(2, 'n1', 'n2', 'func_imports_local', 3);
-      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(3, 'n1', 'n2', 'call', 8);
+      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(1, 'n1', 'n2', 'uses_var', null, 12);
+      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(2, 'n1', 'n2', 'func_imports_local', null, 3);
+      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(3, 'n1', 'n2', 'call', null, 8);
       db.close();
       const adapter = new CodeGraphAdapter();
       const invoke: UpstreamInvoker = async () => null;
@@ -642,13 +642,13 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('src', 'function', 'main', 'src/main.ts', 1, null, null, 0);
       for (let i = 1; i <= 25; i++) {
         const targetId = `t${i}`;
         db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(targetId, 'function', `dep${i}`, `src/dep${i}.ts`, 1, null, null, 0);
-        db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(i, 'src', targetId, 'import', null);
+        db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(i, 'src', targetId, 'import', null);
       }
       db.close();
       const adapter = new CodeGraphAdapter();
@@ -672,7 +672,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('file1', 'file', 'main.ts', 'src/main.ts', 1, null, null, 0);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('fn1', 'function', 'init', 'src/main.ts', 5, 'fn()', null, 1);
@@ -700,7 +700,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('file1', 'file', 'main.ts', 'src/main.ts', 1, null, null, 0);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('imp1', 'import', 'react', 'src/main.ts', 1, null, null, 0);
@@ -726,12 +726,12 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n1', 'function', 'funcA', 'src/a.ts', 10, null, null, 0);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('n2', 'class', 'ClassB', 'src/b.ts', 5, null, null, 0);
-      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(1, 'n1', 'n2', 'call', 15);
-      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?)').run(2, 'n2', 'n1', 'contains', null);
+      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(1, 'n1', 'n2', 'call', null, 15);
+      db.prepare('INSERT INTO edges VALUES (?, ?, ?, ?, ?, ?)').run(2, 'n2', 'n1', 'contains', null, null);
       db.close();
       const adapter = new CodeGraphAdapter();
       const invoke: UpstreamInvoker = async () => null;
@@ -763,7 +763,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const db = new DatabaseSync(dbPath);
       db.exec(`
         CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+        CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
       `);
       db.prepare('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('m1', 'module', 'myMod', 'src/mod.ts', 1, null, null, 0);
       db.close();

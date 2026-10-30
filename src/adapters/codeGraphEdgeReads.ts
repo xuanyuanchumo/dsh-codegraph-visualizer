@@ -15,8 +15,7 @@
  */
 import { scoped } from '../shared/Logger.ts';
 import { SQLITE, INCREMENTAL } from '../shared/constants.ts';
-import type { DbNodeRow, DbEdgeRow } from './codeGraphRows.ts';
-import { FILTERED_EDGE_KINDS, normalizeRepoPath } from './codeGraphRows.ts';
+import { EDGE_ROW_COLUMNS, FILTERED_EDGE_KINDS, normalizeRepoPath, type DbNodeRow, type DbEdgeRow } from './codeGraphRows.ts';
 import { getDbConnection, validateNodeRows, validateEdgeRows } from './codeGraphDb.ts';
 
 const log = scoped('codegraph-adapter');
@@ -37,7 +36,7 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
   try {
     if (scope === 'symbol') {
       const allEdges = validateEdgeRows(db.prepare(
-        'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ?',
+        `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source = ? OR target = ?`,
       ).all(nodeId, nodeId)).filter(keep);
       const total = allEdges.length;
       const pagedEdges = allEdges.slice(cursor, cursor + limit);
@@ -88,15 +87,15 @@ export function readIncidentEdgesWithFilePathsFromDb(
       for (const id of idList) filePathByNodeId.set(id, filePath);
       for (let i = 0; i < idList.length; i += batchSize) {
         const batch = idList.slice(i, i + batchSize);
-        const placeholders = batch.map(() => '?').join(',');
+        const placeholders = batch.map(() => '?').join(', ');
         const batchEdges = validateEdgeRows(db.prepare(
-          `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+          `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
         ).all(...batch, ...batch));
         for (const e of batchEdges) edgeMap.set(e.id, e);
       }
     } else {
       const symbolEdges = validateEdgeRows(db.prepare(
-        'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ?',
+        `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source = ? OR target = ?`,
       ).all(nodeId, nodeId));
       for (const e of symbolEdges) edgeMap.set(e.id, e);
     }
@@ -137,9 +136,9 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
     const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
     for (let i = 0; i < nodeIds.length; i += batchSize) {
       const batch = nodeIds.slice(i, i + batchSize);
-      const placeholders = batch.map(() => '?').join(',');
+      const placeholders = batch.map(() => '?').join(', ');
       const edges = validateEdgeRows(db.prepare(
-        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+        `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
       ).all(...batch, ...batch));
       for (const e of edges) {
         if (nodeSet.has(e.source) && nodeSet.has(e.target)) edgeMap.set(e.id, e);
@@ -202,9 +201,9 @@ export function readFilesFromDb(dbPath: string, filePaths: string[]): { nodes: D
     const edgeMap = new Map<number, DbEdgeRow>();
     for (let i = 0; i < nodeIds.length; i += batchSize) {
       const batch = nodeIds.slice(i, i + batchSize);
-      const placeholders = batch.map(() => '?').join(',');
+      const placeholders = batch.map(() => '?').join(', ');
       const rows = validateEdgeRows(db.prepare(
-        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+        `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
       ).all(...batch, ...batch));
       for (const e of rows) edgeMap.set(e.id, e);
     }

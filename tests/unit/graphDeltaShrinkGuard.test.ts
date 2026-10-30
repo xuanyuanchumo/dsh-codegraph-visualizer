@@ -209,7 +209,7 @@ function writeIndex(dir: string, nodes: NodeRow[]): void {
   const db = new DatabaseSync(join(codegraphDir, 'codegraph.db'));
   db.exec(`
     CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
-    CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+    CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, metadata TEXT, line INTEGER);
   `);
   const insertNode = db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, NULL, NULL, 1)');
   for (const n of nodes) insertNode.run(n.id, n.kind, n.name, n.filePath, n.line);

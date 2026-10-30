@@ -32,6 +32,7 @@ export type { UpstreamInvoker } from './IAdapter.ts';
 // —— 公开面保持：拆到三层的符号全部原样再导出（生产代码与用例的 import 路径零改动） ——
 export type { DbNodeRow, DbEdgeRow } from './codeGraphRows.ts';
 export {
+  EDGE_ROW_COLUMNS,
   FILTERED_EDGE_KINDS,
   isNoisePath,
   mapRowsToGraphNodes,
@@ -39,6 +40,7 @@ export {
   mapNodeKind,
   mapEdgeKind,
   normalizeRepoPath,
+  parseEdgeConfidence,
 } from './codeGraphRows.ts';
 export {
   closeAllDbConnections,

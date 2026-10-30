@@ -25,9 +25,15 @@
  */
 export function topK<T>(items: readonly T[], k: number, score?: (item: T) => number): T[] {
   if (!(k > 0) || items.length === 0) return [];
-  if (k >= items.length) return [...items];
 
   const scoreOf = score ?? ((item: T) => (typeof item === 'number' && Number.isFinite(item) ? item : 0));
+
+  // cycle-119 修复：`k >= items.length` 曾在此**提前返回插入序**——但「取前 k 项」的语义
+  // 包含顺序（分数越大越靠前），k 覆盖全量时顺序照样影响消费方：top-k-weight 把
+  // `maxPaths = cursor + pageSize + 1` 传进来，k==候选数 时 ranked[0] 会是 DFS 首条而不是
+  // 最高权重条（实测：菱形图 1+1 vs 5+5，topk 结果 = dfs 结果，透传参数完全失效）。
+  // 修复 = 删短路，让 k==len 也走统一排序路径（仍返回新数组，不改输入；
+  // 「副本不是同一引用」的既有契约不变，只是副本的**顺序**现在由 score 决定）。
 
   // 装饰-排序-还原：显式携带原下标，稳定性不依赖 Array.prototype.sort 的实现细节。
   const decorated: Array<{ item: T; score: number; index: number }> = items.map((item, index) => ({
@@ -43,6 +49,9 @@ export function topK<T>(items: readonly T[], k: number, score?: (item: T) => num
   });
 
   const result: T[] = [];
-  for (let i = 0; i < k; i++) result.push(decorated[i]!.item);
+  // 上界取 min(k, decorated.length)：k > 候选数时全部返回（修复前 k>len 走短路分支，
+  // 删短路后若仍循环到 k 会读 undefined——`?.item` 掩盖成 push undefined 的更糟形态）。
+  const take = Math.min(k, decorated.length);
+  for (let i = 0; i < take; i++) result.push(decorated[i]!.item);
   return result;
 }

@@ -15,12 +15,12 @@ const VALID_NODES = new Set(['n1', 'n2', 'n3']);
 
 /** 覆盖：可定位 / 不可定位 / 压平后改变 type / 未知 kind / 自环 / 过滤 / 断头边。 */
 const ROWS: DbEdgeRow[] = [
-  { id: 1, source: 'n1', target: 'n2', kind: 'calls', line: 15 },
-  { id: 2, source: 'n2', target: 'n1', kind: 'contains', line: null },
-  { id: 3, source: 'n1', target: 'n3', kind: 'unknown_relation', line: 7 },
-  { id: 4, source: 'n1', target: 'n1', kind: 'call', line: 1 },
-  { id: 5, source: 'n1', target: 'n3', kind: 'uses_var', line: 1 },
-  { id: 6, source: 'n1', target: 'ghost', kind: 'call', line: 1 },
+  { id: 1, source: 'n1', target: 'n2', kind: 'calls', metadata: null, line: 15 },
+  { id: 2, source: 'n2', target: 'n1', kind: 'contains', metadata: null, line: null },
+  { id: 3, source: 'n1', target: 'n3', kind: 'unknown_relation', metadata: null, line: 7 },
+  { id: 4, source: 'n1', target: 'n1', kind: 'call', metadata: null, line: 1 },
+  { id: 5, source: 'n1', target: 'n3', kind: 'uses_var', metadata: null, line: 1 },
+  { id: 6, source: 'n1', target: 'ghost', kind: 'call', metadata: null, line: 1 },
 ];
 
 function edgeById(id: string) {
@@ -76,9 +76,9 @@ describe('edge attribution: mapRowsToGraphEdges', () => {
 
   it('tags import-capped edges too (attribution must not be lost by the cap)', () => {
     const importRows: DbEdgeRow[] = [
-      { id: 1, source: 'n1', target: 'n2', kind: 'imports', line: 1 },
-      { id: 2, source: 'n1', target: 'n3', kind: 'imports', line: 2 },
-      { id: 3, source: 'n1', target: 'n2', kind: 'imports', line: 3 },
+      { id: 1, source: 'n1', target: 'n2', kind: 'imports', metadata: null, line: 1 },
+      { id: 2, source: 'n1', target: 'n3', kind: 'imports', metadata: null, line: 2 },
+      { id: 3, source: 'n1', target: 'n2', kind: 'imports', metadata: null, line: 3 },
     ];
     const capped = mapRowsToGraphEdges(importRows, VALID_NODES, { importCap: 2 });
     expect(capped.map((e) => e.id as string)).toEqual(['1', '2']);
