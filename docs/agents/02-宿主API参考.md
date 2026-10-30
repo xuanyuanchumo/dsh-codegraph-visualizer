@@ -658,3 +658,28 @@ interface IncrementalUpdateResult {
 **教训**：`scanned` 是**计数**不是文件清单（`{nodes, edges}`）——写文档前先读源码字段类型，
 凭名字想象契约正是 §59.20 一族「校验器可达≠值可达」的认知错误。
 
+
+---
+
+## 附：LLM 工具注册链路真机验证（cycle-114）
+
+**结论**：`ctx.tools.register()` 的插件工具经宿主聚合后，出现在发给 LLM 的每次请求的
+`tools` 数组（会话日志 `request/header` 行可证）。链路：
+
+```
+ctx.tools.register(tool)  →  dsh-tools 聚合  →  request/header.tools[]  →  LLM 工具发现
+```
+
+**实证**（宿主 0.2.1-rc.3 + 本插件 0.2.0，非 PTC preset 会话）：71 个工具中
+`graph_status/data/symbol/impact/path_find/path_enumerate/cycles/health/rules_check/focus/query`
+11 个全部在列；PTC preset（standard + run_code 聚合）会话中它们经 `tools.*` 绑定间接可达。
+
+**排障教训（P0）**：LLM 不调插件工具时，先查宿主日志 `skipping profile bundle` ——
+旧版同族插件（如 dsh-codegraph@0.1.3 peer ^0.1.0-rc.6）与新宿主不兼容被拒载，
+会连带污染同 slots 的 bundle 解析。修复：profile 移除旧插件（直接改 package.json + 删
+node_modules 链接可绕过 pnpm store 冲突），重启宿主后重验。
+
+**验证方法**：DSH 会话日志是**多帧 zstd 容器**（每帧独立、尾帧可截断），`zstdDecompressSync`
+只解第一帧。逐帧扫描算法：解析 frame header（magic 0xFD2FB528 / descriptor / window / blocks /
+checksum）定位帧边界后逐帧解拼。可复用 `dsh-session-persistence-jsonl/lib/index.js` 的
+`scanZstdFrames` 同款逻辑。

@@ -211,3 +211,4 @@
 - **cycle-113 两条新教训**（各有探针级证据，正文见 `docs/agents/08` §10）：
   - ① **effect 内 setState 必须带引用守卫**：无条件写新对象/数组引用（即使值语义不变）会让 renderHook/StrictMode 反复重渲染直至 OOM。测试信号：单个 hook 测试文件 OOM 且 `git stash` 对照后旧代码绿。正例：`setX((prev) => sameValue ? prev : next)`。
   - ② **「可读而不可达」的补法是产品化阈值，不是调阈值**：godModule 阈值 50 硬编码 + 13 节点桩图使功能对全部小图用户静默不可达。修法是把阈值变成面板内可调控件 + 诚实空态（区分「从未扫描」与「扫描后无结果」），扩容桩图反而会连带 14 张视觉基线全部失效。新表单控件必须同时带 `name` + `aria-label`——a11y 契约守卫（`a11yFormSemantics.test.ts`）会当场拦下。
+- **cycle-114 两条新教训**（证据 `.cycles/cycles/cycle-114/llm-trajectory-evidence.json`）：① LLM 不调插件工具时先查宿主日志 `skipping profile bundle`——同族旧版插件被新宿主拒载会污染整个 profile bundle 解析，修复靠移除旧版 + 重启，不是改自己插件；② DSH 会话日志是多帧 zstd 容器，`zstdDecompressSync` 只解第一帧——逐帧扫描（解析 frame header 定边界）才能读全，agent 轨迹分析必须走这条路而非 findstr 明文。
