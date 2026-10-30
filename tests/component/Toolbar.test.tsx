@@ -82,7 +82,9 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleDiff: noop,
     // 关键词图检索面板（cycle-111 / N-5）
     showKeywordQuery: false,
+      showRegistry: false,
     onToggleKeywordQuery: noop,
+    onToggleRegistry: noop,
     ...overrides,
   };
 }

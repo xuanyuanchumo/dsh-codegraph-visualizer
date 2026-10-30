@@ -795,3 +795,17 @@ Object.defineProperty(window, 'localStorage', {
 
 **陷阱**：桌面 App 对未认证 `/api/v1/*` 统一 401（不存在也 401），不能用状态码判别插件加载；
 识别桌面 profile 的方法：桌面主进程 CommandLine 的第 4 参数（wmic 可查）。
+
+## 附2：注册矩阵看板面板（cycle-117）
+
+**客户端呈现**：工具栏「更多」→「注册矩阵」（menuitemcheckbox，key `registry`，稳定类名寻址走 `cg-registry-*`）。组件 `RegistryPanel` 三态互斥：
+
+| 态 | 触发 | 呈现 |
+|---|---|---|
+| 不可达 | fetchRegistryBoard 回落 null | 「矩阵不可达」——null 与空矩阵绝不冒充 |
+| 等待 | 拉取中 | 斜体提示 |
+| 就绪 | 拉到矩阵 | 四面计数块 + 断链行 + live 计数 + 分面清单（36 行全展开） |
+
+**live 实测层**（宿主侧，`probeRegistry(deps)`）：声明式 `lifecycle` 回答设计意图，`live` 回答此刻宿主进程实况——数据路由有图数据即 live / 无则 idle；`/watch` `/events` 随 watcher；元路由（/status /health /workspace /registry）恒 live；entries 在宿主侧 unknown（DOM 在客户端），basis 字段说明依据。`/status.registry.liveCounts` 是它的轻量形态。
+
+**新业务接入清单**（三处同步，缺一被守卫抓住）：`businessRegistry.ts` 登记一行 + `guardTest` 指向真实测试 + routes.ts 注册数对齐。live 探针形状由契约 2 例守卫（全覆盖 + 空数据 idle 方向）。

@@ -4,7 +4,7 @@ import { useElementWidth } from '../hooks/useElementWidth.ts';
 import { UI } from '../../shared/constants.ts';
 import { getAvailablePanels, getViewLayer } from '../../shared/viewModeUtils.ts';
 import {
-  SearchIcon, MapIcon, SunIcon, MoonIcon, StarIcon, FilterIcon,
+  SearchIcon, MapIcon, SunIcon, MoonIcon, StarIcon, FilterIcon, WrenchIcon
 } from './Icons.tsx';
 import { ToolbarWorkspace } from './toolbar/ToolbarWorkspace.tsx';
 import { ToolbarViewMode } from './toolbar/ToolbarViewMode.tsx';
@@ -54,6 +54,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     onToggleLang: toggleLang,
     showTour: panelControls.showTour,
     onToggleTour: panelControls.onToggleTour,
+    showRegistry: panelControls.showRegistry,
+    onToggleRegistry: panelControls.onToggleRegistry,
     onCollapseAll,
     icons: {
       search: <SearchIcon size={14} />,
@@ -61,6 +63,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       legend: <FilterIcon size={14} />,
       theme: theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />,
       tour: <StarIcon size={14} />,
+      registry: <WrenchIcon size={14} />,
     },
   });
 

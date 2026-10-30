@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { allEntries, brokenLinks, ROUTE_ENTRIES, TOOL_ENTRIES, ENTRY_ITEMS, SKILL_ENTRIES } from '../../src/host/registry/businessRegistry.ts';
+import { allEntries, brokenLinks, ROUTE_ENTRIES, TOOL_ENTRIES, ENTRY_ITEMS, SKILL_ENTRIES, probeRegistry } from '../../src/host/registry/businessRegistry.ts';
 
 const ROOT = join(import.meta.dirname, '../..');
 
@@ -59,6 +59,26 @@ describe('business registry contract', () => {
     expect(ROUTE_ENTRIES.length).toBe(20);
     expect(ENTRY_ITEMS.length).toBe(4);
     expect(SKILL_ENTRIES.length).toBe(1);
+  });
+
+  it('live probe covers every entry and emits only valid states', () => {
+    const hints = probeRegistry({ getLastGraphData: () => ({ nodes: [] }) });
+    expect(hints.length).toBe(allEntries().length);
+    for (const h of hints) {
+      expect(['live', 'idle', 'degraded', 'unknown']).toContain(h.live);
+      expect(h.basis.length).toBeGreaterThan(0);
+    }
+    // 元路由/status 在空数据下也必须 live（它们不依赖图数据）
+    const statusHint = hints.find((h) => h.id === '/status');
+    expect(statusHint?.live).toBe('live');
+  });
+
+  it('live probe: data routes go idle without graph data', () => {
+    const hints = probeRegistry({ getLastGraphData: () => null });
+    const dataHint = hints.find((h) => h.id === '/data');
+    expect(dataHint?.live).toBe('idle');
+    const watchHint = hints.find((h) => h.id === '/watch');
+    expect(watchHint?.live).toBe('idle');
   });
 
   it('reverse self-check: a synthetic broken link IS detected', () => {

@@ -370,4 +370,10 @@
   .cg-prereq-cmd {
     background: rgba(249, 250, 251, 0.80);
   }
+  /* cycle-117: registry 看板断链行（rgba fallback for color-mix） */
+  .cg-registry-broken-active {
+    border-color: rgba(239, 68, 68, 1.00);
+    background: rgba(239, 68, 68, 0.08);
+  }
+
 }

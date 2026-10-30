@@ -24,6 +24,7 @@ export interface PanelState {
   showRuntime: boolean;
   showDiff: boolean;
   showKeywordQuery: boolean;
+  showRegistry: boolean;
   toggleSearch: () => void;
   toggleCollapsed: () => void;
   toggleCycles: () => void;
@@ -39,6 +40,7 @@ export interface PanelState {
   toggleRules: () => void;
   toggleHotspot: () => void;
   toggleGodModule: () => void;
+  toggleRegistry: () => void;
   toggleCoreFunction: () => void;
   toggleDeadCode: () => void;
   toggleFilterPanel: () => void;
@@ -67,6 +69,7 @@ export interface PanelState {
   setShowRuntime: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowDiff: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowKeywordQuery: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setShowRegistry: (v: boolean | ((prev: boolean) => boolean)) => void;
   closeAll: () => void;
   toPanelControls: PanelControls;
 }
@@ -76,7 +79,7 @@ type PanelVisibilityKey =
   | 'showInheritance' | 'showMiniMap' | 'showImport' | 'showLegend'
   | 'showPathFind' | 'showHealthScore' | 'showRules' | 'showHotspot'
   | 'showGodModule' | 'showCoreFunction' | 'showDeadCode' | 'showFilterPanel' | 'showTour' | 'showRuntime'
-  | 'showDiff' | 'showKeywordQuery';
+  | 'showDiff' | 'showKeywordQuery' | 'showRegistry';
 
 interface PanelStateInternal {
   showSearch: boolean;
@@ -101,6 +104,7 @@ interface PanelStateInternal {
   showRuntime: boolean;
   showDiff: boolean;
   showKeywordQuery: boolean;
+  showRegistry: boolean;
 }
 
 type Action =
@@ -112,7 +116,7 @@ const CLOSABLE_PANEL_KEYS: PanelVisibilityKey[] = [
   'showSearch', 'showCallChain', 'showCycles', 'showImpact', 'showInheritance',
   'showImport', 'showLegend', 'showPathFind', 'showHealthScore', 'showRules',
   'showHotspot', 'showGodModule', 'showCoreFunction', 'showFilterPanel', 'showTour',
-  'showRuntime', 'showDiff', 'showKeywordQuery',
+  'showRuntime', 'showDiff', 'showKeywordQuery', 'showRegistry',
 ];
 
 const initialState: PanelStateInternal = {
@@ -139,6 +143,7 @@ const initialState: PanelStateInternal = {
   showDiff: false,
   // 关键词图检索面板（cycle-111 / N-5）：默认收起，与其它分析面板一致。
   showKeywordQuery: false,
+  showRegistry: false,
 };
 
 function reducer(state: PanelStateInternal, action: Action): PanelStateInternal {
@@ -191,6 +196,7 @@ export function usePanelState(): PanelState {
   const toggleRuntime = useCallback(makeToggle('showRuntime'), [makeToggle]);
   const toggleDiff = useCallback(makeToggle('showDiff'), [makeToggle]);
   const toggleKeywordQuery = useCallback(makeToggle('showKeywordQuery'), [makeToggle]);
+  const toggleRegistry = useCallback(makeToggle('showRegistry'), [makeToggle]);
 
   const setShowSearch = useCallback(makeSet('showSearch'), [makeSet]);
   const setShowImport = useCallback(makeSet('showImport'), [makeSet]);
@@ -213,6 +219,7 @@ export function usePanelState(): PanelState {
   const setShowRuntime = useCallback(makeSet('showRuntime'), [makeSet]);
   const setShowDiff = useCallback(makeSet('showDiff'), [makeSet]);
   const setShowKeywordQuery = useCallback(makeSet('showKeywordQuery'), [makeSet]);
+  const setShowRegistry = useCallback(makeSet('showRegistry'), [makeSet]);
 
   const closeAll = useCallback(() => dispatch({ type: 'closeAll' }), []);
 
@@ -220,13 +227,14 @@ export function usePanelState(): PanelState {
     ...state,
     toggleSearch, toggleCollapsed, toggleCycles, toggleCycleIsolation, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
     togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction, toggleDeadCode, toggleFilterPanel,
-    toggleTour, toggleRuntime, toggleDiff, toggleKeywordQuery,
+    toggleTour, toggleRuntime, toggleDiff, toggleKeywordQuery, toggleRegistry,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowCycleIsolation, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
     setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction, setShowDeadCode, setShowFilterPanel,
     setShowTour,
     setShowRuntime,
     setShowDiff,
     setShowKeywordQuery,
+    setShowRegistry,
     closeAll,
     toPanelControls: useMemo(() => ({
       showSearch: state.showSearch, showCallChain: state.showCallChain, showCycles: state.showCycles,
@@ -239,6 +247,7 @@ export function usePanelState(): PanelState {
       showRuntime: state.showRuntime,
       showDiff: state.showDiff,
       showKeywordQuery: state.showKeywordQuery,
+      showRegistry: state.showRegistry,
       onToggleSearch: toggleSearch, onToggleCallChain: toggleCallChain, onToggleCycles: toggleCycles,
       onToggleCycleIsolation: toggleCycleIsolation,
       onToggleImpact: toggleImpact, onToggleInheritance: toggleInheritance, onToggleMiniMap: toggleMiniMap,
@@ -249,6 +258,7 @@ export function usePanelState(): PanelState {
       onToggleRuntime: toggleRuntime,
       onToggleDiff: toggleDiff,
       onToggleKeywordQuery: toggleKeywordQuery,
+      onToggleRegistry: toggleRegistry,
     }), [
       state.showSearch, state.showCallChain, state.showCycles, state.cycleIsolation,
       state.showImpact, state.showInheritance, state.showMiniMap, state.showLegend,
@@ -263,6 +273,7 @@ export function usePanelState(): PanelState {
       toggleImport, togglePathFind, toggleHealthScore, toggleRules,
       toggleHotspot, toggleGodModule, toggleCoreFunction, toggleDeadCode, toggleFilterPanel,
       toggleTour,
+      toggleRegistry,
       toggleRuntime,
       toggleDiff,
       toggleKeywordQuery,

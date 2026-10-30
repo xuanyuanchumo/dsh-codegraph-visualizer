@@ -47,6 +47,7 @@ export interface ToolbarVisibilityState {
    * 画布上高亮），所以它需要一层有图的视图；运行时层没有图，该面板在这一层不可用。
    */
   showKeywordQuery: boolean;
+  showRegistry: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -72,6 +73,7 @@ export interface ToolbarToggleHandlers {
   onToggleDiff: () => void;
   /** 关键词图检索面板开关（cycle-111 / N-5）。 */
   onToggleKeywordQuery: () => void;
+  onToggleRegistry: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}

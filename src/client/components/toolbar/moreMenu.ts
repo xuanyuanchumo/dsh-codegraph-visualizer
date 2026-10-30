@@ -55,6 +55,9 @@ export interface MoreMenuInput {
   onToggleLang: () => void;
   showTour: boolean;
   onToggleTour: () => void;
+  /** 注册矩阵看板（cycle-117）：可选——测试与旧调用点未传时不出现在菜单（向后兼容）。 */
+  showRegistry?: boolean;
+  onToggleRegistry?: (() => void) | undefined;
   onCollapseAll?: (() => void) | undefined;
   /** 图标工厂：测试里可以传空实现，避免把 Icons.tsx 拖进纯函数测试。 */
   icons: {
@@ -63,6 +66,7 @@ export interface MoreMenuInput {
     legend: React.ReactNode;
     theme: React.ReactNode;
     tour: React.ReactNode;
+    registry?: React.ReactNode;
   };
 }
 
@@ -108,6 +112,12 @@ export function buildMoreMenuSections(input: MoreMenuInput): MoreMenuSection[] {
     {
       labelKey: 'toolbar.moreSessionSection',
       items: [
+        input.onToggleRegistry
+          ? {
+              key: 'registry', titleKey: 'toolbar.registry', icon: input.icons.registry,
+              active: input.showRegistry ?? false, onClick: input.onToggleRegistry, role: 'menuitemcheckbox',
+            }
+          : null,
         {
           key: 'tour', titleKey: 'toolbar.tour', icon: input.icons.tour,
           active: input.showTour, onClick: input.onToggleTour, role: 'menuitemcheckbox',

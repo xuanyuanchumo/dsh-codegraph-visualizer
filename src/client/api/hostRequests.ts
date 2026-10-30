@@ -280,3 +280,31 @@ export async function fetchHotspotChurn(
     };
   }, null, { workspace });
 }
+
+
+/** 注册矩阵看板载荷（cycle-117）。宿主 `/registry` 路由的响应形状（客户端只消费摘要 + live）。 */
+export interface RegistryBoard {
+  version: number;
+  total: number;
+  byFace: Record<string, number>;
+  brokenLinks: string[];
+  lifecycleCounts: Record<string, number>;
+  liveCounts?: Record<string, number>;
+  entries: { id: string; face: string; produces: string; consumers: string[]; lifecycle: string; registeredAt: string }[];
+  live?: { id: string; face: string; live: string; basis: string }[];
+}
+
+/**
+ * 拉注册-生产-消费矩阵（cycle-117 可观测性看板）。
+ *
+ * 失败语义：回落 `null`——「这次没拉到」与「拉到了但矩阵为空」必须可区分；
+ * 看板对 `null` 显示「矩阵不可达」，绝不用空对象冒充成功。
+ */
+export async function fetchRegistryBoard(): Promise<RegistryBoard | null> {
+  const failure: RegistryBoard | null = null;
+  return withAbortGuard('fetchRegistryBoard', async () => {
+    const res = await fetchWithTimeout('/api/v1/codegraph/registry');
+    if (!res.ok) return null;
+    return (await res.json()) as RegistryBoard;
+  }, failure, { url: '/api/v1/codegraph/registry' });
+}

@@ -61,6 +61,7 @@ import './styles/tokens.css'; import './styles/layout.css'; import './styles/ove
 import './styles/graph.css'; import './styles/node-detail.css'; import './styles/import-workspace.css';
 import './styles/path-finder.css'; import './styles/health-score-card.css'; import './styles/rule-config-panel.css';
 import './styles/hotspot-godmodule-panel.css'; import './styles/impact-panel.css'; import './styles/cycle-panel.css'; import './styles/deadcode-panel.css';
+import './styles/registry-panel.css'; import './styles/impact-panel.css'; import './styles/cycle-panel.css'; import './styles/deadcode-panel.css';
 import './styles/tour-panel.css'; import './styles/responsive.css'; import './styles/misc.css';
 import './styles/runtime-panel.css';
 import './styles/diff-panel.css';
@@ -621,6 +622,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           godModuleEmpty: t('godmodule.empty'),
           godModuleWait: t('godmodule.wait'),
           godModuleThreshold: t('godmodule.threshold'),
+          registry: t('toolbar.registry'),
         }}
       />
 

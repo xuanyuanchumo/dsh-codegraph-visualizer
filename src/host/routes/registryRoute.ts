@@ -1,6 +1,6 @@
 import { sendJson } from '../HttpHelpers.ts';
 import { withRouteMiddleware, type RouteContext } from './shared.ts';
-import { registrySummary } from '../registry/businessRegistry.ts';
+import { registrySummary, probeRegistry } from '../registry/businessRegistry.ts';
 
 /**
  * 业务注册-生产-消费矩阵路由（cycle-116 可观测性主轴）。
@@ -19,7 +19,11 @@ export function registerRegistryRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
-      sendJson(res, 200, registrySummary(), req, corsConfig);
+      sendJson(res, 200, {
+        ...registrySummary(),
+        // cycle-117：运行时实测层（lifecycle 声明式 → 实测式）。零副作用探测。
+        live: probeRegistry(rc.deps),
+      }, req, corsConfig);
     }),
   }), 'codegraph: registry route');
 }

@@ -112,3 +112,77 @@ export function registrySummary() {
     entries,
   };
 }
+
+
+/** 宿主运行时依赖的最小形状（避免拉入完整 Deps 类型造成循环依赖）。 */
+export interface RegistryProbeDeps {
+  getLastGraphData: () => unknown | null;
+  isWatcherEnabled?: () => boolean;
+  apiCompat?: unknown;
+  featureFlags?: { readonly [key: string]: unknown } | object | null;
+}
+
+/** 单业务运行时探针结果。 */
+export interface LiveHint {
+  id: string;
+  face: RegistryEntry['face'];
+  /** 实测生命周期：由宿主状态推导，与声明式 lifecycle 独立。 */
+  live: 'live' | 'idle' | 'degraded' | 'unknown';
+  /** 人类可读的实测依据。 */
+  basis: string;
+}
+
+/**
+ * 运行时探针（cycle-117：lifecycle 从声明式转实测式）。
+ *
+ * 声明式 `lifecycle` 回答「设计上该业务处于什么阶段」；本函数回答「此刻宿主进程里
+ * 它到底活不活」。两者可能合法地不同：`/scan` 声明 consuming，但从未扫描时实测 idle。
+ *
+ * 探测原理（全部零副作用）：
+ * - routes：图数据有无（多数数据/分析路由的工作前提）+ watcher 开关（/watch、/events）；
+ * - tools：与 routes 同源（工具经 invoke 调路由 handler），图数据在即 live；
+ * - entries：宿主侧不可测（DOM 在客户端）→ `unknown` + basis 说明，客户端看板用 DOM 标记补齐；
+ * - skill：featureFlags 里 commandUi 类位存在即 live。
+ */
+export function probeRegistry(deps: RegistryProbeDeps): LiveHint[] {
+  const hasGraph = deps.getLastGraphData() !== null;
+  const watcherOn = deps.isWatcherEnabled?.() ?? false;
+  const flags = (deps.featureFlags ?? {}) as Record<string, unknown>;
+
+  const routeHint = (id: string, basis: string, live: LiveHint['live']): LiveHint => ({ id, face: 'routes', live, basis });
+
+  const routeLive = (id: string): LiveHint => {
+    if (id === '/watch' || id === '/events') {
+      return routeHint(id, watcherOn ? 'watcher 已启用' : 'watcher 未启用（路由注册但无事件流）', watcherOn ? 'live' : 'idle');
+    }
+    if (id === '/status' || id === '/health' || id === '/workspace' || id === '/registry') {
+      return routeHint(id, '状态/元路由：无图数据也响应', 'live');
+    }
+    return routeHint(id, hasGraph ? '图数据在内存中' : '图数据未加载（先扫描/导入）', hasGraph ? 'live' : 'idle');
+  };
+
+  return [
+    ...allEntries().filter((e) => e.face === 'routes').map((e) => routeLive(e.id)),
+    ...allEntries().filter((e) => e.face === 'tools').map((e): LiveHint => ({
+      id: e.id, face: 'tools',
+      live: hasGraph ? 'live' : 'idle',
+      basis: hasGraph ? 'invoke 链路可用（图数据在）' : 'invoke 链路可用但数据为空',
+    })),
+    ...allEntries().filter((e) => e.face === 'entries').map((e): LiveHint => ({
+      id: e.id, face: 'entries', live: 'unknown',
+      basis: '入口状态在客户端 DOM（data-cg-top-tab / 集成状态标记），宿主侧不可测',
+    })),
+    ...allEntries().filter((e) => e.face === 'skill').map((e): LiveHint => ({
+      id: e.id, face: 'skill',
+      live: Object.keys(flags).length > 0 ? 'live' : 'unknown',
+      basis: Object.keys(flags).length > 0 ? 'featureFlags 已解析' : 'featureFlags 为空',
+    })),
+  ];
+}
+
+/** live 探针结果计数（/status 摘要用轻量形态）。 */
+export function countLive(hints: LiveHint[]): Record<string, number> {
+  const out: Record<string, number> = { live: 0, idle: 0, degraded: 0, unknown: 0 };
+  for (const h of hints) out[h.live] = (out[h.live] ?? 0) + 1;
+  return out;
+}

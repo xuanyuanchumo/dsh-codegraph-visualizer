@@ -1,6 +1,7 @@
 import { StatsPanel } from './StatsPanel.tsx';
 import { HotspotPanel } from './HotspotPanel.tsx';
 import { GodModulePanel } from './GodModulePanel.tsx';
+import { RegistryPanel } from './RegistryPanel.tsx';
 import { CoreFunctionPanel } from './CoreFunctionPanel.tsx';
 import { DeadCodePanel } from './DeadCodePanel.tsx';
 import { FilterPanel } from './FilterPanel.tsx';
@@ -23,6 +24,8 @@ import type { DiffState } from '../store/types.ts';
 
 interface RightPanelStackProps {
   panel: PanelState;
+  showRegistry?: boolean;
+  onToggleRegistry?: (() => void) | undefined;
   isCollapsed: boolean;
   nodeTypeCounts: { function: number; class: number; variable: number; module: number; interface: number };
   thumbnail: string | null;
@@ -54,6 +57,7 @@ interface RightPanelStackProps {
   onDiffCompare: (from: string, to: string) => void;
   onDiffClear: () => void;
   labels: {
+    registry?: string;
     hotspot: string;
     godModule: string;
     coreFunction: string;
@@ -117,6 +121,10 @@ export function RightPanelStack(props: RightPanelStackProps) {
     {
       visible: panel.showTour,
       children: <TourPanel tour={props.tourData as Tour} onClose={() => panel.setShowTour(false)} />,
+    },
+    {
+      visible: panel.showRegistry ?? false,
+      children: <RegistryPanel onClose={() => panel.setShowRegistry(false)} label={props.labels.registry ?? 'Registry'} />,
     },
     {
       visible: panel.showImpact && !!props.impactStats,

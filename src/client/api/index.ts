@@ -41,11 +41,13 @@ export {
   requestWatch,
   fetchGraphDiff,
   fetchHotspotChurn,
+  fetchRegistryBoard,
 } from './hostRequests.ts';
 export type {
   BootstrapData,
   WorkspaceInfo,
   DiffGraphData,
+  RegistryBoard,
 } from './hostRequests.ts';
 
 /**

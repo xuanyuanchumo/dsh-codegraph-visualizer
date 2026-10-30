@@ -3,7 +3,7 @@ import { sendJson } from '../HttpHelpers.ts';
 import { computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
 import { isGraphServiceHealthy } from '../../shared/prerequisiteStatus.ts';
 import { withRouteMiddleware, ensureWorkspaceRootsAllowed, type RouteContext } from './shared.ts';
-import { registrySummary } from '../registry/businessRegistry.ts';
+import { registrySummary, probeRegistry, countLive } from '../registry/businessRegistry.ts';
 
 export function registerStatusRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter } = rc;
@@ -29,7 +29,7 @@ export function registerStatusRoute(rc: RouteContext): void {
         compat: deps.featureFlags ?? null,
         // cycle-116 可观测性：注册-生产-消费矩阵摘要（四面计数 + 断链清单）。
         // additive 字段：旧客户端不读无影响；运维/测试用它白盒检查业务连通性。
-        registry: registrySummary(),
+        registry: { ...registrySummary(), liveCounts: countLive(probeRegistry(deps)) },
       }, req, corsConfig);
     }),
   }), 'codegraph: status route');
