@@ -32,6 +32,12 @@ interface RightPanelStackProps {
   /** 变更频率的取数状态；可选，缺省时热点面板退化为「只显示入度」。 */
   churnStatus?: ChurnStatus;
   godModules: GodModule[];
+  /** God Module 扫描状态：区分「从未扫描」与「扫描后无结果」，驱动诚实空态。 */
+  godModuleScan: { scanned: boolean; nodeCount: number };
+  /** God Module 阈值（面板内可调，默认 50）。 */
+  godModuleThreshold: number;
+  /** 阈值变更回调（触发 useAnalysisPanels 重检测）。 */
+  onGodModuleThresholdChange: (v: number) => void;
   coreFunctions: CoreFunction[];
   deadCodeResult: DeadCodeResult | null;
   impactStats: ImpactStats | null;
@@ -59,6 +65,12 @@ interface RightPanelStackProps {
     runtime: string;
     keywordQuery: string;
     godModuleStats: (n: number, e: number) => string;
+    /** 扫描完成但无超标模块（诚实空态）。 */
+    godModuleEmpty: string;
+    /** 图还没加载（等待态）。 */
+    godModuleWait: string;
+    /** 阈值调节控件标签。 */
+    godModuleThreshold: string;
   };
 }
 
@@ -78,9 +90,15 @@ export function RightPanelStack(props: RightPanelStackProps) {
       children: <HotspotPanel hotspotNodes={props.hotspotNodes} churnStatus={props.churnStatus} onClose={() => panel.setShowHotspot(false)} label={props.labels.hotspot} />,
     },
     {
-      visible: panel.showGodModule && props.godModules.length > 0,
-      children: <GodModulePanel godModules={props.godModules} onClose={() => panel.setShowGodModule(false)}
-        label={props.labels.godModule} statsLabel={props.labels.godModuleStats} />,
+      // cycle-113：可见门从「有结果」放宽为「已打开开关」——空态面板（阈值调节 + 诚实提示）
+      // 本身就是功能；之前 13 节点桩图上整个功能静默不可达。
+      visible: panel.showGodModule,
+      children: <GodModulePanel godModules={props.godModules} godModuleScan={props.godModuleScan}
+        threshold={props.godModuleThreshold} onThresholdChange={props.onGodModuleThresholdChange}
+        onClose={() => panel.setShowGodModule(false)}
+        label={props.labels.godModule} statsLabel={props.labels.godModuleStats}
+        emptyLabel={props.labels.godModuleEmpty} waitLabel={props.labels.godModuleWait}
+        thresholdLabel={props.labels.godModuleThreshold} />,
     },
     {
       visible: panel.showCoreFunction && props.coreFunctions.length > 0,

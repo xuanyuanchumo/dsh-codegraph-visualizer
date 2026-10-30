@@ -440,6 +440,9 @@ export const en: Record<string, string> = {
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
   'stats.functionBodyBudget': '{expanded}/{max} function bodies expanded',
   'godmodule.stats': '{nodes} nodes · {edges} edges',
+  'godmodule.empty': 'Scan complete: no module exceeds the current threshold. Lower the threshold and re-run.',
+  'godmodule.wait': 'Waiting for graph data to load.',
+  'godmodule.threshold': 'Detection threshold (nodes)',
   'search.moreResults': '+{n} more results',
 
   // Layer names

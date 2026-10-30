@@ -208,3 +208,6 @@
   - 规范文档也会写过时方案：`docs/research/璇玑图实现差距与迭代路线.md` 的 XJ-07 方案 A 要「`'top-k-weight'` 抛 not-implemented」，但 cycle-110 **已经真实现**了 top-k。按 A 执行 = 删掉已实现、已测、可用的能力。**「文档说要删」不等于「代码该删」**——偏离时必须把理由写进报告并记为规格变更（「文档为原告、代码为被告，但原告也可能写错」）。
   - `ctx.inject` 的依赖永不到齐时**回调永不执行且不报错**：运行时 Skill 贡献若显示 `registered: false`，`/` 面板与模型侧都看不到它，而插件照常加载。这条静默失败让「贡献了 Skill」不可证伪——必须让 `contributeGraphSkill` **返回值可断言**（`{registered, reason}`），并在宿主日志里留一行 `runtime skill contributed`。
 
+- **cycle-113 两条新教训**（各有探针级证据，正文见 `docs/agents/08` §10）：
+  - ① **effect 内 setState 必须带引用守卫**：无条件写新对象/数组引用（即使值语义不变）会让 renderHook/StrictMode 反复重渲染直至 OOM。测试信号：单个 hook 测试文件 OOM 且 `git stash` 对照后旧代码绿。正例：`setX((prev) => sameValue ? prev : next)`。
+  - ② **「可读而不可达」的补法是产品化阈值，不是调阈值**：godModule 阈值 50 硬编码 + 13 节点桩图使功能对全部小图用户静默不可达。修法是把阈值变成面板内可调控件 + 诚实空态（区分「从未扫描」与「扫描后无结果」），扩容桩图反而会连带 14 张视觉基线全部失效。新表单控件必须同时带 `name` + `aria-label`——a11y 契约守卫（`a11yFormSemantics.test.ts`）会当场拦下。

@@ -362,7 +362,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return renderer.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
   }, [renderer.rendererRef, selectedNodeId]);
 
-  const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions, deadCodeResult } = useAnalysisPanels(
+  const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions, deadCodeResult,
+    godModuleScan, godModuleThreshold, setGodModuleThreshold } = useAnalysisPanels(
     rawNodes, rawEdges,
     panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule,
     panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction, panel.showDeadCode,
@@ -584,6 +585,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           }
         }}
         hotspotNodes={hotspotNodes} godModules={godModules}
+        godModuleScan={godModuleScan} godModuleThreshold={godModuleThreshold}
+        onGodModuleThresholdChange={setGodModuleThreshold}
         coreFunctions={coreFunctions} deadCodeResult={deadCodeResult}
         impactStats={impactStats} cycleDetails={cycleDetails}
         tourData={tourData}
@@ -615,6 +618,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           runtime: t('runtime.title'),
           keywordQuery: t('keywordQuery.title'),
           godModuleStats: (n, e) => t('godmodule.stats', { nodes: n, edges: e }),
+          godModuleEmpty: t('godmodule.empty'),
+          godModuleWait: t('godmodule.wait'),
+          godModuleThreshold: t('godmodule.threshold'),
         }}
       />
 

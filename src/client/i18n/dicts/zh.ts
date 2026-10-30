@@ -439,6 +439,9 @@ export const zh: Record<string, string> = {
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
   'stats.functionBodyBudget': '已展开 {expanded}/{max} 个函数体',
   'godmodule.stats': '{nodes} 节点 · {edges} 边',
+  'godmodule.empty': '已扫描：当前阈值下没有超标模块。可调低阈值后重新检测。',
+  'godmodule.wait': '等待图数据加载后开始检测。',
+  'godmodule.threshold': '检测阈值（节点数）',
   'search.moreResults': '还有 {n} 个结果',
 
   // Layer names

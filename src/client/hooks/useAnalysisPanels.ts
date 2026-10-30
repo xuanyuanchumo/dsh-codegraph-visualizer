@@ -94,6 +94,22 @@ export function useAnalysisPanels(
 
   const [hotspotNodes, setHotspotNodes] = useState<HotspotNode[]>([]);
   const [godModules, setGodModules] = useState<GodModule[]>([]);
+  /**
+   * God Module 扫描状态（诚实空态的判定依据）。
+   *
+   * `scanned: false` = 面板从未跑过检测（图还没加载 / 开关刚打开但图空）——面板此时显示
+   * 「等待图数据」；`scanned: true` = 检测已执行且无结果——面板显示「当前阈值下无超标模块」
+   * 与阈值调节控件。两者混淆会让「功能坏了」伪装成「没有数据」。
+   */
+  const [godModuleScan, setGodModuleScan] = useState<{ scanned: boolean; nodeCount: number }>({ scanned: false, nodeCount: 0 });
+  /**
+   * God Module 阈值（产品化：cycle-113）。
+   *
+   * 默认 50 与 detect() 的参数默认值一致——小图（如 13 节点桩图）上硬编码 50 使整个功能
+   * 不可达且无任何提示（「可读而不可达」缺陷族）。阈值面板内可调后，小图用户可降到 5/10
+   * 看到真实结果；detect() 随阈值变化重检测。
+   */
+  const [godModuleThreshold, setGodModuleThreshold] = useState(50);
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
   const [coreFunctions, setCoreFunctions] = useState<CoreFunction[]>([]);
   const [deadCodeResult, setDeadCodeResult] = useState<DeadCodeResult | null>(null);
@@ -162,9 +178,19 @@ export function useAnalysisPanels(
 
   useEffect(() => {
     if (showGodModule && rawNodes.length > 0) {
-      setGodModules(godModuleDetector.detect(rawNodes, rawEdges));
+      setGodModules(godModuleDetector.detect(rawNodes, rawEdges, godModuleThreshold));
+      // 「已扫描但无结果」是诚实空态的判定依据：只有真正跑过 detect 才允许写 true，
+      // 否则面板会在「从未扫描」与「扫描后无结果」之间混淆（另一种静默失败）。
+      setGodModuleScan((prev) =>
+        prev.scanned && prev.nodeCount === rawNodes.length ? prev : { scanned: true, nodeCount: rawNodes.length });
+    } else {
+      // 面板关闭或图被清空时同步清结果与扫描态，避免残留上一轮数据。
+      // 两个 setter 都必须「值不变时返回原引用」：effect 内无条件写新对象会让
+      // renderHook/StrictMode 反复重渲染直至 OOM（最小探针实证，cycle-113）。
+      setGodModules((prev) => (prev.length === 0 ? prev : []));
+      setGodModuleScan((prev) => (prev.scanned || prev.nodeCount !== 0 ? { scanned: false, nodeCount: 0 } : prev));
     }
-  }, [showGodModule, rawNodes, rawEdges, godModuleDetector]);
+  }, [showGodModule, rawNodes, rawEdges, godModuleDetector, godModuleThreshold]);
 
   useEffect(() => {
     if (showImpact && selectedNodeId) {
@@ -192,5 +218,6 @@ export function useAnalysisPanels(
   return {
     handleHealthCheck, handleRulesCheck, hotspotNodes, godModules, impactStats,
     coreFunctions, deadCodeResult, churnStatus,
+    godModuleScan, godModuleThreshold, setGodModuleThreshold,
   };
 }
