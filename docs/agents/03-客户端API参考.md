@@ -771,3 +771,27 @@ Object.defineProperty(window, 'localStorage', {
 > **仍无机器守卫的部分**：跨源真机场景没有 E2E（`conversation-remote-web-ui.spec.ts`
 > 已不存在，见 [测试体系 §2.20](../测试体系.md)）。单测能证明「回退实现可用」，
 > 不能证明「真实 iframe 里不再白屏」。
+
+---
+
+## 附：会话视图入口双端安装与验证（cycle-115）
+
+**DSH 双 profile 结构**：桌面 App（Electron）用 `~/.dsh/profiles/desktop`，Web 服务/测试实例用
+`~/.dsh/profiles/web`，**互相独立**。link 安装（`link:<路径>`）必须各自执行：
+
+```jsonc
+// package.json（两处 profile 各一份）
+{ "dependencies": { "dsh-codegraph-visualizer": "link:D:/…/dsh-codegraph-visualizer" },
+  "dsh": { "profile": { "bundles": [ "dsh-codegraph-visualizer", … ] } } }
+// desktop 的 bundles 在 package.json 的 dsh.profile.bundles；web 的 cordis.yml 是空数组、
+// 树由 bundles + cordis.patch.yml 组成——两 profile 的 bundle 声明位置不同！
+```
+
+**验证判据（两端一致）**：
+
+1. 会话激活后顶部标签栏出现「代码图谱」（与「对话」「轨迹」同级）；
+2. `document.documentElement` 的 `data-cg-top-tab="registered"`；
+3. 空会话（未发首条消息）标签栏不渲染——先发消息激活再断言 UI。
+
+**陷阱**：桌面 App 对未认证 `/api/v1/*` 统一 401（不存在也 401），不能用状态码判别插件加载；
+识别桌面 profile 的方法：桌面主进程 CommandLine 的第 4 参数（wmic 可查）。
