@@ -683,3 +683,16 @@ node_modules 链接可绕过 pnpm store 冲突），重启宿主后重验。
 只解第一帧。逐帧扫描算法：解析 frame header（magic 0xFD2FB528 / descriptor / window / blocks /
 checksum）定位帧边界后逐帧解拼。可复用 `dsh-session-persistence-jsonl/lib/index.js` 的
 `scanZstdFrames` 同款逻辑。
+
+## 14. 业务注册矩阵路由（cycle-116）
+
+`GET /api/v1/codegraph/registry` —— 注册-生产-消费四面全量清单（白盒透明化看板）。
+
+- **四面**：`tools`（11 个 graph_*）/ `routes`（20 条，含 /worker 布局脚本）/ `entries`（4 通道优先级链）/ `skill`（1 个图检索贡献）；
+- **每项字段**：`id` / `face` / `registeredAt`（file:line）/ `produces` / `consumers[]`（空 = 断链）/ `guardTest` / `lifecycle`（五态：registered→producing→consuming→degraded→disposed）；
+- **断链判定**：`brokenLinks` 非空即有业务注册了但无人消费——看板直接标红；
+- **契约守卫**：`tests/unit/registryContract.test.ts` 5 例（guardTest 文件存在性 / 断链为空 / routes.ts 注册数 = 清单数 / 四面计数 / 反向自检）；
+- **快捷入口**：`/status` 响应新增 `registry` 摘要字段（additive，四面计数 + 断链清单）——既有 status 消费者零成本获得可观测性。
+
+**运维用法**：`curl /api/v1/codegraph/registry | jq '.brokenLinks, .lifecycleCounts'`；
+新增业务时必须同时在 `src/host/registry/businessRegistry.ts` 登记一行——漏登记会被契约测试第 3 例抓住（routes.ts 注册数 ≠ 清单数）。
