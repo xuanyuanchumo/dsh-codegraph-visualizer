@@ -68,6 +68,17 @@ export interface PathEnumerationOptions {
   readonly cursor?: number;
   /** 每页条数（缺省等于 `limit`）。 */
   readonly pageSize?: number;
+  /**
+   * 截断策略（cycle-112 继承项 A：`top-k-weight` 此前只有单元测试可达——
+   * `grep -rn truncation src/ | grep -v xuanji` = 0，生产两处 `enumerate` 都只传
+   * `{maxPaths}`）。透传给库的 `EnumerateOptions.truncation`：
+   * - `'dfs-order'`（缺省）：达到条数上限即停，按 DFS 序（确定、可复现）；
+   * - `'top-k-weight'`：先枚举全部候选再按**边权重之和**降序取前 k——
+   *   注意它必须**看完所有候选**才知道哪 k 条最高（候选集超 `TOP_K_CANDIDATE_BUDGET`
+   *   时库会抛 `RuleCompositionError`），大图上显著更慢，调用方应缩小 `lMax` 或边类型
+   *   集合后再用。
+   */
+  readonly truncation?: 'dfs-order' | 'top-k-weight';
 }
 
 /** 路径枚举结果。 */
@@ -610,7 +621,12 @@ export class XuanjiAdapter {
 
     const index = new PathIndex();
     // 多枚举一条用于区分「恰好 limit 条」与「被截断」；分页时窗口终点是 cursor + pageSize。
-    const entries = enumerate(this.space, rule, [source], index, { maxPaths: cursor + pageSize + 1 });
+    // truncation 透传（cycle-112 继承项 A）：`'top-k-weight'` 时库会先收齐全部候选再按
+    // 权重取前 k —— `maxPaths` 语义不变（仍是返回条数上限），只是**选择策略**不同。
+    const entries = enumerate(this.space, rule, [source], index, {
+      maxPaths: cursor + pageSize + 1,
+      ...(options.truncation ? { truncation: options.truncation } : {}),
+    });
     const truncated = entries.length > cursor + pageSize;
     const page = readPathPage(rule, entries, { cursor, pageSize });
     return {

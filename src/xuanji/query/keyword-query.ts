@@ -82,6 +82,18 @@ export interface RenderedSubgraph {
 /** 单个 ASCII 词 / 标识符的最小长度（过短的词会匹配一切，等同噪声）。 */
 const MIN_TERM_LENGTH = 2;
 
+/**
+ * BFS 展开深度的**库级硬上界**（cycle-112 继承项 E：此前在 `renderSubgraphText` 里
+ * 裸写 `Math.min(3, …)`，未导出——宿主 route 只好镜像一份常量，而镜像在库改上界时会
+ * 静默撒谎，见 `src/host/routes/queryRoute.ts` 的 `LIBRARY_MAX_DEPTH`）。现在导出，
+ * 宿主改为引用这里。
+ *
+ * 为什么是 3：关键词检索的种子已经是**精确节点**，展开只为「看上下文」；3 跳之后的
+ * 邻域对定位几乎没有增量信息，而 token 预算（真正的稀缺资源）在 2-3 跳内通常已耗尽。
+ * 要更深的邻域探索请用 `graph_path_find`（两点间精确路径），不是调大这个值。
+ */
+export const MAX_QUERY_DEPTH = 3;
+
 /** 得分档位（照 graphify `serve.py:339-351`）：精确 > 前缀 > 子串 > 路径。 */
 const SCORE_EXACT = 1000;
 const SCORE_PREFIX = 100;
@@ -229,7 +241,7 @@ export function renderSubgraphText(
   seeds: readonly SeedMatch[],
   options: RenderOptions = {},
 ): RenderedSubgraph {
-  const depth = Math.min(3, Math.max(0, Math.floor(options.depth ?? 1)));
+  const depth = Math.min(MAX_QUERY_DEPTH, Math.max(0, Math.floor(options.depth ?? 1)));
   const tokenBudget = Math.max(1, Math.floor(options.tokenBudget ?? 1200));
   const budgetLabel = `token_budget=${tokenBudget}`;
 

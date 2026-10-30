@@ -150,6 +150,22 @@ describe('useKeyboardShortcut', () => {
     document.body.removeChild(input);
   });
 
+  // cycle-112：`/` 豁免的本意是宿主输入框（BUG-R12-04），却把本插件搜索框也豁免了——
+  // 用户输入路径片段（`src/`）时每敲一个 `/` 搜索框就被关掉。目标是 `#graph-search` 时
+  // `/` 必须是普通字符（不开、也不关）。上一条用例（无 id 的 input ⇒ 触发）与本条
+  // （graph-search ⇒ 不触发）构成一对，只留任何一半都会让另一个方向回归。
+  it('Slash 键在本插件搜索框（#graph-search）内不触发（普通字符）', () => {
+    const cb = vi.fn();
+    renderHook(() => useKeyboardShortcut('/', cb));
+    const input = document.createElement('input');
+    input.id = 'graph-search';
+    document.body.appendChild(input);
+    const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+    input.dispatchEvent(event);
+    expect(cb).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
+
   it('应支持 preventDefault=false 选项', () => {
     const cb = vi.fn();
     renderHook(() => useKeyboardShortcut('a', cb, { preventDefault: false }));

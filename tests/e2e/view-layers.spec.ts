@@ -41,13 +41,17 @@ test.describe('J39: View Mode Layered Navigation (FR-14)', () => {
 
   test('Layer 0 概览应显示聚类节点', async ({ page }) => {
     await setupPluginPage(page);
-    const nodes = page.locator(`${PANEL.graphContainer} canvas, ${PANEL.graphContainer} svg`);
+    // cycle-112：装饰性 SVG（画布控制层图标）也在容器里，旧选择器 strict mode 直接报 9 元素。
+    // 用登记的 `PANEL.canvas`（canvas[data-id]）只命中三层数据层 —— 但三层**都**匹配，
+    // Playwright 的 toBeVisible 是严格单元素断言，所以要取 `.first()`（三层同尺寸同可见性，
+    // 任一层可见即「画布在渲染」）。
+    const nodes = page.locator(PANEL.canvas).first();
     await expect(nodes).toBeVisible({ timeout: 5000 });
   });
 
   test('展开聚类应显示内部节点（Layer 1）', async ({ page }) => {
     await setupPluginPage(page);
-    const clusterNodes = page.locator(`${PANEL.graphContainer} canvas, ${PANEL.graphContainer} svg`);
+    const clusterNodes = page.locator(PANEL.canvas).first();
     await expect(clusterNodes).toBeVisible({ timeout: 5000 });
   });
 

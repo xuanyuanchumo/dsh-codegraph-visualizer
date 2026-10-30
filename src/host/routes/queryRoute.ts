@@ -5,6 +5,9 @@ import {
   tokenizeQuery,
   selectSeeds,
   renderSubgraphText,
+  // 库级深度上界（cycle-112 继承项 E）：此前这里镜像 `LIBRARY_MAX_DEPTH: 3`，
+  // 库改上界时镜像会静默撒谎。现在直接引用库导出的常量。
+  MAX_QUERY_DEPTH,
 } from '../../xuanji/query/keyword-query.ts';
 import { fetchMergedGraph } from '../../tools.ts';
 import { sendJson, sendError } from '../HttpHelpers.ts';
@@ -72,14 +75,13 @@ export const QUERY = Object.freeze({
   MAX_DEPTH: 5,
   DEFAULT_DEPTH: 2,
   /**
-   * 库实际生效的最大跳数。
+   * 库实际生效的最大跳数 —— **直接引用库导出的 `MAX_QUERY_DEPTH`**（cycle-112 继承项 E）。
    *
-   * `src/xuanji/query/keyword-query.ts:232` 是 `Math.min(3, …)`，且该上界**没有被导出**。
-   * 这里镜像一份，并用行为用例钉住「depth=4 与 depth=5 的载荷完全相同」——
-   * 一旦库改了上界（T1 正在动那个文件），那条用例会红，提醒这里同步；
-   * 这比在 route 里悄悄假设「传多少就用多少」诚实（否则 `meta.depth` 会撒谎）。
+   * cycle-111 时这里是镜像常量 `3`（库未导出），靠「depth=4 与 depth=5 载荷相同」的
+   * 行为用例提醒同步。镜像已在库导出后消除：改库即改这里，不存在漂移。
+   * 行为用例保留（它钉的是端到端语义，仍有效）。
    */
-  LIBRARY_MAX_DEPTH: 3,
+  LIBRARY_MAX_DEPTH: MAX_QUERY_DEPTH,
   MIN_TOKEN_BUDGET: 50,
   MAX_TOKEN_BUDGET: 4000,
   DEFAULT_TOKEN_BUDGET: 800,

@@ -49,6 +49,8 @@ const MOCK_GRAPH = {
     { id: 'n10', label: 'summarizeGraph', type: 'function', filePath: 'src/tools.ts', lineNumber: 37, properties: { depth: 1, isEntry: true } },
     { id: 'n11', label: 'fetchMergedGraph', type: 'function', filePath: 'src/tools.ts', lineNumber: 21, properties: { depth: 1, isEntry: true } },
     { id: 'n12', label: 'RepoId', type: 'variable', filePath: 'src/types/index.ts', lineNumber: 11, properties: { depth: 0 } },
+    // cycle-112：n13 只为给 n3 凑入度到 5（isHotspotEligible 阈值）——见 edges e30 的注释。
+    { id: 'n13', label: 'createRepository', type: 'function', filePath: 'src/host/db/GraphRepository.ts', lineNumber: 12, properties: { depth: 1 } },
     { id: 'm1', label: 'src/index.ts', type: 'module', filePath: 'src/index.ts', lineNumber: 0, properties: {} },
     { id: 'm2', label: 'src/tools.ts', type: 'module', filePath: 'src/tools.ts', lineNumber: 0, properties: {} },
     { id: 'm3', label: 'src/adapters/CodeGraphAdapter.ts', type: 'module', filePath: 'src/adapters/CodeGraphAdapter.ts', lineNumber: 0, properties: {} },
@@ -92,6 +94,11 @@ const MOCK_GRAPH = {
     // 因此能穿过 CallGraphAssembler 的类型过滤并留在 Layer 0，
     // 让 J5 的 cycleDetails 与 J31 的 selectedNodeId 都有真实数据可依。
     { id: 'e29', source: 'n11', target: 'n9', type: 'call', properties: {} },
+    // cycle-112：e30 让 n3 的入度达到 5（= `isHotspotEligible` 的阈值，`churn.ts:156`）。
+    // 此前桩图最高入度只有 4 ⇒ 热点面板永远为空（`visible: showHotspot && hotspotNodes.length > 0`），
+    // J28「热点分析」在 dev-server 上不可达 —— 与 CLAUDE.md「阈值与喂它的界是一次契约」同族。
+    // 来源 n13 是独立函数，不引入新环。
+    { id: 'e30', source: 'n13', target: 'n3', type: 'call', properties: {} },
   ],
 };
 
@@ -1000,6 +1007,47 @@ async function handleApi(req, res, url) {
         cursor: astNodes.length,
         hasMore: false,
       }, { ETag: etag });
+    });
+    return;
+  }
+
+  // --- 依赖图（cycle-112 补桩）：切到任一 behavioral 视图时 `useViewMode.ts:57` 会
+  // `fetch /api/v1/codegraph/dependencies`，**成功后才 setViewMode**（空载荷直接 return）。
+  // 此前没有这个桩 ⇒ fetch 404 ⇒ 切层永远不生效，E2E 的 viewMode 切换 / hotspot /
+  // godModule 一族长期红（它们的 setup 都要先进 behavioral 层）。
+  // 契约对齐 `src/host/routes/analysisRoutes.ts registerDependenciesRoute`：
+  // 返回 `{ nodes, edges, metadata }`，metadata.repoId 必须与请求方工作区同源
+  // （`isForeignRepo` 会丢弃 repoId 不匹配的载荷）。桩用 MOCK_GRAPH 的 module 节点
+  // 组装一棵假的依赖树（node_modules/<label>），保证「节点数 > 0」这个分支走到。
+  if (path === '/api/v1/codegraph/dependencies' && method === 'GET') {
+    const moduleNodes = MOCK_GRAPH.nodes.filter((n) => n.type === 'module');
+    const nodes = moduleNodes.map((n, i) => ({
+      id: `dep:${n.id}`,
+      label: n.label,
+      type: 'module',
+      filePath: `node_modules/${n.label}`,
+      lineNumber: 0,
+      properties: { version: '1.0.0', depType: 'npm', isExternal: true },
+      layer: 'dependency',
+    }));
+    const first = nodes[0];
+    const edges = nodes.slice(1).map((n) => ({
+      id: `dep:${first.id}->${n.id}:dependency`,
+      source: first.id,
+      target: n.id,
+      type: 'dependency',
+      properties: { scope: 'dependencies' },
+    }));
+    sendJson(res, 200, {
+      nodes,
+      edges,
+      metadata: {
+        // isForeignRepo 按 repoId 识别外来载荷：桩必须回一个与图槽一致的 repoId。
+        repoId: 'dev-stub',
+        timestamp: Date.now(),
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+      },
     });
     return;
   }

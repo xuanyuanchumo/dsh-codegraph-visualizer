@@ -42,6 +42,15 @@ export const PANEL = {
   root: '.cg-graph-panel',
   toolbar: '.cg-graph-toolbar',
   graphContainer: '.cg-graph-container',
+  /** 渲染画布本体（cycle-112 修 view-layers 两条长期红）。
+   *
+   * 旧写法 `.cg-graph-container canvas, .cg-graph-container svg` 在 cycle-106 加入
+   * 画布控制层后开始失效：控制层的「放大/缩小/适应」按钮与统计条也用 `<svg>` 图标，
+   * 且都在容器里 ⇒ strict mode 报 "resolved to 9 elements"（canvas 明明可见）。
+   * 图谱画布有稳定特征 `data-id`（`layer0-selectbox` / `layer1-drag` / `layer2-node`），
+   * 也有独立的 `.cg-canvas` 定位层。这里用 `data-id` 前缀匹配三层数据层，
+   * 不受装饰性 SVG 影响。 */
+  canvas: '.cg-graph-container canvas[data-id]',
   statusBar: '.cg-status-bar',
   nodeCount: '.cg-node-count',
   overlay: '.cg-error-overlay',

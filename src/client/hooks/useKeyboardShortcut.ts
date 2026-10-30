@@ -28,6 +28,16 @@ export function useKeyboardShortcut(
         if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
       }
 
+      // cycle-112 修复（E2E J27 长期红背后的真产品缺陷）：`/` 豁免的本意是「焦点在**宿主**
+      // 的输入框（contenteditable composer）里时，`/` 仍能呼出搜索」（BUG-R12-04 的设计，
+      // 见 docs/需求分析.md §31.11(e)）。但它同时把**本插件自己的搜索输入框**也豁免了 ——
+      // 用户在搜索框里输入路径片段（`src/`、`components/`）时每敲一个 `/` 搜索框就被关掉，
+      // 输入被打断，且重新打开后焦点丢失。E2E「在输入框中按 / 不应触发搜索打开」钉的正是
+      // 这个行为，长期红是因为断言期望的语义（不关）与实现（关）相反。
+      // 判据：目标是本插件搜索框（`#graph-search`）⇒ `/` 是普通字符；其余（宿主 composer、
+      // 画布、页面任意处）⇒ 保持豁免（呼出搜索）。
+      if (isSlash && (e.target as HTMLElement | null)?.id === 'graph-search') return;
+
       const keyMatch = e.key.toLowerCase() === key.toLowerCase();
       const ctrlMatch = !ctrl || e.ctrlKey;
       const metaMatch = !meta || e.metaKey;

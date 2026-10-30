@@ -125,6 +125,26 @@ describe('XJ-13 集成层守卫：路径读法必须真的调库', () => {
     expect(body).toMatch(/\bselectSeeds\s*\(/);
     expect(body).toMatch(/\brenderSubgraphText\s*\(/);
   });
+
+  // cycle-112 继承项 D：`/query` 路由与 `graph_query` 工具必须共用**同一份** token 估算
+  //（库的 `renderSubgraphText` 内部用 `estimateTokens`，CJK 1 字 = 1 token 的口径在那里
+  // 标定）。route 若自己 `import { estimateTokens }` 或写 `Math.ceil(text.length / N)`，
+  // 会出现「工具说截断了、面板说没截断」的两套口径——这正是 graphify 研究里
+  // 「截断必须显式」的反面。守卫两头：route 不得 import 库的 estimateTokens（透传即可），
+  // 也不得出现手写 token 估算形状。
+  it('/query 路由不得自算 token（必须透传库渲染结果里的 tokens 字段）', () => {
+    const routeCode = stripComments(readFileSync(join(ROOT, 'src', 'host', 'routes', 'queryRoute.ts'), 'utf8'));
+    // 命中即说明 route 拿到了 tokens —— 透传链存在。
+    expect(routeCode, 'route 响应里必须带 tokens 字段').toMatch(/\btokens\b/);
+    // 负向：不得 import 库的 estimateTokens 自己算。
+    expect(routeCode, 'route 不得 import estimateTokens —— token 口径只在库里标定一份').not.toMatch(/\bestimateTokens\s*\(/);
+    // 负向：不得手写「长度 / 每字符数」类的估算（graphify 的 len/3 是 CJK 误差 2-3 倍的来源）。
+    expect(routeCode, 'route 不得手写 token 估算').not.toMatch(/Math\.ceil\s*\(\s*\w+\.length\s*\/\s*\d+/);
+    // 反向自检：给一段「手写估算」的合成样本，上面的负向形状必须真的能命中，
+    // 否则两条 not.toMatch 是恒真的空守卫。
+    const syntheticViolation = 'const tokens = Math.ceil(text.length / 3);';
+    expect(syntheticViolation).toMatch(/Math\.ceil\s*\(\s*\w+\.length\s*\/\s*\d+/);
+  });
 });
 
 describe('XJ-13 反向自检：合成样本必须被判「未走库」', () => {

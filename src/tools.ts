@@ -411,6 +411,10 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         type: 'string',
         description: 'Comma-separated edge types to traverse. Default: call,import,extend,implement,dependency.',
       },
+      truncation: {
+        type: 'string',
+        description: "How to choose which paths to keep when capping the result. 'dfs-order' (default) stops at the cap in deterministic DFS order; 'top-k-weight' enumerates ALL candidates first and keeps the paths with the highest total edge weight — slower on large graphs.",
+      },
     },
     output: {
       schema: { type: 'json' },

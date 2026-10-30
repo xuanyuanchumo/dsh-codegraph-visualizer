@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  setupPluginPage,
+  setupPluginPage, setupPluginPageInBehavioralLayer,
   waitForGraphReady,
   getCyNodeCount,
   getClusterNodeIds,
@@ -12,6 +12,8 @@ import {
   fitGraph,
   clickToolItem,
   selectViewMode,
+  resolveRawNodeId,
+  selectNodeStrict,
   TIMEOUTS,
 } from './helpers.ts';
 import { CY_CLASS, TRIGGERS, ANALYSIS_PANEL, TOOL_ITEM, OPTION, PANEL } from './selectors.ts';
@@ -77,21 +79,27 @@ test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
     expect(afterCount).toBeGreaterThanOrEqual(beforeCount);
   });
 
-  test('should collapse all via collapse FAB', async ({ page }) => {
+  // cycle-112 重写（原用例名「collapse all via collapse FAB」与产品语义相反，长期红）：
+  // FAB（`.cg-collapse-fab`）只在**收起态**可见（layout.css:51 `display:none` → 收起时 `flex`），
+  // 点击它执行的是**展开**；工具栏的 `.cg-collapse-btn` 才是「收起」按钮。
+  // 旧断言 `nodeCount > 0` 与收起/展开都无关——cytoscape 实例在收起时仍持有全部节点。
+  test('collapse panel via toolbar button, then expand via FAB', async ({ page }) => {
     await setupPluginPage(page);
     await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const clusterIds = await getClusterNodeIds(page);
-    if (clusterIds.length > 0) {
-      await doubleTapNode(page, clusterIds[0]);
-      await page.waitForTimeout(500);
-    }
+    const container = page.locator(PANEL.graphContainer);
+    await expect(container).toBeVisible();
 
-    const collapseFab = page.locator(PANEL.collapsedFab);
-    await expect(collapseFab).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
-    await collapseFab.click();
-    await page.waitForTimeout(300);
+    // 1) 工具栏「收起」按钮 ⇒ 面板进收起态（cg-collapsed），内容隐藏。
+    const collapseBtn = page.locator(TRIGGERS.collapse);
+    await collapseBtn.click();
+    const fab = page.locator(PANEL.collapsedFab);
+    await expect(fab).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+    await expect(container).toBeHidden();
 
+    // 2) FAB ⇒ 展开，内容恢复可见（cytoscape 实例仍在，节点数不变）。
+    await fab.click();
+    await expect(container).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
     const nodeCount = await getCyNodeCount(page);
     expect(nodeCount).toBeGreaterThan(0);
   });
@@ -122,11 +130,26 @@ test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
 
 test.describe('J23: 影响分析', () => {
   test('should toggle impact analysis via tools dropdown', async ({ page }) => {
-    await setupPluginPage(page);
-    // 面板开关全部位于「工具」下拉内，未展开时按钮不在 DOM 中。
+    // cycle-112 修长期红（三层根因，逐层修）：
+    // 1. showImpact 属 **behavioral** 层（`BEHAVIORAL_PANELS`），默认 code 视图的
+    //    工具下拉里根本没有这一项 ⇒ 用 behavioral 层 helper（先切 callgraph 再点）；
+    // 2. 断言不能落在 `.cg-impact-btn` 上：工具下拉的条目点击后 `close()` 同帧卸载
+    //    （`ToolbarActions.tsx` `panelControls[toggle](); close();`，桌面菜单惯例），
+    //    `toHaveClass(/cg-active/)` 必然 element-not-found。**状态要断言在点击后仍
+    //    存在的元素上** —— 即影响分析面板本身（`ANALYSIS_PANEL.impact`）。
+    //    focus-mode.spec.ts:48 的同名断言已按此修复并转绿。
+    await setupPluginPageInBehavioralLayer(page);
+    // 面板 visible = showImpact && impactStats，而 impactStats 只在**选中节点**时才计算
+    // （`useAnalysisPanels.ts` `if (showImpact && selectedNodeId)`）—— focus-mode 的同名
+    // 断言已按「先选节点再点开关」转绿，这里补同一模式。
+    const fnId = await resolveRawNodeId(page, 'function');
+    expect(fnId, '桩图必须含 function 节点').toBeTruthy();
+    await selectNodeStrict(page, fnId!);
     await clickToolItem(page, TOOL_ITEM.impact);
-    const impactBtn = page.locator(TOOL_ITEM.impact);
-    await expect(impactBtn).toHaveClass(/cg-active/);
+    await expect(page.locator(ANALYSIS_PANEL.impact)).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+    // 反向：再点一次（重新开菜单）⇒ 面板关。
+    await clickToolItem(page, TOOL_ITEM.impact);
+    await expect(page.locator(ANALYSIS_PANEL.impact)).not.toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
   });
 
   test('should show impact panel with D1/D2/D3 stats', async ({ page }) => {
