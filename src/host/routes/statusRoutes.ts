@@ -22,8 +22,6 @@ export function registerStatusRoute(rc: RouteContext): void {
         // 客户端据此决定空态是否显示降级提示，宿主据此决定 `/health` 的 healthy。
         astSource: status.astSource,
         graphSource: status.graphSource,
-        // 兼容别名（= astSource），下一轮移除。旧客户端读它；新代码一律读上面两个字段。
-        builtin: status.builtin,
         // Diagnostics only: the generation-dated capability record resolved at boot. Runtime
         // behaviour is decided by which upstream tools are actually available, not by these flags.
         compat: deps.featureFlags ?? null,
@@ -61,7 +59,6 @@ export function registerHealthRoute(rc: RouteContext): void {
           // 「是 AST 有、图没有」还是「两个都没有」。
           astSource: status.astSource,
           graphSource: status.graphSource,
-          builtin: status.builtin,
           hasGraphData,
           // P0-6: the current structural fingerprint, so an operator can tell whether the graph
           // in memory actually changed without diffing nodes/edges by hand.

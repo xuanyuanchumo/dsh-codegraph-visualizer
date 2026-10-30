@@ -207,17 +207,18 @@ describe('checkPrerequisites — capability bits (P0-N3)', () => {
     expect(result.graphSource).toBe(true);
   });
 
-  it('derives builtin from astSource instead of declaring it separately', () => {
-    // 兼容别名的唯一可接受实现：派生。（两个来源迟早会分叉。）
+  it('reports astSource faithfully (alias era is over, cycle-118)', () => {
+    // cycle-111 曾把 `builtin` 作为 `astSource` 的派生别名输出；cycle-118 起别名已移除，
+    // `checkPrerequisites` 只产出四个真实位。这条用例钉的是 astSource 本身的保真度。
     const disposeTrue = setAstSourceProbe(() => true);
-    expect(checkPrerequisites(ctxWithNoTools()).builtin).toBe(true);
+    expect(checkPrerequisites(ctxWithNoTools()).astSource).toBe(true);
     disposeTrue();
     setAstSourceProbe(() => false);
-    expect(checkPrerequisites(ctxWithNoTools()).builtin).toBe(false);
+    expect(checkPrerequisites(ctxWithNoTools()).astSource).toBe(false);
   });
 
   it('gives the same astSource/graphSource values in the exception branch', () => {
-    // 异常分支曾经也硬编码 builtin: true。两个内置通道与 ctx.tools 无关，
+    // 异常分支曾经也硬编码 builtin: true（cycle-111 之前）。两个内置通道与 ctx.tools 无关，
     // 不该被上游探测的失败牵连成"不可用"——但也不该反过来变成 true。
     setAstSourceProbe(() => true);
     const ctx = {
@@ -229,7 +230,6 @@ describe('checkPrerequisites — capability bits (P0-N3)', () => {
       lens: false,
       astSource: true,
       graphSource: true,
-      builtin: true,
     });
   });
 

@@ -7,9 +7,10 @@
  * 客户端上还在显示，而没有任何单一测试能看见这个分歧。
  *
  * 本文件钉三组契约：
- *   1. 归一化的**三个方向**（新宿主 / 旧宿主 / 缺字段），每个方向的缺省值都写死；
+ *   1. 归一化的**缺省方向**（新宿主原样采纳 / 缺字段、类型不对、旧宿主残缺载荷一律 `false`）；
  *   2. 健康判定只认「图数据通道」，`astSource` 单独存在时必须**不**健康；
- *   3. 别名 `builtin` 恒等于 `astSource`，不接受线上独立声明。
+ *   3. cycle-118 起 `builtin` 兼容别名已移除：线上载荷里的 `builtin` **被忽略**，
+ *      归一化输出**不含**该键（旧宿主只发 `builtin` 的载荷按「不知道」处理 ⇒ `astSource: false`）。
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -21,18 +22,18 @@ import {
 describe('normalizePrerequisiteStatus', () => {
   it('adopts all four bits verbatim from a new host', () => {
     const status = normalizePrerequisiteStatus({
-      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+      codegraph: true, lens: false, astSource: true, graphSource: false,
     });
     expect(status).toEqual({
-      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+      codegraph: true, lens: false, astSource: true, graphSource: false,
     });
   });
 
-  it('maps builtin to astSource when talking to an old host', () => {
-    // 旧宿主只发 `builtin`。它当初描述的就是 AST 那一层（那是它能诚实对应的唯一解释）。
+  it('does NOT map a legacy builtin-only payload onto astSource (alias removed in cycle-118)', () => {
+    // 旧宿主只发 `builtin`。cycle-118 起别名已移除：**不知道**不等于**有**，
+    // 与 `graphSource` 缺省方向同一诚实原则——从 `builtin` 推导会让两个来源迟早分叉。
     const status = normalizePrerequisiteStatus({ codegraph: false, lens: false, builtin: true });
-    expect(status.astSource).toBe(true);
-    expect(status.builtin).toBe(true);
+    expect(status.astSource).toBe(false);
   });
 
   it('never lets an old host claim a graph channel', () => {
@@ -48,7 +49,7 @@ describe('normalizePrerequisiteStatus', () => {
     for (const raw of [{}, null, undefined, 0, 'x', []]) {
       const status = normalizePrerequisiteStatus(raw);
       expect(status).toEqual({
-        codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false,
+        codegraph: false, lens: false, astSource: false, graphSource: false,
       });
     }
   });
@@ -60,22 +61,22 @@ describe('normalizePrerequisiteStatus', () => {
       codegraph: 'true', lens: 1, astSource: 'yes', graphSource: {}, builtin: 'true',
     });
     expect(status).toEqual({
-      codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false,
+      codegraph: false, lens: false, astSource: false, graphSource: false,
     });
   });
 
-  it('derives the builtin alias from astSource and ignores a conflicting wire value', () => {
-    // 线上同时发 `astSource: false` 与 `builtin: true`（不该发生，但一旦发生必须有确定答案）。
-    // 别名由 astSource 派生，两个来源不分叉。
+  it('ignores a wire builtin value that conflicts with astSource', () => {
+    // 线上同时发 `astSource: false` 与 `builtin: true`（旧宿主形状）。
+    // 别名已移除 ⇒ `astSource` 只认自己，`builtin` 是被忽略的多余键。
     const status = normalizePrerequisiteStatus({ astSource: false, builtin: true });
     expect(status.astSource).toBe(false);
-    expect(status.builtin).toBe(false);
   });
 
-  it('prefers astSource over builtin when both are present and disagree', () => {
-    const status = normalizePrerequisiteStatus({ astSource: true, builtin: false });
-    expect(status.astSource).toBe(true);
-    expect(status.builtin).toBe(true);
+  it('emits no builtin key at all (cycle-118 removal contract)', () => {
+    // 移除的语义是「输出不含这个键」，不是「输出这个键为 false」——
+    // `toEqual` 对 `undefined` 与缺失是等价的，所以用 in 存在性断言。
+    const status = normalizePrerequisiteStatus({ astSource: true });
+    expect('builtin' in status).toBe(false);
   });
 });
 
@@ -102,7 +103,7 @@ describe('emptyPrerequisiteStatus', () => {
     const a = emptyPrerequisiteStatus();
     const b = emptyPrerequisiteStatus();
     expect(a).toEqual({
-      codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false,
+      codegraph: false, lens: false, astSource: false, graphSource: false,
     });
     // 必须是新对象：共享一个可变单例会让某处的写入污染所有调用点
     // （`FeatureFlags.ts` 就踩过「返回代际默认表本体」）。

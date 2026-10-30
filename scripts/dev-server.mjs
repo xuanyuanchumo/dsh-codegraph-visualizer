@@ -884,12 +884,14 @@ async function handleApi(req, res, url) {
   }
 
   // --- 健康检查：`codegraph: false` 是本机降级态，与真实 host 一致 ---
+  // （cycle-118：`builtin` 兼容别名已移除，桩与真实宿主同形——只发四个位。）
   if (path === '/api/v1/codegraph/health' && method === 'GET') {
     sendJson(res, 200, {
       status: 'healthy',
       codegraph: false,
       lens: false,
-      builtin: true,
+      astSource: false,
+      graphSource: true,
       hasGraphData: true,
       fingerprint: 'dev-stub',
       uptime: process.uptime(),
@@ -899,7 +901,32 @@ async function handleApi(req, res, url) {
   }
 
   if (path === '/api/v1/codegraph/status' && method === 'GET') {
-    sendJson(res, 200, { codegraph: false, lens: false, builtin: true });
+    sendJson(res, 200, { codegraph: false, lens: false, astSource: false, graphSource: true });
+    return;
+  }
+
+  if (path === '/api/v1/codegraph/registry' && method === 'GET') {
+    // cycle-118 补桩：dev-server 与宿主路由面漂移（宿主 cycle-116 加了 /registry，
+    // 桩没跟上 ⇒ 注册矩阵面板在 dev-server 404，旅程缺口）。形状与宿主
+    // `registrySummary()` 一致（四面计数 / 断链 / 生命周期），条目用桩图自证。
+    const nodeIds = API_GRAPH.nodes.map((n) => n.id);
+    const entries = [
+      ...nodeIds.map((id) => ({
+        id: `dev:node:${id}`, face: 'routes', kind: 'dev-stub', label: `stub node ${id}`,
+        producers: ['dev-server'], consumers: ['graph-panel'], lifecycle: 'producing',
+      })),
+    ];
+    const byFace = {};
+    for (const e of entries) byFace[e.face] = (byFace[e.face] ?? 0) + 1;
+    sendJson(res, 200, {
+      version: 1,
+      generatedAt: Date.now(),
+      total: entries.length,
+      byFace,
+      brokenLinks: [],
+      lifecycleCounts: { registered: 0, producing: entries.length, consuming: 0, degraded: 0 },
+      entries,
+    });
     return;
   }
 

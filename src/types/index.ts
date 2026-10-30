@@ -218,8 +218,8 @@ export interface SourceOpenEvent {
  * 能力位变更事件。
  *
  * `astSource` / `graphSource` 是两个**不同**的能力（`docs/需求分析.md` §61.10）：
- * AST 分析通道存在 ≠ 能产出一张图。`builtin` 保留为 `astSource` 的已弃用别名，
- * 下一轮移除；事件监听方应改读新字段。
+ * AST 分析通道存在 ≠ 能产出一张图。（cycle-118：`builtin` 兼容别名已移除，
+ * 事件载荷不再携带；监听方读 `astSource` / `graphSource`。）
  */
 export interface PrerequisiteStatusEvent {
   codegraph: boolean;
@@ -228,8 +228,6 @@ export interface PrerequisiteStatusEvent {
   astSource: boolean;
   /** 内置图数据通道是否存在（manifest 依赖图）。 */
   graphSource: boolean;
-  /** @deprecated 兼容别名，值恒等于 `astSource`。下一轮移除。 */
-  builtin: boolean;
   timestamp: number;
 }
 

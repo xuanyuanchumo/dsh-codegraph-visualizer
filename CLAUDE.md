@@ -215,3 +215,7 @@
 - **cycle-115 两条新教训**（正文见 `docs/agents/03` 附录）：① DSH 桌面 App 与 Web 服务用**独立 profile**（~/.dsh/profiles/desktop vs /web），link 安装必须各自执行；desktop 的 bundles 声明在 package.json 的 `dsh.profile.bundles`，web 的 cordis.yml 反而是空数组+patches——两 profile 的 bundle 声明位置不同。② 桌面 App 对未认证 /api/v1/* 统一 401（不存在也 401），不能用状态码判别插件路由存在；空会话顶部标签栏不渲染，UI 可见性断言必须先发消息激活会话。
 - **cycle-116 两条新教训**（正文 `docs/agents/02` §14 与 `src/host/registry/businessRegistry.ts`）：① 注册-生产-消费矩阵必须是**唯一事实源 + 契约守卫**而不是文档——盘点时发现 /worker 路由生产了 6 年（LayoutController 消费）却不在任何路由文档里；守卫第 3 例（routes.ts 注册数 ≠ 清单数）抓住它，`guardTest` 字段名不真实也会被抓（'集成测试'这种占位词在第一跑就红了 4 例）。② 看板不观测自己：registry 路由自身不进 ROUTE_ENTRIES（自引用造出无限清单）；对外暴露选 additive 方式挂在 /status 的 registry 字段——既有消费者零成本获得，不需要新消费通道。
 - **cycle-117 两条新教训**（正文 `docs/agents/03` 附2）：① lifecycle 声明式与实测式是两个互补答案——设计意图（consuming）与进程实况（idle：图数据未加载时数据路由全 idle）可以合法不同，看板两者都要展示，混用会让「设计上该活」冒充「此刻活着」；② 对 JSX 数组做行级 splice 插入时锚行偏移会挤掉上一个 item 的 `{` 产生 TS1136 连锁语法错——大段 JSX 插入后立即跑 tsc 再继续，不要等一整批改完。
+- **cycle-118 三条新教训**（正文 `docs/需求分析.md` §63）：
+  - ① **「checkout 即回滚」只对「探针是文件里唯一未提交改动」成立**。探针 A 用 `git checkout --` 还原探针行，把同文件内未提交的 T1 改动一并抹掉（typecheck TS2339 当场拦截）。L4 单会话连改多文件时探针必须落独立临时文件，或还原后 `git diff` 逐文件核对改动面完整——类型系统是未提交改动完整性的最后防线。
+  - ② **宽匹配守卫要锚定「值域」而不是「字段名」**。标题状态词守卫两轮误报（12 例：自然语言形容词/布尔谓词；23 例：HTTP 200/MCP 'ready'/scan 'scanning'）——最终只对「断言值 ∈ /health 三词枚举」双向校验。守卫写宽 → 豁免表淹没 → 永久绿灯，是这个家族的死循环路径。
+  - ③ **「下一轮移除」的承诺必须引入当天就配守卫**。builtin 别名原定 cycle-112 移除、实际拖 5 轮无人拦截——无机制兜底的承诺必然滚动。移除后补 `builtinAliasRemoval` 守卫（含反向自检），别名复活当场红；dev-server 桩与宿主路由是同一交付物的两面（/registry 桩漏跟 = cycle-114「卸载要清三处」的同族教训：变更同步全部影子副本）。

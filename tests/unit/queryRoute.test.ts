@@ -57,7 +57,7 @@ vi.mock('../../src/host/prerequisites.ts', () => ({
   findWorkspacePath: vi.fn(() => '/test/workspace'),
   extractWorkspacePaths: vi.fn(() => ['/test/workspace']),
   resolveWorkspaceRoots: vi.fn(() => ({ paths: ['/test/workspace'], source: 'registry' })),
-  checkPrerequisites: vi.fn(() => ({ codegraph: true, lens: true, builtin: true })),
+  checkPrerequisites: vi.fn(() => ({ codegraph: true, lens: true, astSource: true, graphSource: true })),
 }));
 
 // `validateWorkspacePath` 会走 `validatePathRealpath`（真实 fs.realpath）。

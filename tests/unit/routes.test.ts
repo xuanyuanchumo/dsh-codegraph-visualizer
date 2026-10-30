@@ -333,7 +333,7 @@ describe('registerRoutes', () => {
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
     expect(parsed).toEqual({
-      codegraph: true, lens: true, astSource: true, graphSource: true, builtin: true, compat: null,
+      codegraph: true, lens: true, astSource: true, graphSource: true, compat: null,
       // cycle-116：registry 摘要字段（additive）。断言形状而非全量内容——矩阵内容由
       // registryContract.test.ts 守卫，这里只钉「字段存在且四面计数齐全」。
       registry: expect.objectContaining({
@@ -2181,8 +2181,6 @@ describe('GET /health', () => {
     expect(parsed.status).toBe('degraded');
     expect(parsed.astSource).toBe(true);
     expect(parsed.graphSource).toBe(false);
-    // 兼容别名仍等于 astSource，旧客户端读它不会拿到 undefined。
-    expect(parsed.builtin).toBe(true);
   });
 
   it('returns 503 and degraded when nothing at all is available', () => {
@@ -2196,7 +2194,6 @@ describe('GET /health', () => {
     expect(parsed.status).toBe('degraded');
     expect(parsed.astSource).toBe(false);
     expect(parsed.graphSource).toBe(false);
-    expect(parsed.builtin).toBe(false);
   });
 
   it('returns 503 and unhealthy status on error', () => {

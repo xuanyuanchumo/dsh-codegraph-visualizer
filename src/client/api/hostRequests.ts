@@ -61,10 +61,10 @@ export async function fetchBootstrap(signal?: AbortSignal, workspace?: string): 
 /**
  * 取能力位。
  *
- * 三个回落方向都被 `normalizePrerequisiteStatus` 统一处理，这里不再自己拼一遍字段：
+ * 回落方向都被 `normalizePrerequisiteStatus` 统一处理，这里不再自己拼一遍字段：
  *   · **新宿主**：四个位齐全，原样采纳；
- *   · **旧宿主**（只有 `builtin`）：`astSource` 取 `builtin`，`graphSource` 降级为 `false`；
- *   · **请求失败**：全 `false`。
+ *   · **缺字段 / 请求失败**：全 `false`（cycle-118 起 `builtin` 别名已移除，
+ *     旧宿主残缺载荷同样按「不知道」处理，不再从别名推导）。
  *
  * 修前的失败回落写的是 `builtin: true` —— 那正是 §61.10 的假叙事在客户端的镜像：
  * 宿主根本没应答，客户端却断言"内置通道可用"。**不知道**必须是 `false`：它会让空态不显示

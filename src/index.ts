@@ -131,7 +131,6 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       lens: status.lens,
       astSource: status.astSource,
       graphSource: status.graphSource,
-      builtin: status.builtin,
       timestamp: Date.now(),
     });
     const statusKey = prereqStatusKey(status);
@@ -152,7 +151,6 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
         lens: status.lens,
         astSource: status.astSource,
         graphSource: status.graphSource,
-        builtin: status.builtin,
         timestamp: Date.now(),
       });
       const statusKey = prereqStatusKey(status);

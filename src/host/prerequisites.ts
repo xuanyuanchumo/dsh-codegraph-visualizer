@@ -99,12 +99,12 @@ export function probeGraphSource(parser: (content: string) => { nodes: unknown[]
 }
 
 /**
- * 能力位（`docs/需求分析.md` §61.10 的修法）。字段语义与兼容别名策略见
+ * 能力位（`docs/需求分析.md` §61.10 的修法）。字段语义见
  * `src/shared/prerequisiteStatus.ts` 的模块头——那里是宿主与客户端**共用**的唯一来源。
  *
- * 与修前最实质的差别：`builtin` 不再是一个独立字段，它是 `astSource` 的**派生别名**
- * （两个来源迟早会分叉）。旧实现两处分支都写死 `builtin: true`，于是 `/health` 恒 healthy、
- * 客户端空态无条件声称「内置分析可用」。
+ * 历史：修前两处分支都写死 `builtin: true`，`/health` 恒 healthy、客户端空态无条件声称
+ * 「内置分析可用」。cycle-111 拆位时 `builtin` 曾作为 `astSource` 的派生别名保留一个
+ * 兼容窗口，cycle-118 按判据（`docs/agents/09` §9.4）移除。
  */
 export function checkPrerequisites(ctx: Context, apiCompat?: ApiCompatLayer): PrerequisiteStatus {
   // AST 探针自身的失败不能把整条 `checkPrerequisites` 打成异常分支：那样 `codegraph` / `lens`
@@ -124,13 +124,12 @@ export function checkPrerequisites(ctx: Context, apiCompat?: ApiCompatLayer): Pr
       lens: isToolPresent(ctx, apiCompat, 'lensAnalyze', LENS_TOOL_EVIDENCE),
       astSource,
       graphSource,
-      builtin: astSource,
     };
   } catch (e) {
     log.warn('checkPrerequisites failed', e);
     // 异常分支同样要如实报告两个内置通道：它们与 `ctx.tools` 无关，不该被上游探测的
     // 失败牵连成「内置也不可用」。`graphSource` 的自检在 try 之外已算好。
-    return { codegraph: false, lens: false, astSource, graphSource, builtin: astSource };
+    return { codegraph: false, lens: false, astSource, graphSource };
   }
 }
 

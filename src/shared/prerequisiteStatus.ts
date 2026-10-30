@@ -36,19 +36,22 @@
  * 变成一个按请求漂移的值，而客户端把它当作「通道开关」缓存在 store 里 —— 那种设计早就被本仓
  * 反复记为缺陷（能力快照会放大缺陷）。能力位只说「这条分析通道在这台宿主上存在」。
  *
- * ## `builtin` 是一个**已弃用的兼容别名**
+ * ## `builtin` 别名（cycle-111 引入 → cycle-118 移除）
  *
- * 已安装的旧客户端读的是 `builtin`（`src/client/api/hostRequests.ts` 的 `builtin ?? true`、
- * `EmptyState.tsx` 的 `builtin ?? true`）。直接删字段会让那些客户端拿到 `undefined` 再按
- * `true` 兜底 —— 症状与修前完全一样，等于没修但多了一次崩溃面。所以保留一个版本：
+ * 历史背景：拆位（§61.10）时已安装客户端读的是 `builtin`（`builtin ?? true` 兜底），
+ * 直接删字段会让那些客户端拿到 `undefined` 再按 `true` 兜底——等于没修但多一次崩溃面。
+ * 因此别名「`builtin === astSource`」保留了一个兼容窗口（原定 cycle-112，实际 cycle-118）。
  *
- *   · 宿主侧：`builtin` 恒等于 `astSource`（旧位描述的就是 AST 那一层，这是它能诚实对应的唯一解释）；
- *   · 客户端侧：`normalizePrerequisiteStatus()` 在**旧宿主**（只发 `builtin`）上把
- *     `builtin` 映射回 `astSource`，`graphSource` 一律**降级为 false**（旧宿主无权声称有图通道）。
+ * **cycle-118 移除判据已满足**（`docs/agents/09` §9.4）：兼容窗口经过 6 个循环 +
+ * 真机多轮 fresh load 验证（cycle-112…117 的 J0 均为新 bundle，无旧缓存客户端存活证据）；
+ * 客户端消费方（`EmptyState` / `hostRequests` / store）自 cycle-111 起已全部改读
+ * `astSource` / `graphSource`。移除方向的安全性：旧客户端拿 `undefined` 会走它自己的
+ * `?? true` 兜底——症状回到「多显示一次降级提示」之前的旧世界，是**少一次提示**而不是
+ * 崩溃；真机旧 bundle 已无存活证据，接受该残余。
  *
- * **已知残留（本轮明确接受，下一轮移除别名时消失）**：旧客户端仍会用 `builtin` 当作
- * 「内置图可用」的判据，因此在 `astSource === true && graphSource === false` 的宿主上，
- * 旧客户端会多显示一次降级提示。新客户端读 `graphSource`，不受影响。
+ * 注意：**归一化的输入容错不保留 `builtin` 回读**。`graphSource` 缺省方向是 `false`
+ * （「不知道」≠「有」），同一诚实原则适用于 `astSource`：旧宿主载荷里只认 `astSource`，
+ * 不再从 `builtin` 推导——两个来源迟早分叉（本仓反复的教训）。
  */
 
 /** 能力位。字段全部必填：任何一侧省略一个位都会在编译期暴露，而不是在运行时变成 `undefined`。 */
@@ -61,11 +64,6 @@ export interface PrerequisiteStatus {
   astSource: boolean;
   /** 内置图数据通道是否存在（manifest 依赖图解析器自检通过）。 */
   graphSource: boolean;
-  /**
-   * @deprecated 兼容别名，值恒等于 `astSource`。下一轮（cycle-112）移除。
-   * 旧客户端读这个字段；新代码一律读 `astSource` / `graphSource`。
-   */
-  builtin: boolean;
 }
 
 /** 线上形状（旧宿主可能缺 `astSource` / `graphSource`，所以解析入口必须宽容）。 */
@@ -84,7 +82,6 @@ export interface PrerequisiteStatusInput {
   lens?: boolean | undefined;
   astSource?: boolean | undefined;
   graphSource?: boolean | undefined;
-  builtin?: boolean | undefined;
 }
 
 function asBoolean(value: unknown): boolean | undefined {
@@ -94,26 +91,21 @@ function asBoolean(value: unknown): boolean | undefined {
 /**
  * 把一份线上载荷归一成 `PrerequisiteStatus`。
  *
- * 三个方向都要能读，否则「旧客户端 × 新宿主」「新客户端 × 旧宿主」里总有一个方向会崩：
+ * 两个方向都要能读，否则总有一个方向会崩：
  *   · 新宿主（四个位齐全）⇒ 原样采纳 `astSource` / `graphSource`；
- *   · 旧宿主（只有 `builtin`）⇒ `astSource` 取 `builtin`，`graphSource` 降级为 `false`；
- *   · 缺字段 / 类型不对（手写响应、代理截断）⇒ `false`。
+ *   · 缺字段 / 类型不对（手写响应、代理截断、cycle-118 前只发 `builtin` 的旧宿主）⇒ `false`。
  *
  * `graphSource` 的缺省方向是 `false` 而不是 `true`：**不知道**不等于**有**。反过来兜底会让
  * 「降级模式」在根本没有图通道的宿主上重新出现，而那正是本轮要修的假叙事。
+ * `astSource` 同理（cycle-118 起不再从 `builtin` 回读推导——见模块头）。
  */
 export function normalizePrerequisiteStatus(raw: unknown): PrerequisiteStatus {
   const wire: WireStatus = (raw && typeof raw === 'object' ? raw : {}) as WireStatus;
-  const builtin = asBoolean(wire.builtin);
-  const astSource = asBoolean(wire.astSource) ?? builtin ?? false;
-  const graphSource = asBoolean(wire.graphSource) ?? false;
   return {
     codegraph: asBoolean(wire.codegraph) ?? false,
     lens: asBoolean(wire.lens) ?? false,
-    astSource,
-    graphSource,
-    // 别名由 astSource 派生，不接受线上单独声明 —— 两个来源迟早会分叉（本仓反复的教训）。
-    builtin: astSource,
+    astSource: asBoolean(wire.astSource) ?? false,
+    graphSource: asBoolean(wire.graphSource) ?? false,
   };
 }
 
@@ -132,5 +124,5 @@ export function isGraphServiceHealthy(
 
 /** 从 `ctx` 之外的地方（测试、日志、事件）构造一份全 false 的能力位。 */
 export function emptyPrerequisiteStatus(): PrerequisiteStatus {
-  return { codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false };
+  return { codegraph: false, lens: false, astSource: false, graphSource: false };
 }

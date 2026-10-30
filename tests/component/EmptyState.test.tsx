@@ -196,9 +196,9 @@ describe('EmptyState', () => {
     expect(container.querySelector('.cg-empty-degraded-notice')).toBeNull();
   });
 
-  it('两个上游都缺 + builtin 为 true 但 graphSource 为 false ⇒ 不显示降级提示', () => {
-    // 兼容别名的语义边界：`builtin` 只是 `astSource` 的别名，**不许**再被当作图通道的判据。
-    // 这条用例的存在意义是：把判据改回 `prerequisites.builtin` 时它会立刻变红。
+  it('两个上游都缺 + 载荷残留 legacy builtin 键 ⇒ 不显示降级提示', () => {
+    // cycle-118 别名已移除，但**旧宿主**的载荷可能仍带 `builtin` 键。判据始终是
+    // `graphSource`：这条用例的存在意义是——把判据改回读 `builtin`（或任何别的位）时它会立刻变红。
     const props = {
       ...defaultProps,
       prerequisites: { codegraph: false, lens: false, builtin: true, graphSource: false },

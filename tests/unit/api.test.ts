@@ -32,12 +32,12 @@ describe('client api', () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          codegraph: true, lens: false, astSource: true, graphSource: true, builtin: true,
+          codegraph: true, lens: false, astSource: true, graphSource: true,
         }),
       }) as unknown as typeof fetch;
       const result = await fetchStatus();
       expect(result).toEqual({
-        codegraph: true, lens: false, astSource: true, graphSource: true, builtin: true,
+        codegraph: true, lens: false, astSource: true, graphSource: true,
       });
     });
 
@@ -47,7 +47,7 @@ describe('client api', () => {
       // 「宿主没应答」必须是「不知道」而不是「内置可用」：修前这里回落 `builtin: true`，
       // 那正是 §61.10 那条恒真式在客户端的镜像。
       expect(result).toEqual({
-        codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false,
+        codegraph: false, lens: false, astSource: false, graphSource: false,
       });
     });
 
@@ -55,7 +55,7 @@ describe('client api', () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchStatus();
       expect(result).toEqual({
-        codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false,
+        codegraph: false, lens: false, astSource: false, graphSource: false,
       });
     });
   });

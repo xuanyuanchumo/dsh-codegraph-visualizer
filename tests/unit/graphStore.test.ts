@@ -183,7 +183,7 @@ describe('graphStore (J6/J7/J10)', () => {
     useGraphStore.getState().setPrerequisites(makePrerequisiteStatus({ codegraph: true, lens: false, astSource: true }));
     const s = useGraphStore.getState();
     expect(s.prerequisites).toEqual({
-      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+      codegraph: true, lens: false, astSource: true, graphSource: false,
     });
   });
 
@@ -2318,7 +2318,7 @@ describe('graphStore additional setters', () => {
   it('setPrerequisites updates prerequisites', () => {
     useGraphStore.getState().setPrerequisites(makePrerequisiteStatus({ codegraph: true, lens: false, astSource: true }));
     expect(useGraphStore.getState().prerequisites).toEqual({
-      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+      codegraph: true, lens: false, astSource: true, graphSource: false,
     });
   });
 

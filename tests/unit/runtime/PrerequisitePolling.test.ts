@@ -23,13 +23,11 @@ import { setupPrerequisitePolling } from '../../../src/client/runtime/Prerequisi
 function makeStatus(overrides: Partial<{
   codegraph: boolean; lens: boolean; astSource: boolean; graphSource: boolean;
 }> = {}) {
-  const astSource = overrides.astSource ?? false;
   return {
     codegraph: overrides.codegraph ?? false,
     lens: overrides.lens ?? false,
-    astSource,
+    astSource: overrides.astSource ?? false,
     graphSource: overrides.graphSource ?? false,
-    builtin: astSource,
   };
 }
 
@@ -50,7 +48,7 @@ function createCtx(): { ctx: Context; disposers: Array<() => void> } {
 function createStore(overrides: Record<string, unknown> = {}) {
   return {
     panelVisible: true,
-    prerequisites: { codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false },
+    prerequisites: { codegraph: false, lens: false, astSource: false, graphSource: false },
     setPrerequisites: mocks.setPrerequisites,
     ...overrides,
   };
@@ -80,7 +78,7 @@ describe('setupPrerequisitePolling', () => {
     // 修前这里写的是 `{…, builtin: status.builtin ?? true}` —— 那个 `?? true` 会把
     // 「宿主没应答」重新变成「内置可用」，正是 §61.10 的假叙事在客户端的镜像。
     const status = {
-      codegraph: true, lens: false, astSource: true, graphSource: false, builtin: true,
+      codegraph: true, lens: false, astSource: true, graphSource: false,
     };
     mocks.fetchStatus.mockResolvedValue(status);
     const { ctx } = createCtx();
@@ -96,7 +94,7 @@ describe('setupPrerequisitePolling', () => {
     // 这条会读到 `builtin: true` 而变红 —— 上面那条「原样写入」察觉不到这种改动，
     // 因为它的输入本来就是 true。
     const status = {
-      codegraph: false, lens: false, astSource: false, graphSource: false, builtin: false,
+      codegraph: false, lens: false, astSource: false, graphSource: false,
     };
     mocks.fetchStatus.mockResolvedValue(status);
     const { ctx } = createCtx();
@@ -183,7 +181,7 @@ describe('setupPrerequisitePolling', () => {
   it('interval clears itself when prerequisites satisfied', async () => {
     mocks.fetchStatus.mockResolvedValue(makeStatus({ codegraph: true, lens: true }));
     mocks.getState.mockReturnValue(
-      createStore({ prerequisites: { codegraph: true, lens: true, astSource: true, graphSource: true, builtin: true } }),
+      createStore({ prerequisites: { codegraph: true, lens: true, astSource: true, graphSource: true } }),
     );
     const { ctx } = createCtx();
     setupPrerequisitePolling(ctx);
