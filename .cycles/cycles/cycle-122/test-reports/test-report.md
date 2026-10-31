@@ -49,3 +49,22 @@
 ## 6. 结论
 
 +8 例全绿、既有 6,345 例零回归（含指纹/etag/graphFingerprint 30 例——xuanji 天然豁免的实证）。三层贯通链（引擎→工具面→SSE→store→UI）全链 typecheck 闭合。门禁证据齐备。
+
+## 8. 补遗：真机视觉复检（goal-round-5，2026-10-31 17:48–18:07，Chrome DevTools MCP）
+
+环境：`start-dsh-test.mjs start --force`（DSH PID 55424 / :3080），会话「代码图谱插件研究迭代优化」。
+
+| # | 探针 | 结果 | 证据 |
+|---|---|---|---|
+| V1 | StatusBar `xuanjiSignal` prop 贯通 | ✅ React fiber 读回 props：`xuanjiSignal` 字段在场（值 null = 诚实缺席） | evaluate_script |
+| V2 | xuanji 徽标诚实缺席 | ✅ 数据走 `/scan → /bootstrap`（不经工具面 graph_data）⇒ 徽标 null——**不伪造观测**（全量/bootstrap 轮次本就不该显示增量信号） | 状态条读回 |
+| V3 | 会话跟随复检 | ✅ 「跟随对话」SPAN 徽标渲染；工作区 = dsh-codegraph-visualizer | DOM + a11y |
+| V4 | pin 徽标真机渲染 | ✅ a11y 树 `uid=6_96`：「已固定 · 回到对话」BUTTON + 完整 hint（「手动切换过工作区后已停止跟随对话；点击回到对话的工作区」）；i18n zh 文案真机生效 | take_snapshot |
+| V5 | 解除 pin 一次到位 | ✅ 点击后工作区立即回 dsh-codegraph-visualizer，50 节点/6 边真实图谱渲染，「图谱完整」状态条；pin 按钮从 a11y 树消失 | snapshot 前后对照 |
+| V6 | 2193 节点全量扫描 | ✅ 「扫描当前工作区」→ 索引建立 → 状态条「✓ 图谱完整 (2193 节点)」（dsh-codegraph-visualizer 自身的真实索引） | 状态条读回 |
+
+**诚实披露**：xuanji 徽标的**点亮态**（真实增量路径）本轮未在真机出现——它需要模型经
+`graph_data` 工具走一次增量合并（浏览器内无法替代模型调工具）。客户端半环（props 贯通 +
+诚实缺席 + null 缺省）已真机实证；点亮态由 8 个单测钉住（XJ-11 3 例 + StatusBar 5 例）。
+
+**结论**：会话跟随（跟随/pin/解除）真机全链路二次复检通过；xuanji 信号客户端半环贯通实证。
