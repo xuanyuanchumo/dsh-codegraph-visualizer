@@ -118,6 +118,29 @@ describe('XJ-13 集成层守卫：路径读法必须真的调库', () => {
     expect((CODE.match(/\bnew\s+XuanjiAdapterPool\s*\(/g) ?? []).length).toBe(1);
   });
 
+  // cycle-122 继承项（XJ-11 消费端收口的防复活守卫）：`executeGraphData`（顶层函数，
+  // graph_data 工具的 execute 委托给它）必须**消费** pool.applyDelta 的返回值——
+  // `const poolDelta = xuanjiPool.applyDelta(...)`。死链复活形态：有人把它改回
+  // `xuanjiPool.applyDelta(...)` 丢弃返回值（一行 diff、全部测试照绿、XJ-11 无声复发），
+  // 这正是本文件头注说的「execute 把库的调用删掉」同族。三个正向形状各自钉住
+  // 「捕获 → 消费 → 下发」一环，断掉任意一环即红。
+  it('graph_data 的 execute 消费 pool.applyDelta 返回值（XJ-11 防复活）', () => {
+    const fnStart = CODE.indexOf('export async function executeGraphData');
+    expect(fnStart, 'executeGraphData 函数必须存在（改名后守卫显式失败，不允许静默空扫描）').toBeGreaterThanOrEqual(0);
+    const fnBody = CODE.slice(fnStart, CODE.indexOf('\nexport ', fnStart + 10) < 0 ? CODE.length : CODE.indexOf('\nexport ', fnStart + 10));
+    expect(fnBody.length).toBeGreaterThan(500);
+    // 正向：捕获 → 消费（写信号）→ 下发（随事件），三环缺一不可。
+    expect(fnBody, 'pool.applyDelta 的返回值必须被捕获（const poolDelta = ...）')
+      .toMatch(/const\s+poolDelta\s*=\s*xuanjiPool\s*\.\s*applyDelta\s*\(/);
+    expect(fnBody, '捕获的信号必须写入 xuanjiSignal 再进 metadata')
+      .toMatch(/xuanjiSignal\s*=\s*\{/);
+    expect(fnBody, '信号必须随 GraphDataEvent 下发（emitData 携带 xuanji）')
+      .toMatch(/xuanji:\s*xuanjiSignal/);
+    // 反向样本（字符串拼接防自扫描）：丢弃返回值的写法必须能被正向正则区分出来。
+    const discarded = 'xuanji' + 'Pool.applyDelta(repoId, delta);';
+    expect(discarded).not.toMatch(/const\s+poolDelta\s*=\s*xuanjiPool\s*\.\s*applyDelta\s*\(/);
+  });
+
   it('GF-P0-2：graph_query 必须调用库内纯函数（种子选择 / 分词 / 渲染），不得内联复制', () => {
     const body = toolBody(CODE, 'graphQuery');
     expect(CODE).toMatch(/from\s*['"][^'"]*xuanji\/query\/keyword-query\.ts['"]/);
