@@ -1866,7 +1866,16 @@
       "timestamp": "2026-10-31T18:00:52.797Z",
       "previousHash": "69954c6033b25f198bdf05f9712d70764f26166955f113b28a8ce22e83ca549e",
       "hash": "455a7f06d8f91d7cf7d91da3202a79f105b436148a9cea988b6e3a2bf623459d"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "Zero failures, zero errors (test-report.md + journey coverage verified) [ignored newer non-canonical: test-report-supplement.md] §cycle-124 [Q2:PASS]",
+      "timestamp": "2026-10-31T18:23:31.324Z",
+      "previousHash": "455a7f06d8f91d7cf7d91da3202a79f105b436148a9cea988b6e3a2bf623459d",
+      "hash": "06753d46ebbd569416cdb46e0d85998f6d08d80307020924556b6c791bf94bcf"
     }
   ],
-  "chainHead": "455a7f06d8f91d7cf7d91da3202a79f105b436148a9cea988b6e3a2bf623459d"
+  "chainHead": "06753d46ebbd569416cdb46e0d85998f6d08d80307020924556b6c791bf94bcf"
 }

@@ -308,3 +308,44 @@ export async function fetchRegistryBoard(): Promise<RegistryBoard | null> {
     return (await res.json()) as RegistryBoard;
   }, failure, { url: '/api/v1/codegraph/registry' });
 }
+
+/** `/paths` 路由的单条路径（ids 与 labels 并行，客户端免二次查表）。 */
+export interface PathEnumerationItem {
+  ids: string[];
+  labels: string[];
+}
+
+/** `/paths` 路由的响应（cycle-124：璇玑图路径枚举读法的用户侧出口）。 */
+export interface PathEnumerationResponse {
+  paths: PathEnumerationItem[];
+  truncated: boolean;
+  total: number;
+  nextCursor: string | number | null;
+  reason?: string;
+  metadata?: { repoId: string; source: string; target: string; edgeCount: number };
+}
+
+/**
+ * 路径枚举（`GET /api/v1/codegraph/paths`，cycle-124）。
+ *
+ * 与 `fetchGraphDiff` 同款纪律：**刻意不返回「空路径」冒充成功**——404（槽空/身份
+ * 不符）返回 null，面板据此区分「两符号之间没有路径」与「这次查询根本没做成」。
+ * 端点不在图里是 200 + `reason: 'endpoint-not-in-graph'`（与工具同语义）。
+ */
+export async function fetchPathEnumerate(
+  source: string,
+  target: string,
+  options: { maxHops?: number; limit?: number; edgeTypes?: string; signal?: AbortSignal; workspace?: string } = {},
+): Promise<PathEnumerationResponse | null> {
+  const params = new URLSearchParams({ source, target });
+  if (options.maxHops !== undefined) params.set('maxHops', String(options.maxHops));
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.edgeTypes) params.set('edgeTypes', options.edgeTypes);
+  if (options.workspace && options.workspace !== '.') params.set('workspace', options.workspace);
+  const failure: PathEnumerationResponse | null = null;
+  return withAbortGuard('fetchPathEnumerate', async () => {
+    const res = await fetchWithTimeout(`/api/v1/codegraph/paths?${params.toString()}`, { signal: options.signal });
+    if (!res.ok) return null;
+    return (await res.json()) as PathEnumerationResponse;
+  }, failure, { url: '/api/v1/codegraph/paths' });
+}

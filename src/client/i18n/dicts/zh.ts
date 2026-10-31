@@ -297,7 +297,17 @@ export const zh: Record<string, string> = {
   'pathFind.clear': '清除',
   'pathFind.length': '路径长度',
   'pathFind.hops': '经过节点',
-
+  'pathFind.modeLabel': '查找模式',
+  'pathFind.modeShortest': '最短路',
+  'pathFind.modeEnumerate': '枚举',
+  'pathFind.maxHops': '最大跳数',
+  'pathFind.enumerate': '枚举路径',
+  'pathFind.enumerating': '枚举中…',
+  'pathFind.enumUnavailable': '路径枚举不可用（索引未就绪或服务不可达）',
+  'pathFind.endpointMissing': '端点符号不在当前图中——先用关键词检索定位符号',
+  'pathFind.noPaths': '两符号之间在当前跳数内没有路径',
+  'pathFind.enumSummary': '共 {n} 条路径',
+  'pathFind.enumTruncated': '已截断',
   'pathFind.startSuggestions': '起点建议列表',
   'pathFind.endSuggestions': '终点建议列表',
 

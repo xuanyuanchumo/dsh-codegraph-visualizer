@@ -1,0 +1,69 @@
+
+/* ── 路径枚举双模（cycle-124：/paths 路由的 UI 消费面）─────────────────
+ * 三态可见：枚举中 / 端点缺失提示 / 结果列表（截断显式）。 */
+.cg-path-mode-switch {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--cg-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cg-path-mode-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+}
+.cg-path-mode-btn.cg-mode-active {
+  background: var(--cg-accent);
+  color: var(--cg-on-accent);
+}
+.cg-path-enum-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+}
+.cg-path-enum-controls input[type='number'] {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cg-text);
+}
+.cg-path-enum-error {
+  font-size: 11px;
+  color: var(--cg-error);
+  padding: 4px 0;
+}
+.cg-path-enum-hint {
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
+}
+.cg-path-enum-summary {
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  margin-bottom: 4px;
+}
+.cg-path-enum-truncated {
+  color: var(--cg-warning);
+}
+.cg-path-enum-list {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--cg-text);
+}
+.cg-path-enum-item {
+  padding: 1px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
