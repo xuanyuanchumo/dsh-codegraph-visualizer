@@ -182,6 +182,37 @@ describe('contributeGraphSkill: 正文覆盖全部工具（防「Skill 提到了
     expect('当前不支持'.length).toBeGreaterThan(0);
   });
 
+  // ── cycle-122/121 能力面的指令同步（防过期守卫同族）────────────────────
+  it('正文随能力演进：graph_query 的 depth/tokenBudget 是模型可传参数且带缺省值（cycle-120 指令面同步）', () => {
+    // cycle-120 在 UI 落了阈值控件，但 SKILL_CONTENT 没说「这是模型可传参数」——
+    // 模型只会在 UI 换阈值，永远想不到自己能传。钉三件事：参数名出现（可发现性）、
+    // 带「模型可传」表述（语义）、带缺省值范围（防模型瞎猜取值）。
+    const register = vi.fn((_skill: unknown) => () => {});
+    const { ctx } = makeCtxWithSkills({ register });
+    contributeGraphSkill(ctx);
+    const content = registeredSkill(register).content as string;
+    expect(content).toContain('tokenBudget');
+    expect(content).toContain('depth');
+    expect(content).toMatch(/模型可传参数/);
+    expect(content).toMatch(/50–8000/);
+  });
+
+  it('正文随能力演进：graph_data 的 metadata.xuanji 增量健康信号必须写进「不要做」（cycle-122 指令面同步）', () => {
+    // cycle-122 贯通了增量引擎健康信号（metadata.xuanji），但模型不知道它的语义
+    // 就会要么忽视（降级近似当正常结果）要么误读（缺席当异常）。钉三件事：
+    // 字段名出现（可发现性）、「降级近似要披露」纪律（正确性）、「缺席=全量重建非异常」
+    // （防误读）。
+    const register = vi.fn((_skill: unknown) => () => {});
+    const { ctx } = makeCtxWithSkills({ register });
+    contributeGraphSkill(ctx);
+    const content = registeredSkill(register).content as string;
+    expect(content).toContain('metadata.xuanji');
+    expect(content).toMatch(/降级.*近似|近似.*降级/);
+    expect(content).toMatch(/全量重建/);
+    // 反向自检：合成一个没有该纪律的旧版内容样本，确认 includes 判定有效。
+    expect('没有 xuanji 字段'.includes('metadata.xuanji')).toBe(false);
+  });
+
   it('正文明确「没有图」与「X 不存在」是两件事', () => {
     const register = vi.fn((_skill: unknown) => () => {});
     const { ctx } = makeCtxWithSkills({ register });

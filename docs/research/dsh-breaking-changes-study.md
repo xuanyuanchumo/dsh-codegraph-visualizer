@@ -67,3 +67,22 @@ npx vitest run tests/unit/generation/serviceProbeContract.test.ts
 # 能力位四键契约（builtin 已移除的防复发守卫）
 npx vitest run tests/unit/builtinAliasRemoval.test.ts
 ```
+
+## 三、桌面端会话 scope 查证（cycle-122 · goal-round-6 补充）
+
+**结论：会话工作区跟随（cycle-121）在桌面端自动生效，无需适配。**
+
+| # | 证据 | 来源 |
+|---|---|---|
+| 1 | 「Electron shell around the complete dsh Web application… Electron immediately loads the packaged Web entry… starts the client without navigating to another document」 | apps/desktop/README.md（Context7 /deepseek-ai/deepseek-harness） |
+| 2 | 「activating client plugins in the same document」「Web owns RPC and streams; the desktop carrier connects the local page to the authenticated Host」 | docs/architecture.md |
+| 3 | client bundle 由 `dsh.client.platform: 'web'` 门控，桌面宿主同样加载（桌面只是载体不同：dsh-app:// + Node IPC 转发 HTTP） | packages/client/modules + client-modules.zh.md |
+| 4 | 本仓既有实测：「DSH has no desktop client platform: web and desktop share one bundle」 | CLAUDE.md cycle-110 结论，与官方文档互证 |
+
+推论：`conversation.view` 槽位在桌面端由同一个 `dsh-client-ui-renderer` 装配，
+`standardProps` 会话 scope 注入（sessionId/useSessions）行为一致；会话跟随的
+三态状态机（跟随/pin/unknown）在桌面端语义不变。唯一未实证项：桌面窗口内的
+浏览器级探针（CDP 受限通道，cycle-115 判定维持）——属验证手段限制，非功能缺口。
+
+**旧行为不变量**：会话 cwd 不可知（unknown 态）时一切退化为轮询行为——与
+桌面端既有行为一致，无回归面。
