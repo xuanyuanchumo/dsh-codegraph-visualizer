@@ -38,6 +38,7 @@ import {
 } from './routes/analysisRoutes.ts';
 import { registerLayoutWorkerRoute } from './routes/workerRoutes.ts';
 import { registerKeywordQueryRoute } from './routes/queryRoute.ts';
+import { registerPathsRoute } from './routes/pathsRoute.ts';
 import { registerRegistryRoute } from './routes/registryRoute.ts';
 import { resetSnapshotShrinkState } from './compat/index.ts';
 
@@ -99,6 +100,7 @@ export function registerRoutes(deps: RouteDeps): void {
   // 而 `getHandler(ctx, 20)` 一类断言就会错位。追加是唯一「零错位」的位置——
   // 代价是新路由的索引依赖 churn 先注册，因此两行必须保持相邻（下面有守卫测试）。
   registerKeywordQueryRoute(rc);
+  registerPathsRoute(rc);
   // cycle-116 可观测性主轴：注册-生产-消费矩阵看板（四面全量清单 + 断链判定）。
   registerRegistryRoute(rc);
 

@@ -284,13 +284,13 @@ describe('registerRoutes', () => {
     });
   });
 
-  it('registers all 21 routes', () => {
+  it('registers all 22 routes', () => {
     registerRoutes(deps);
-    // 21 = 升级前的 18 条 + 研究报告 §六 #11 的 `/churn` + cycle-111 的 `/query`
-    //   + cycle-116 的 `/registry`（业务注册矩阵看板）。
+    // 22 = 升级前的 18 条 + `/churn` + `/query` + `/registry`
+    //   + cycle-124 的 `/paths`（路径枚举的用户侧出口）。
     // 这条断言的价值不在数字本身，而在「新增一条路由必须显式面对它」——
     // 否则漏注册一条路由不会有任何测试变红（`ctx.effect` 的 disposer 一样能过）。
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(21);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(22);
   });
 
   it('serves the layout worker bundle from the plugin HTTP surface', () => {
@@ -338,7 +338,7 @@ describe('registerRoutes', () => {
       // registryContract.test.ts 守卫，这里只钉「字段存在且四面计数齐全」。
       registry: expect.objectContaining({
         total: expect.any(Number),
-        byFace: expect.objectContaining({ tools: 11, routes: 20, entries: 4, skill: 1 }),
+        byFace: expect.objectContaining({ tools: 11, routes: 21, entries: 4, skill: 1 }),
         brokenLinks: [],
       }),
     });

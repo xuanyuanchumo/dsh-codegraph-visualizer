@@ -66,6 +66,7 @@ export const ROUTE_ENTRIES: RegistryEntry[] = [
   { id: '/events', face: 'routes', registeredAt: 'src/host/routes/controlRoutes.ts:194', produces: 'SSE 增量事件流', consumers: ['client SSE channel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
   { id: '/query', face: 'routes', registeredAt: 'src/host/routes/queryRoute.ts:93', produces: '关键词检索（五维 etag 键）', consumers: ['client keyword panel', 'graph_query tool'], guardTest: 'xuanjiIntegrationContract.test.ts', lifecycle: 'consuming' },
   { id: '/worker', face: 'routes', registeredAt: 'src/host/routes/workerRoutes.ts:69', produces: '布局 worker 脚本（fcose/dagre 布局计算，IIFE 静态资源）', consumers: ['client LayoutController', 'tests/unit/LayoutController.test.ts'], guardTest: 'LayoutController.test.ts', lifecycle: 'consuming' },
+  { id: '/paths', face: 'routes', registeredAt: 'src/host/routes/pathsRoute.ts:56', produces: '路径枚举（璇玑图路径规则读法的用户侧出口，所见即所查）', consumers: ['client PathBar（下一轮接线）', 'graph_path_enumerate tool（同算法）'], guardTest: 'pathsRoute.test.ts', lifecycle: 'consuming' },
 ];
 
 /** UI 入口席位（4 通道优先级链）。状态由 topTabObservability 写 DOM 标记。 */

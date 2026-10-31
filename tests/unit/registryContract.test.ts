@@ -56,7 +56,7 @@ describe('business registry contract', () => {
       expect(entries.some((e) => e.face === face), face).toBe(true);
     }
     expect(TOOL_ENTRIES.length).toBe(11);
-    expect(ROUTE_ENTRIES.length).toBe(20);
+    expect(ROUTE_ENTRIES.length).toBe(21);
     expect(ENTRY_ITEMS.length).toBe(4);
     expect(SKILL_ENTRIES.length).toBe(1);
   });
