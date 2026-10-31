@@ -176,6 +176,38 @@ describe('PathBar (FR-25) component', () => {
       expect(await screen.findByText('两符号之间在当前跳数内没有路径')).toBeTruthy();
     });
 
+    it('onJumpToNode 在场 ⇒ 枚举节点是按钮，点击触发跳转回调（每节点一个）', async () => {
+      const onJumpToNode = vi.fn();
+      mockFetchPathEnumerate.mockResolvedValue({
+        paths: [{ ids: ['n1', 'n3'], labels: ['findPath', 'renderGraph'] }],
+        truncated: false, total: 1, nextCursor: null,
+      });
+      const user = userEvent.setup();
+      render(<PathBar onFindPath={vi.fn()} onClearPath={vi.fn()} onJumpToNode={onJumpToNode} pathResult={null} pathLength={null} onClose={vi.fn()} />);
+      await switchToEnumerate(user);
+      await selectEndpoints(user);
+      await user.click(screen.getByRole('button', { name: '枚举路径' }));
+      const btn1 = await screen.findByRole('button', { name: 'findPath' });
+      await user.click(btn1);
+      expect(onJumpToNode).toHaveBeenCalledWith('n1');
+      await user.click(screen.getByRole('button', { name: 'renderGraph' }));
+      expect(onJumpToNode).toHaveBeenCalledWith('n3');
+    });
+
+    it('onJumpToNode 缺省 ⇒ 枚举结果是纯文本（不渲染死按钮）', async () => {
+      mockFetchPathEnumerate.mockResolvedValue({
+        paths: [{ ids: ['n1', 'n3'], labels: ['findPath', 'renderGraph'] }],
+        truncated: false, total: 1, nextCursor: null,
+      });
+      const user = userEvent.setup();
+      render(<PathBar onFindPath={vi.fn()} onClearPath={vi.fn()} pathResult={null} pathLength={null} onClose={vi.fn()} />);
+      await switchToEnumerate(user);
+      await selectEndpoints(user);
+      await user.click(screen.getByRole('button', { name: '枚举路径' }));
+      await screen.findByText(/共 1 条路径/);
+      expect(screen.queryByRole('button', { name: 'findPath' })).toBeNull();
+    });
+
     it('模式切换清另一模式的结果（互斥呈现）', async () => {
       mockFetchPathEnumerate.mockResolvedValue({
         paths: [{ ids: ['n1', 'n3'], labels: ['findPath', 'renderGraph'] }],

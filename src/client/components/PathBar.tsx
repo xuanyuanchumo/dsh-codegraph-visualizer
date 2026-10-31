@@ -12,12 +12,17 @@ type PathMode = 'shortest' | 'enumerate';
 interface PathBarProps {
   onFindPath: (sourceId: NodeId, targetId: NodeId) => void;
   onClearPath: () => void;
+  /**
+   * 枚举结果点击跳转（cycle-124 补遗）：选中节点 + revealNode 入视野。
+   * 缺省（旧调用方/降级通道）⇒ 点击无跳转，仅文本展示（不渲染死交互）。
+   */
+  onJumpToNode?: (id: string) => void;
   pathResult: NodeId[] | null;
   pathLength: number | null;
   onClose: () => void;
 }
 
-export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }: PathBarProps) {
+export const PathBar = memo(function PathBar({ onFindPath, onClearPath, onJumpToNode, pathResult, pathLength, onClose }: PathBarProps) {
   const t = useT();
   const [mode, setMode] = useState<PathMode>('shortest');
   // 枚举模式的状态（本地态——查询参数与结果都是本次交互的，无持久化意义）
@@ -207,11 +212,36 @@ export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResu
                   {enumResult.truncated && <span className="cg-path-enum-truncated"> · {t('pathFind.enumTruncated')}</span>}
                 </div>
                 <ol className="cg-path-enum-list">
-                  {enumResult.paths.map((p, i) => (
-                    <li key={i} className="cg-path-enum-item" title={p.ids.join(' → ')}>
-                      {p.labels.join(' → ')}
-                    </li>
-                  ))}
+                  {enumResult.paths.map((p, i) => {
+                    // 点击跳转：路径上的每个节点都可定位（选中 + reveal 入视野）。
+                    // onJumpToNode 缺省（旧调用方）⇒ 保持纯文本，不渲染死按钮。
+                    const content = (
+                      <>
+                        <span className="cg-path-enum-index">{i + 1}.</span>
+                        {p.labels.join(' → ')}
+                      </>
+                    );
+                    return onJumpToNode ? (
+                      <li key={i} className="cg-path-enum-item">
+                        {p.ids.map((id, j) => (
+                          <span key={id}>
+                            {j > 0 && <span className="cg-path-enum-arrow"> → </span>}
+                            <button
+                              className="cg-path-enum-node"
+                              title={t('pathFind.jumpHint')}
+                              onClick={() => onJumpToNode(id)}
+                            >
+                              {p.labels[j]}
+                            </button>
+                          </span>
+                        ))}
+                      </li>
+                    ) : (
+                      <li key={i} className="cg-path-enum-item" title={p.ids.join(' → ')}>
+                        {content}
+                      </li>
+                    );
+                  })}
                 </ol>
               </>
             )}

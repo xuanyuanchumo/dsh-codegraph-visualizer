@@ -22,6 +22,8 @@ interface LeftPanelStackProps {
   onSelectSearchResult: (id: string) => void;
   onFindPath: (sourceId: NodeId, targetId: NodeId) => void;
   onClearPath: () => void;
+  /** 枚举结果点击跳转（cycle-124 补遗）：选中 + reveal 入视野（GraphPanel 注入）。 */
+  onJumpToNode?: (id: string) => void;
   pathResult: NodeId[] | null;
   ruleViolations: ReturnType<typeof Object> | unknown;
   onCheckRules: () => void;
@@ -63,6 +65,7 @@ export function LeftPanelStack(props: LeftPanelStackProps) {
     {
       visible: panel.showPathFind,
       children: <PathBar onFindPath={props.onFindPath} onClearPath={props.onClearPath}
+        onJumpToNode={props.onJumpToNode}
         pathResult={props.pathResult} pathLength={props.pathResult ? props.pathResult.length - 1 : null}
         onClose={() => panel.setShowPathFind(false)} />,
     },

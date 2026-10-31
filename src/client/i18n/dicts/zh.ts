@@ -307,6 +307,7 @@ export const zh: Record<string, string> = {
   'pathFind.endpointMissing': '端点符号不在当前图中——先用关键词检索定位符号',
   'pathFind.noPaths': '两符号之间在当前跳数内没有路径',
   'pathFind.enumSummary': '共 {n} 条路径',
+  'pathFind.jumpHint': '点击定位到该节点',
   'pathFind.enumTruncated': '已截断',
   'pathFind.startSuggestions': '起点建议列表',
   'pathFind.endSuggestions': '终点建议列表',

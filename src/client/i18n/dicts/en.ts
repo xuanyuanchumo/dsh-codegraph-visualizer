@@ -310,6 +310,7 @@ export const en: Record<string, string> = {
   'pathFind.endpointMissing': 'Endpoint symbol not in current graph — locate it with keyword search first',
   'pathFind.noPaths': 'No path between the two symbols within the hop limit',
   'pathFind.enumSummary': '{n} paths',
+  'pathFind.jumpHint': 'Click to locate this node',
   'pathFind.enumTruncated': 'truncated',
 
   'pathFind.startSuggestions': 'Start suggestions',

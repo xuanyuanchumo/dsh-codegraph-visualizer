@@ -67,3 +67,24 @@
   white-space: nowrap;
   max-width: 100%;
 }
+
+/* 枚举结果节点按钮（点击跳转，cycle-124 补遗） */
+.cg-path-enum-node {
+  border: none;
+  background: transparent;
+  color: var(--cg-accent);
+  cursor: pointer;
+  padding: 0 1px;
+  font-size: inherit;
+}
+.cg-path-enum-node:hover {
+  text-decoration: underline;
+}
+.cg-path-enum-arrow {
+  color: var(--cg-text-tertiary);
+  padding: 0 2px;
+}
+.cg-path-enum-index {
+  color: var(--cg-text-tertiary);
+  margin-right: 3px;
+}

@@ -156,6 +156,17 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
   });
   // 解除 pin：回到会话跟随态（pinWorkspace(null) 一次到位对齐会话工作区）。
   const handleUnpinWorkspace = useCallback(() => { pinWorkspace(null); }, [pinWorkspace]);
+  // 枚举结果点击跳转（cycle-124 补遗）：复用搜索选中链路的语义——选中 + 详情 + reveal 入视野。
+  const handleJumpToNode = useCallback((id: string) => {
+    try {
+      setSelectedNode(NodeId(id));
+      setSelectedNodeData(getDataRef.current?.getNodeData(NodeId(id)) ?? null);
+      const revealed = getDataRef.current?.revealNode(id) ?? false;
+      if (!revealed) log.warn('enum result node is not revealable in the rendered graph', { id });
+    } catch (err) {
+      log.error('handleJumpToNode failed', { id, err });
+    }
+  }, [setSelectedNode, setSelectedNodeData, getDataRef]);
 
   const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
 
@@ -491,7 +502,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
         panel={panel} isCollapsed={isCollapsed}
         searchQuery={searchQuery} searchResults={searchResults} searchMatchCount={renderer.searchMatchCount}
         onSearchChange={setSearchQuery} onSelectSearchResult={handleSelectSearchResult}
-        onFindPath={handleFindPath} onClearPath={handleClearPath} pathResult={pathResult}
+        onFindPath={handleFindPath} onClearPath={handleClearPath} onJumpToNode={handleJumpToNode} pathResult={pathResult}
         ruleViolations={ruleViolations} onCheckRules={handleRulesCheck}
         selectedNodeData={selectedNodeData} onCloseDetail={handleCloseDetail}
         expandedNodeIds={expandedNodeIds} adjacencyMap={adjacencyMap}
