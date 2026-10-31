@@ -1761,7 +1761,7 @@ describe('GraphPanel uncovered handler tests', () => {
       indexStatus: 'ready',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
-      currentWorkspace: '/test/workspace', workspaceList: [],
+      currentWorkspace: '/test/workspace', workspaceList: [], sessionWorkspace: null, pinnedWorkspace: null,
     });
 
     render(React.createElement(GraphPanel));
@@ -1781,7 +1781,7 @@ describe('GraphPanel uncovered handler tests', () => {
       indexStatus: 'ready',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
-      currentWorkspace: '/test/workspace', workspaceList: [],
+      currentWorkspace: '/test/workspace', workspaceList: [], sessionWorkspace: null, pinnedWorkspace: null,
     });
 
     render(React.createElement(GraphPanel));
@@ -1803,7 +1803,7 @@ describe('GraphPanel uncovered handler tests', () => {
       indexStatus: 'ready',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
-      currentWorkspace: '/test/workspace', workspaceList: [],
+      currentWorkspace: '/test/workspace', workspaceList: [], sessionWorkspace: null, pinnedWorkspace: null,
     });
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any],

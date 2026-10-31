@@ -50,6 +50,7 @@ import { RightPanelStack } from './components/RightPanelStack.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { GraphCanvasControls } from './components/GraphCanvasControls.tsx';
 import { scoped } from '../shared/Logger.ts';
+import { useSessionWorkspaceFollow, type SessionScopeProps } from './runtime/sessionFollow.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
 import { dispatchCgEvent } from './utils/cgEvents.ts';
 import { UI, FUNCTION_BODY } from '../shared/constants.ts';
@@ -71,9 +72,16 @@ const log = scoped('panel');
 
 interface GraphPanelProps {
   className?: string;
+  /**
+   * 宿主会话身份（conversation.view 槽位的 session scope 标准 props 透传）。
+   * 二者皆可缺：dev-server / 旧代宿主 / 降级通道不提供 ⇒ 会话跟随降级为不跟随
+   * （宁缺勿猜）。缺省值让所有既有测试与离线渲染零改动。
+   */
+  sessionId?: string;
+  useSessions?: unknown;
 }
 
-function GraphPanelInner({ className = '' }: GraphPanelProps) {
+function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelProps) {
   const t = useT();
   const integrationMode = useGraphStore((s) => s.integrationMode);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -82,6 +90,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | ClusterNode | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | EdgeTooltipData | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+
+  // 会话跟随（默认工作区 = 对话工作区）：副作用写 sessionWorkspace 真相源；
+  // 未 pin 时把 currentWorkspace 对齐到会话 cwd。cwd 不可知 ⇒ 全部维持现状。
+  useSessionWorkspaceFollow(
+    typeof useSessions === 'function' ? { sessionId, useSessions: useSessions as SessionScopeProps['useSessions'] } : null,
+  );
 
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -94,7 +108,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData, hierarchyLevel } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
   const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible, indexStatus } = useGraphStatus();
-  const { currentWorkspace, workspaceList } = useGraphWorkspace();
+  const { currentWorkspace, workspaceList, sessionWorkspace, pinnedWorkspace } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
   const { diffResult } = useGraphDiff();
@@ -104,7 +118,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const {
     setLayout, setDagreRankDir, setTheme, setSearchQuery, setSelectedNode,
     setFilterType, setGraphType, setClusterDepth, setHierarchyLevel, setLayer, setLoading,
-    setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData,
+    setCurrentWorkspace, addWorkspace, removeWorkspace, pinWorkspace, setGraphData,
     setInitStatus, setWatchEnabled, setError, expandNode, collapseNode,
     collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setTodoMarkerMode, setLODLevel,
     assembleMicro,
@@ -138,8 +152,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   useWorkspaceEventListener();
 
   const { handleWorkspaceSwitch, handleWorkspaceAdd } = useWorkspaceHandlers({
-    setCurrentWorkspace, addWorkspace,
+    setCurrentWorkspace, addWorkspace, pinWorkspace,
   });
+  // 解除 pin：回到会话跟随态（pinWorkspace(null) 一次到位对齐会话工作区）。
+  const handleUnpinWorkspace = useCallback(() => { pinWorkspace(null); }, [pinWorkspace]);
 
   const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
 
@@ -465,8 +481,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onCollapse={panel.toggleCollapsed}
         onCollapseAll={handleCollapseAll}
         currentWorkspace={currentWorkspace} workspaceList={workspaceList}
+        sessionWorkspace={sessionWorkspace} pinnedWorkspace={pinnedWorkspace}
         onSwitchWorkspace={handleWorkspaceSwitch} onAddWorkspace={handleWorkspaceAdd}
         onRemoveWorkspace={removeWorkspace}
+        onUnpinWorkspace={handleUnpinWorkspace}
       />
 
       <LeftPanelStack

@@ -157,6 +157,26 @@ export interface GraphState {
 
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
+  /**
+   * 会话跟随态（session-follow）：当前对话会话的工作区（`useSessions.byId[id].cwd`）。
+   *
+   * - `null` = 不可知（宿主未注入会话 scope / 桌面 / 旧代宿主）→ 不跟随；
+   * - 非 null 且 `pinnedWorkspace === null` → 跟随副作用会把 `currentWorkspace`
+   *   对齐到它。本字段是**可观测的真相源**（UI 显示「跟随中」与诊断），
+   *   不是第二个 currentWorkspace。
+   * 不进 persist：会话身份每次渲染由宿主重新注入，持久化只会复活过期会话。
+   */
+  sessionWorkspace: string | null;
+  /**
+   * 用户手动切换的粘性覆盖（pin）：非 null 时轮询与会话跟随都不得覆盖
+   * `currentWorkspace`（cycle-85 教训：显式用户意图必须是粘性状态）。
+   * 仅驻内存——刷新后回到跟随态，满足「可切换但刷新后恢复对话工作区」。
+   */
+  pinnedWorkspace: string | null;
+  /** 用户手动切换（写入 pin）；`null` = 解除 pin、回到会话跟随态。 */
+  pinWorkspace: (path: string | null) => void;
+  /** 会话跟随副作用写入的真相源（不改变 currentWorkspace；对齐由副作用完成）。 */
+  setSessionWorkspace: (path: string | null) => void;
 
   pathStartId: NodeId | null;
   pathEndId: NodeId | null;

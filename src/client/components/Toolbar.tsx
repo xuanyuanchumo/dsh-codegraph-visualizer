@@ -31,7 +31,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     statsText, typeCounts, theme, collapsed, hasData, hasGraphData, panelControls,
     layoutConfig, viewConfig, history,
     onThemeToggle, onRefresh, onCollapse,
-    currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
+    currentWorkspace, workspaceList, sessionWorkspace, pinnedWorkspace,
+    onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onUnpinWorkspace,
     onCollapseAll,
   } = props;
 
@@ -80,9 +81,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         hasData={hasData}
         currentWorkspace={currentWorkspace}
         workspaceList={workspaceList}
+        sessionWorkspace={sessionWorkspace}
+        pinnedWorkspace={pinnedWorkspace}
         onSwitchWorkspace={onSwitchWorkspace}
         onAddWorkspace={onAddWorkspace}
         onRemoveWorkspace={onRemoveWorkspace}
+        onUnpinWorkspace={onUnpinWorkspace}
       />
 
       <ToolbarViewMode

@@ -11,16 +11,20 @@ interface ToolbarWorkspaceProps extends WorkspaceSelectorProps {
 
 export const ToolbarWorkspace = memo(function ToolbarWorkspace({
   statsText, typeCounts, hasData,
-  currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
+  currentWorkspace, workspaceList, sessionWorkspace, pinnedWorkspace,
+  onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onUnpinWorkspace,
 }: ToolbarWorkspaceProps) {
   return (
     <div className="cg-toolbar-left">
       <WorkspaceSelector
         currentWorkspace={currentWorkspace}
         workspaceList={workspaceList}
+        sessionWorkspace={sessionWorkspace}
+        pinnedWorkspace={pinnedWorkspace}
         onSwitchWorkspace={onSwitchWorkspace}
         onAddWorkspace={onAddWorkspace}
         onRemoveWorkspace={onRemoveWorkspace}
+        onUnpinWorkspace={onUnpinWorkspace}
       />
       {hasData && <span className="cg-node-count">{statsText}</span>}
       {hasData && typeCounts.function > 0 && <span className="cg-type-badge cg-function">fn:{typeCounts.function}</span>}

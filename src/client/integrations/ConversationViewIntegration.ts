@@ -95,7 +95,15 @@ export function integrateConversationView(state: IntegrationState): void {
             order: CONVERSATION_VIEW_ORDER,
             label: () => t('nav.title'),
           },
-          (props: { ctx?: unknown; visible?: boolean }) => {
+          (props: {
+            ctx?: unknown;
+            visible?: boolean;
+            // 宿主会话 scope 注入的标准 props（asar 实测 renderer.standardProps +
+            // ui-session BUILTIN_SOURCE：session scope 组件自动收到这两项）。
+            // 结构化消费：缺失/改名都不炸，跟随引擎自行降级（宁缺勿猜）。
+            sessionId?: string;
+            useSessions?: unknown;
+          }) => {
             // 可见性由宿主决定（同一时刻只有一个 view 被渲染），组件只如实转述回 store。
             const visible = props?.visible ?? true;
             state.panelVisible = visible;
@@ -111,7 +119,16 @@ export function integrateConversationView(state: IntegrationState): void {
                 // 面板自己的包装节点仍然证明「这个面板是作为顶部标签渲染的」。
                 'data-cg-top-tab': 'instance',
               },
-              React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
+              React.createElement(
+                GraphErrorBoundary,
+                null,
+                React.createElement(GraphPanel, {
+                  // 会话跟随（默认工作区 = 对话工作区）：透传宿主会话身份，
+                  // GraphPanel 内经 useSessionWorkspaceFollow 消费。
+                  sessionId: props?.sessionId,
+                  useSessions: props?.useSessions,
+                }),
+              ),
             );
           },
         );

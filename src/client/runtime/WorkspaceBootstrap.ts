@@ -18,7 +18,11 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
       const { path: workspacePath, list: wsList } = await fetchWorkspace();
       lastDshWorkspace = workspacePath;
       const s = useGraphStore.getState();
-      s.setCurrentWorkspace(workspacePath);
+      // 启动首扫：pin 不可能已存在（store 刚建、pin 仅驻内存），但守卫放在这里
+      // 让「重连复用会话」形态同样被覆盖——一致性优先于当前不可达性。
+      if (s.pinnedWorkspace === null) {
+        s.setCurrentWorkspace(workspacePath);
+      }
       if (wsList.length > 0) {
         const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p, lastUsed: Date.now() }));
         for (const wi of workspaceInfos) {
@@ -65,13 +69,22 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
       if (!useGraphStore.getState().panelVisible) return;
       try {
         const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+        const s = useGraphStore.getState();
         if (dshCurrent && dshCurrent !== lastDshWorkspace) {
           log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
-          lastDshWorkspace = dshCurrent;
-          const s = useGraphStore.getState();
-          s.setCurrentWorkspace(dshCurrent);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
+          // 用户 pin 优先（显式意图是粘性状态，cycle-85）：pin 在场时只记日志不动画布。
+          // **lastDshWorkspace 同样不推进**——否则「抑制期间发生的宿主切换」会被标记为
+          // 已消费，解除 pin 后 `dshCurrent === lastDshWorkspace` 恒真，恢复跟随永远
+          // 追不上宿主的真实工作区（待应用的变化必须保持 pending）。
+          // pinnedWorkspace 每次读取最新值——解除 pin 后下一轮轮询自然恢复跟随。
+          if (s.pinnedWorkspace === null) {
+            lastDshWorkspace = dshCurrent;
+            s.setCurrentWorkspace(dshCurrent);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
+            }
+          } else {
+            log.info('workspace poll suppressed by user pin', { dsh: dshCurrent, pinned: s.pinnedWorkspace });
           }
         }
         for (const p of dshList) {

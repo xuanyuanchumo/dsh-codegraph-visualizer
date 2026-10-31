@@ -749,3 +749,34 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* ── 会话跟随徽标（session-follow，见 src/client/runtime/sessionFollow.ts）────
+ * 透明化纪律：跟随中 / 已固定状态必须一眼可见（白盒可观测），且两个形态
+ * 用色差区分——跟随=信息态（accent 描边），固定=动作态（warning 底色+可点击）。 */
+.cg-workspace-follow-badge {
+  margin-left: auto;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  white-space: nowrap;
+}
+.cg-workspace-follow-badge.cg-following-active {
+  color: var(--cg-accent);
+  border: 1px solid var(--cg-accent);
+  background: transparent;
+  cursor: default;
+}
+.cg-workspace-follow-badge.cg-following-pinned {
+  color: var(--cg-warning);
+  border: 1px solid var(--cg-warning);
+  background: color-mix(in srgb, var(--cg-warning) 12%, transparent);
+  cursor: pointer;
+}
+.cg-workspace-follow-badge.cg-following-pinned:hover {
+  background: color-mix(in srgb, var(--cg-warning) 22%, transparent);
+}

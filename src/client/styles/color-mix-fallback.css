@@ -375,5 +375,12 @@
     border-color: rgba(239, 68, 68, 1.00);
     background: rgba(239, 68, 68, 0.08);
   }
+  /* 会话跟随徽标·固定态（rgba fallback for color-mix，session-follow） */
+  .cg-workspace-follow-badge.cg-following-pinned {
+    background: rgba(245, 158, 11, 0.12);
+  }
+  .cg-workspace-follow-badge.cg-following-pinned:hover {
+    background: rgba(245, 158, 11, 0.22);
+  }
 
 }

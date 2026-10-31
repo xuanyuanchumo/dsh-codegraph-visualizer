@@ -46,6 +46,10 @@ function createStore(overrides: Record<string, unknown> = {}) {
     isLoading: false,
     panelVisible: true,
     workspaceList: [] as Array<{ path: string }>,
+    // 会话跟随新增字段（sessionFollow 机制）：pin 缺省 null = 跟随态。
+    // 此键缺席会让 `pinnedWorkspace === null` 判 false 而误入「pin 抑制」分支。
+    pinnedWorkspace: null as string | null,
+    sessionWorkspace: null as string | null,
     setCurrentWorkspace: mocks.setCurrentWorkspace,
     addWorkspace: mocks.addWorkspace,
     setBootstrapData: mocks.setBootstrapData,
@@ -252,6 +256,53 @@ describe('setupWorkspaceBootstrap', () => {
     expect(mocks.setCurrentWorkspace).toHaveBeenCalledWith('/ws2');
     expect(cap.received.length).toBeGreaterThan(0);
     cap.stop();
+  });
+
+  it('polling suppressed by user pin (sessionFollow): does not overwrite canvas', async () => {
+    // 用户手动切换过（pin 在场）⇒ 宿主工作区变化不得覆盖画布（显式意图是粘性状态）。
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws1', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const cap = captureWorkspaceEvent();
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    const baseline = cap.received.length; // 首扫会派发一次 WORKSPACE 事件，作为基线
+    // 用户在面板里切到 /pinned（写 pin —— 通过 getState().pinWorkspace 语义，
+    // 测试里直接以 store override 形态表达）。
+    mocks.getState.mockReturnValue(createStore({ pinnedWorkspace: '/pinned' }));
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws2', list: [] });
+    mocks.setCurrentWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(mocks.setCurrentWorkspace).not.toHaveBeenCalled();
+    expect(cap.received.length).toBe(baseline); // 轮询期间零新增事件
+    cap.stop();
+  });
+
+  it('polling resumes following after pin is released', async () => {
+    // 解除 pin 后，下一轮轮询恢复跟随（pin 是每次读取的最新值，不是快照）。
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws1', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    mocks.getState.mockReturnValue(createStore({ pinnedWorkspace: '/pinned' }));
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws2', list: [] });
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    mocks.getState.mockReturnValue(createStore({ pinnedWorkspace: null })); // 用户解除 pin
+    mocks.setCurrentWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(mocks.setCurrentWorkspace).toHaveBeenCalledWith('/ws2');
   });
 
   it('polling adds new workspaces from list', async () => {

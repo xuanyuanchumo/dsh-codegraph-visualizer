@@ -39,6 +39,8 @@ export function useGraphStatus() {
 export function useGraphWorkspace() {
   return useGraphStore(useShallow((s) => ({
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
+    // 会话跟随可观测性：跟随态真相源 + 用户 pin（UI 显示「跟随中/已固定」与解除入口）。
+    sessionWorkspace: s.sessionWorkspace, pinnedWorkspace: s.pinnedWorkspace,
   })));
 }
 
@@ -100,6 +102,7 @@ export function useGraphActions() {
     setCurrentWorkspace: s.setCurrentWorkspace,
     addWorkspace: s.addWorkspace,
     removeWorkspace: s.removeWorkspace,
+    pinWorkspace: s.pinWorkspace,
     setGraphData: s.setGraphData,
     setInitStatus: s.setInitStatus,
     setWatchEnabled: s.setWatchEnabled,

@@ -430,4 +430,44 @@ describe('WorkspaceSelector component', () => {
     const trigger = screen.getByRole('button', { name: /Switch Workspace/ });
     expect(trigger.textContent).toContain('Default');
   });
+
+  // ── 会话跟随徽标（session-follow 可观测性，见 runtime/sessionFollow.ts）──
+  describe('session-follow badge', () => {
+    async function openDropdown(props: Record<string, unknown>) {
+      const user = userEvent.setup();
+      render(<WorkspaceSelector {...makeProps(props)} />);
+      await user.click(screen.getByRole('button', { name: /切换工作区/ }));
+      return user;
+    }
+
+    it('跟随态：sessionWorkspace 非空且未 pin → 显示「跟随对话」非按钮徽标', async () => {
+      await openDropdown({ sessionWorkspace: '/ws/session', pinnedWorkspace: null });
+      const badge = screen.getByText(/跟随对话/);
+      expect(badge.tagName).toBe('SPAN'); // 信息态不可点
+    });
+
+    it('固定态：pin 在场 → 显示「已固定 · 回到对话」按钮，点击触发解除', async () => {
+      const onUnpinWorkspace = vi.fn();
+      const user = await openDropdown({
+        sessionWorkspace: '/ws/session',
+        pinnedWorkspace: '/pinned',
+        onUnpinWorkspace,
+      });
+      const btn = screen.getByRole('button', { name: /已固定 · 回到对话/ });
+      await user.click(btn);
+      expect(onUnpinWorkspace).toHaveBeenCalledTimes(1);
+    });
+
+    it('不可知态：sessionWorkspace 为 null 且未 pin → 不渲染徽标（宁缺勿猜）', async () => {
+      await openDropdown({ sessionWorkspace: null, pinnedWorkspace: null });
+      expect(screen.queryByText(/跟随对话/)).toBeNull();
+      expect(screen.queryByText(/已固定/)).toBeNull();
+    });
+
+    it('pin 在场但无解除回调 → 退化为不可点徽标（不渲染死按钮）', async () => {
+      await openDropdown({ sessionWorkspace: '/ws/session', pinnedWorkspace: '/pinned' });
+      const badge = screen.getByText(/已固定 · 回到对话/);
+      expect(badge.tagName).toBe('SPAN');
+    });
+  });
 });

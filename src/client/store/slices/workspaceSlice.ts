@@ -9,6 +9,35 @@ export function createWorkspaceSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
   return {
     currentWorkspace: '.',
     workspaceList: [],
+    // 会话跟随态：null = 不可知（宿主未注入会话 scope）；见 types.ts 字段注释。
+    sessionWorkspace: null,
+    // 用户 pin 覆盖：仅驻内存（partialize 不含它），刷新后自然回到跟随态。
+    pinnedWorkspace: null,
+    pinWorkspace: (path) => {
+      if (path === null) {
+        // 解除 pin：回到跟随态。立即对齐到当前已知会话工作区（若有），
+        // 让「回到会话工作区」按钮的语义一次性完成，不等下一次轮询。
+        const s = _get();
+        const target = s.sessionWorkspace;
+        internals.incrementalClusterCtx = null;
+        _set({
+          pinnedWorkspace: null,
+          graphEtag: null,
+          diffResult: null,
+          ...(target !== null && target !== s.currentWorkspace ? { currentWorkspace: target } : {}),
+        });
+        return;
+      }
+      // 手动切换 = 粘性覆盖（cycle-85：显式用户意图是粘性状态）。
+      // 复用 setCurrentWorkspace 的身份失效语义（etag/diff 作废 + 集群上下文清空）。
+      _get().setCurrentWorkspace(path);
+      _set({ pinnedWorkspace: path });
+    },
+    setSessionWorkspace: (path) => {
+      // 真相源写入：只在值变化时落（轮询每 15s 一次，同值写会触发无谓订阅通知）。
+      if (_get().sessionWorkspace === path) return;
+      _set({ sessionWorkspace: path });
+    },
     setCurrentWorkspace: (path) => {
       internals.incrementalClusterCtx = null;
       // 校验值是按工作区身份定域的（`computeGraphEtag(repoId, revision, resource)`），切换工作区后

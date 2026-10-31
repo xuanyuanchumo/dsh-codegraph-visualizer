@@ -9,9 +9,15 @@ import { POLLING } from '../../shared/constants.ts';
 export interface WorkspaceSelectorProps {
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
+  /** 会话跟随态真相源（null = 宿主未注入会话 scope / 不可知）。 */
+  sessionWorkspace?: string | null;
+  /** 用户 pin 覆盖（非 null = 已固定，轮询/会话跟随不覆盖画布）。 */
+  pinnedWorkspace?: string | null;
   onSwitchWorkspace: (path: string) => void;
   onAddWorkspace: (path: string) => void;
   onRemoveWorkspace: (path: string) => void;
+  /** 解除 pin：回到会话跟随态（仅 pinnedWorkspace 非 null 时渲染入口）。 */
+  onUnpinWorkspace?: () => void;
 }
 
 function formatRelativeTime(ts: number, t: (key: string, params?: Record<string, string | number>) => string): string {
@@ -27,9 +33,12 @@ function formatRelativeTime(ts: number, t: (key: string, params?: Record<string,
 export const WorkspaceSelector = memo(function WorkspaceSelector({
   currentWorkspace,
   workspaceList,
+  sessionWorkspace = null,
+  pinnedWorkspace = null,
   onSwitchWorkspace,
   onAddWorkspace,
   onRemoveWorkspace,
+  onUnpinWorkspace,
 }: WorkspaceSelectorProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -128,6 +137,29 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
         >
           <div className="cg-workspace-dropdown-header">
             <span>{t('workspace.current')}</span>
+            {/* 会话跟随可观测性（白盒透明化）：跟随中/已固定状态一眼可见；
+                解除 pin 一次到位（立即对齐会话工作区，不等 15s 轮询）。 */}
+            {pinnedWorkspace !== null ? (
+              onUnpinWorkspace ? (
+                <button
+                  className="cg-workspace-follow-badge cg-following-pinned"
+                  onClick={onUnpinWorkspace}
+                  title={t('workspace.followPinnedHint')}
+                >
+                  {t('workspace.followPinned')}
+                </button>
+              ) : (
+                // pin 在场但无解除回调（旧调用方）→ 退化为非按钮徽标：
+                // 状态仍可观测，但不渲染点了没反应的死按钮。
+                <span className="cg-workspace-follow-badge cg-following-pinned" title={t('workspace.followPinnedHint')}>
+                  {t('workspace.followPinned')}
+                </span>
+              )
+            ) : sessionWorkspace !== null ? (
+              <span className="cg-workspace-follow-badge cg-following-active" title={sessionWorkspace}>
+                {t('workspace.following')}
+              </span>
+            ) : null}
             <button
               className="cg-workspace-add-btn"
               onClick={() => setAdding((v) => !v)}
