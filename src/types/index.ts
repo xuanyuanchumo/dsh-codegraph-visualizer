@@ -100,6 +100,24 @@ export interface GraphData {
       /** I4（stale 比例）判为不达标的规则名。 */
       invariantViolations?: readonly string[];
     };
+    /**
+     * 继承数据增强结果（cycle-123，研究报告 Phase 1 P0 数据质量缺口）。
+     *
+     * 上游索引对 `interface extends` 检出为 0（本仓 17 处源码 extends 只出
+     * 9 条 class→class）——AST 补扫在 merger 之后注入增强边。全量路径才有
+     * 此字段（增量轮的缓存已含上轮增强）；`applied: false` = 不可用/零增量
+     * （宁缺勿造）。模型可据此向用户披露「继承视图的边含 AST 增补 N 条」。
+     */
+    inheritance?: {
+      applied: boolean;
+      extracted: number;
+      added: number;
+      ambiguous: number;
+      unresolved: number;
+      duplicates: number;
+      filesScanned: number;
+      durationMs: number;
+    };
   };
   layers?: Layer[];
 }

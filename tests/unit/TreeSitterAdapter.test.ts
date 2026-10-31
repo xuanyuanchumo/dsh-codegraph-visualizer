@@ -1023,4 +1023,66 @@ describe('TreeSitterAdapter loadLanguageWasm candidate paths (mocked)', () => {
     expect(result.error).toBeUndefined();
     adapter.destroy();
   });
+  // ── 继承边提取（cycle-123，研究报告 Phase 1 P0 数据质量缺口）──────────
+  // 量化缺口：上游索引对 interface extends 检出 0（本仓 17 处 extends 只出
+  // 9 条 class→class）。AST heritage 提取是数据增补面。
+  describe('heritage extraction (real wasm)', () => {
+    let adapter: TreeSitterAdapter;
+
+    beforeEach(async () => {
+      adapter = new TreeSitterAdapter();
+      await adapter.init();
+    });
+
+    afterEach(() => {
+      adapter.destroy();
+    });
+
+    const heritageOf = (result: { edges: Array<{ type: string; source: string; target: string; properties?: Record<string, unknown> }> }) =>
+      result.edges.filter((e) => e.type === 'extend' || e.type === 'implement');
+
+    it('interface extends 提取 extend 边（extends_type_clause 形态）', async () => {
+      const result = await adapter.parseFile('t.ts', 'export interface A { x: string }\nexport interface B extends A { y: number }\n');
+      const h = heritageOf(result);
+      expect(h).toHaveLength(1);
+      expect(h[0]!.type).toBe('extend');
+      expect(String(h[0]!.source)).toContain(':B:');
+      expect(String(h[0]!.target)).toContain('<type>:A');
+      expect(h[0]!.properties?.edgeOrigin).toBe('ast');
+    });
+
+    it('interface 多继承（extends A, C）逐目标各出一条', async () => {
+      const result = await adapter.parseFile('t.ts', 'export interface A { }\nexport interface C { }\nexport interface B extends A, C { }\n');
+      const h = heritageOf(result);
+      expect(h).toHaveLength(2);
+      expect(h.every((e) => e.type === 'extend')).toBe(true);
+    });
+
+    it('class implements + extends（class_heritage 两种 clause）', async () => {
+      const code = 'export interface B { }\nexport interface C { }\nexport class D implements B, C { }\nexport class E extends D implements B { }\n';
+      const result = await adapter.parseFile('t.ts', code);
+      const h = heritageOf(result);
+      // D implements B,C（2）+ E extends D（1）+ E implements B（1）= 4
+      expect(h).toHaveLength(4);
+      expect(h.filter((e) => e.type === 'implement').length).toBe(3);
+      expect(h.filter((e) => e.type === 'extend').length).toBe(1);
+    });
+
+    it('自继承（X extends X）不产边', async () => {
+      const result = await adapter.parseFile('t.ts', 'export interface X extends X { }\n');
+      expect(heritageOf(result)).toHaveLength(0);
+    });
+
+    it('非声明节点（函数/变量）不触发 heritage 提取', async () => {
+      const result = await adapter.parseFile('t.ts', 'const a = 1;\nfunction f() { return a; }\n');
+      expect(heritageOf(result)).toHaveLength(0);
+    });
+
+    it('Python class 继承（superclasses 字段）提为 extend', async () => {
+      const result = await adapter.parseFile('t.py', 'class B(A):\n    pass\n');
+      const h = heritageOf(result);
+      expect(h).toHaveLength(1);
+      expect(h[0]!.type).toBe('extend');
+    });
+  });
 });

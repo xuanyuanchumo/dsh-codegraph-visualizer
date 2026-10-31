@@ -434,6 +434,66 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     const makeId = (node: TreeSitterNode, label: string): string =>
       `${filePath}:${label}:${node.startPosition.row}`;
 
+    /**
+     * 提取一个 class/interface 声明节点的全部继承目标（cycle-123）。
+     *
+     * 两种语法形态（tree-sitter-typescript 实测，见测试 fixture）：
+     * - `extends_type_clause`：interface 的 extends（直接子节点，`type_identifier` 列表），
+     *   子节点序列为 [extends, ident, ',', ident, ...]；
+     * - `class_heritage`：class 的 extends/implements 容器，内含 `extends_clause`
+     *   （`extends` + type 列表）与 `implements_clause`（`implements` + type 列表）。
+     * - Rust 的 `impl_item` 无继承语义（trait impl 不是继承），不提取。
+     * - Python 的 `class_definition` 用 `argument_list` 表达基类（tree-sitter-python
+     *   的 `superclasses` 字段），一并覆盖（kind 判定走 clause 名单）。
+     *
+     * 返回 `clauseKind`（extends/implements）用于边类型映射：`extends → 'extend'`、
+     * `implements → 'implement'`（与上游 codegraph 的 kind 语义一致）。
+     * 目标统一返回占位 id 策略（消费方造 `${filePath}:<type>:<name>`），由
+     * merger 按 label 归并——避免遍历时序依赖（子符号可能尚未入 nodeMap）。
+     */
+    const collectHeritageTargets = (
+      declaration: TreeSitterNode,
+    ): Array<{ clauseKind: 'extends' | 'implements'; targetName: string }> => {
+      const out: Array<{ clauseKind: 'extends' | 'implements'; targetName: string }> = [];
+      const childByType = (t: string) => declaration.children?.find((c: TreeSitterNode) => c.type === t);
+
+      // 形态一：interface 的 extends_type_clause
+      const extendsClause = childByType('extends_type_clause');
+      if (extendsClause) {
+        for (const c of extendsClause.children ?? []) {
+          if (c.type === 'type_identifier' && c.text) {
+            out.push({ clauseKind: 'extends', targetName: c.text });
+          }
+        }
+      }
+
+      // 形态二：class 的 class_heritage（extends_clause + implements_clause）
+      const heritage = childByType('class_heritage');
+      if (heritage) {
+        for (const clause of heritage.children ?? []) {
+          const kind = clause.type === 'extends_clause' ? 'extends'
+            : clause.type === 'implements_clause' ? 'implements' : null;
+          if (!kind) continue;
+          for (const c of clause.children ?? []) {
+            if ((c.type === 'type_identifier' || c.type === 'identifier') && c.text) {
+              out.push({ clauseKind: kind, targetName: c.text });
+            }
+          }
+        }
+      }
+
+      // 形态三：Python 的 class_definition（superclasses 字段）
+      const superclasses = declaration.childForFieldName?.('superclasses');
+      if (superclasses) {
+        for (const c of superclasses.children ?? []) {
+          if ((c.type === 'identifier' || c.type === 'attribute') && c.text) {
+            out.push({ clauseKind: 'extends', targetName: c.text });
+          }
+        }
+      }
+      return out;
+    };
+
     const walk = (rootNode: TreeSitterNode): void => {
       const stack: Array<{ node: TreeSitterNode; parentId: string | undefined }> = [{ node: rootNode, parentId: undefined }];
       while (stack.length > 0) {
@@ -465,6 +525,46 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
             };
             nodes.push(graphNode);
             nodeMap.set(id, graphNode);
+
+            // 继承边提取（cycle-123，研究报告 Phase 1 P0 数据质量缺口）：
+            // 上游 codegraph 索引对 `interface extends` 的检出为 0（本仓量化：
+            // 源码 17 处 extends，索引只出 9 条 class→class，interface→interface
+            // 全部漏检——tree-sitter-wasm 的 TypeScript grammar 对空体
+            // `interface X extends Y, Z {}` 的处理覆盖不足）。这里的 AST 提取
+            // 是**数据增补**：与上游边同型（`extend` / `implement`），经
+            // GraphDataMerger 归因裁决时 `edgeOrigin: 'ast'` 为最高档，但
+            // 不覆盖上游 db 行（见 EDGE_ORIGIN_RANK 的排序语义：同 origin
+            // 时上游保留）。合并去重在 merger 侧按 (source,target,type) 完成。
+            //
+            // 两语法形态（tree-sitter-typescript 实测）：
+            // - interface: `extends_type_clause`（直接子节点，内含 type_identifier 列表）
+            // - class:     `class_heritage` → `implements_clause` / `extends_clause`
+            // 端点解析：本文件内的目标用 nodeMap 命中精确 id；跨文件目标用
+            // `type:<name>` 占位 id（与上游 imports 的宽松端点同策略——
+            // merger 的身份裁决会把同 label 节点归并）。
+            const heritageTargets = collectHeritageTargets(node);
+            if (heritageTargets.length > 0) {
+              for (const { clauseKind, targetName } of heritageTargets) {
+                const edgeType = clauseKind === 'extends' ? 'extend' : 'implement';
+                // 跨文件目标用占位 id（与上游 imports 的宽松端点同策略——
+                // merger 的身份裁决按 label 归并同名列，多文件重复继承同一
+                // 基类时边端点会归并到同一条）。同文件目标也是占位 id：
+                // walker 的 nodeMap 查询发生在遍历中、子符号可能尚未入表，
+                // 用 label 归并比「遍历时序依赖」更稳健。
+                const targetId = NodeId(`${filePath}:<type>:${targetName}`);
+                const selfId = NodeId(id);
+                // 自继承（X extends X，极端但合法）跳过：占位 id 的 targetName
+                // 段与声明 label 相同即自指（id 形态不同不能直接比）。
+                if (targetName === label) continue;
+                edges.push({
+                  id: EdgeId(`tsedge:${id}->${targetId}`),
+                  source: selfId,
+                  target: targetId,
+                  type: edgeType,
+                  properties: { edgeOrigin: 'ast', edgeLocatable: false, targetName, line: node.startPosition.row + 1 },
+                });
+              }
+            }
 
             if (parentId) {
               // 边来源归因（P1-N4）：这是 `edgeOrigin: 'ast'` 在全仓的**第一个生产者**。
