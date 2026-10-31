@@ -96,8 +96,10 @@ manifest 依赖解析。三者都没有时插件仍可提供 AST 解析（\`/ast
 - 大图不要一次要全部：\`graph_data\` 是合并图，可能很大；优先 \`graph_query\` 的
   预算内子图，再按需 \`graph_path_find\` 取精确路径。
 - 路径读法（\`graph_path_enumerate\` / \`graph_cycles\`）返回的是**路径规则**的结果，
-  \`lMin\`/\`lMax\` 是边数而非节点数，且受 \`maxPaths\` 的 **DFS 序**截断
-  （不是"最相关的 N 条"）。要权重排序需显式声明，当前不支持。
+  \`lMin\`/\`lMax\` 是边数而非节点数，且受 \`maxPaths\` 截断。缺省是 **DFS 序**
+  （确定、可复现）；要按边权重保留最高分路径，显式传 \`truncation: 'top-k-weight'\`
+  （候选超预算会抛错，先缩小 \`lMax\` 或边类型集合）。边权重来自上游索引的置信度
+  （confidence ∈ [0,1]），没有置信度的边贡献 0——全部为 0 时 top-k 稳定退化为 DFS 序。
 
 ## 不要做
 

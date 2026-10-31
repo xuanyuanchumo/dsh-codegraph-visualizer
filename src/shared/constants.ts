@@ -316,6 +316,27 @@ export const SYMBOL_AST = {
   MAX_SOURCE_LINES: 1500,
 } as const;
 
+/**
+ * 关键词图检索的参数边界（cycle-120 / graphify 关键词检索产品化）。
+ *
+ * **单一来源**：宿主 `/query` 路由的 `QUERY`（`src/host/routes/queryRoute.ts`）负责
+ * 服务端校验，客户端面板的阈值控件负责输入夹紧——两端各自手写数字会静默分叉
+ * （本仓反复的「两份顺序/枚举表必然漂移」教训）。客户端**只读这里的值**做 min/max
+ * 夹紧与占位显示，越界仍由宿主 400 兜底（客户端夹紧是 UX，服务端校验是契约）。
+ */
+export const KEYWORD_QUERY_LIMITS = {
+  /** 展开跳数上界（与宿主 QUERY.MAX_DEPTH 一致）。 */
+  MAX_DEPTH: 5,
+  /** 展开跳数缺省（与宿主 QUERY.DEFAULT_DEPTH 一致）。 */
+  DEFAULT_DEPTH: 2,
+  /** token 预算下界（宿主低于此值回 400）。 */
+  MIN_TOKEN_BUDGET: 50,
+  /** token 预算上界（与宿主 QUERY.MAX_TOKEN_BUDGET 一致）。 */
+  MAX_TOKEN_BUDGET: 4000,
+  /** token 预算缺省（与宿主 QUERY.DEFAULT_TOKEN_BUDGET 一致）。 */
+  DEFAULT_TOKEN_BUDGET: 800,
+} as const;
+
 export const FILE_OUTLINE = {
   MAX_SYMBOLS: 800,
 } as const;

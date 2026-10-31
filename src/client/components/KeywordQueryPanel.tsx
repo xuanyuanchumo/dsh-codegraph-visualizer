@@ -4,6 +4,7 @@ import { useT } from '../i18n/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import { summarizeKeywordResult, truncationReasonKey, seedIdsOf } from '../store/slices/keywordQuerySlice.ts';
+import { KEYWORD_QUERY_LIMITS } from '../../shared/constants.ts';
 
 /**
  * 关键词图检索面板（cycle-111 / N-5）。
@@ -37,6 +38,13 @@ interface KeywordQueryPanelProps {
 /** 与宿主 `QUERY.MAX_QUERY_LENGTH` 同值：面板在本地先截断，避免发出注定 400 的请求。 */
 const MAX_INPUT_LENGTH = 512;
 
+/** 夹紧到 [lo, hi] 并取整；NaN/空输入回落到缺省（number input 的空串 parse 出 NaN）。 */
+function clampInt(raw: string, lo: number, hi: number, fallback: number): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(hi, Math.max(lo, n));
+}
+
 export const KeywordQueryPanel = memo(function KeywordQueryPanel({ onClose, label }: KeywordQueryPanelProps) {
   const t = useT();
   // 逐字段选择而不是整片取：`useShallow` 保证只有这些字段真的变化时才重渲染。
@@ -61,6 +69,12 @@ export const KeywordQueryPanel = memo(function KeywordQueryPanel({ onClose, labe
   const [draft, setDraft] = useState(keywordQuery);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // 阈值控件（cycle-120 / graphify 关键词检索产品化）：深度与 token 预算可调。
+  // **只存在于此处**（击键中的纯 UI 交互状态），提交时经 store 的 options 传给宿主；
+  // 放进 store 会让每次按键触发全局面板重渲染（与 draft 同一分工）。
+  const [depthDraft, setDepthDraft] = useState(String(KEYWORD_QUERY_LIMITS.DEFAULT_DEPTH));
+  const [budgetDraft, setBudgetDraft] = useState(String(KEYWORD_QUERY_LIMITS.DEFAULT_TOKEN_BUDGET));
+
   // 面板打开即聚焦输入框：这是本面板唯一的主要动作，
   // 让用户先按 Tab 找输入框是纯粹的浪费（与 `SearchBar` 的自动聚焦同一取舍）。
   useEffect(() => {
@@ -73,15 +87,30 @@ export const KeywordQueryPanel = memo(function KeywordQueryPanel({ onClose, labe
     setDraft(keywordQuery);
   }, [keywordQuery]);
 
-  const submit = useCallback(() => {
-    const value = draft.trim();
-    // 空查询不发请求：宿主会回 400，而"点了一下什么都没发生"比"明确告诉你先输入"更糟。
+  // 统一的「按当前阈值发一次查询」：submit 与 error/timeout 的 retry 都走它——
+  // cycle-119 的「参数加了、没人传」教训在 UI 侧的对应形态就是「两个按钮各写一份调用，
+  // retry 悄悄退回默认阈值」。空查询不发请求：宿主会回 400，而"点了一下什么都没发生"
+  // 比"明确告诉你先输入"更糟。阈值夹紧在提交时做（不在 onChange 逐键夹紧——
+  // 用户可能想先打完整数字再退格修正）。
+  const queryWithThresholds = useCallback((raw: string) => {
+    const value = raw.trim();
     if (value.length === 0) {
       clearKeywordQuery();
       return;
     }
-    void runKeywordQuery(value);
-  }, [draft, runKeywordQuery, clearKeywordQuery]);
+    const depth = clampInt(depthDraft, 0, KEYWORD_QUERY_LIMITS.MAX_DEPTH, KEYWORD_QUERY_LIMITS.DEFAULT_DEPTH);
+    const tokenBudget = clampInt(
+      budgetDraft,
+      KEYWORD_QUERY_LIMITS.MIN_TOKEN_BUDGET,
+      KEYWORD_QUERY_LIMITS.MAX_TOKEN_BUDGET,
+      KEYWORD_QUERY_LIMITS.DEFAULT_TOKEN_BUDGET,
+    );
+    void runKeywordQuery(value, { depth, tokenBudget });
+  }, [depthDraft, budgetDraft, runKeywordQuery, clearKeywordQuery]);
+
+  const submit = useCallback(() => {
+    queryWithThresholds(draft);
+  }, [draft, queryWithThresholds]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     // Esc 关闭面板。`stopPropagation` 是必需的：`usePanelKeyboard` 的全局 Esc 会
@@ -171,6 +200,43 @@ export const KeywordQueryPanel = memo(function KeywordQueryPanel({ onClose, labe
           >
             {isLoading ? t('keywordQuery.loading') : t('keywordQuery.submit')}
           </button>
+          {/* 阈值控件（cycle-120）：深度 / token 预算。number input 的 min/max 是
+              键盘步进边界，真正的夹紧在 submit 时做（见 clampInt）；aria-label 让
+              a11yFormSemantics 守卫有 id/label 可核。 */}
+          <div className="cg-keywordquery-tuning" role="group" aria-label={t('keywordQuery.tuningLabel')}>
+            <label className="cg-keywordquery-tune-item">
+              <span className="cg-keywordquery-tune-name">{t('keywordQuery.depthLabel')}</span>
+              <input
+                id="cg-keywordquery-depth"
+                name="keywordQueryDepth"
+                className="cg-keywordquery-tune-input"
+                type="number"
+                min={0}
+                max={KEYWORD_QUERY_LIMITS.MAX_DEPTH}
+                step={1}
+                value={depthDraft}
+                aria-label={t('keywordQuery.depthLabel')}
+                onChange={(event) => setDepthDraft(event.target.value)}
+                disabled={isLoading}
+              />
+            </label>
+            <label className="cg-keywordquery-tune-item">
+              <span className="cg-keywordquery-tune-name">{t('keywordQuery.budgetLabel')}</span>
+              <input
+                id="cg-keywordquery-budget"
+                name="keywordQueryBudget"
+                className="cg-keywordquery-tune-input"
+                type="number"
+                min={KEYWORD_QUERY_LIMITS.MIN_TOKEN_BUDGET}
+                max={KEYWORD_QUERY_LIMITS.MAX_TOKEN_BUDGET}
+                step={KEYWORD_QUERY_LIMITS.MIN_TOKEN_BUDGET}
+                value={budgetDraft}
+                aria-label={t('keywordQuery.budgetLabel')}
+                onChange={(event) => setBudgetDraft(event.target.value)}
+                disabled={isLoading}
+              />
+            </label>
+          </div>
           <button
             type="button"
             className="cg-keywordquery-clear"
@@ -218,7 +284,7 @@ export const KeywordQueryPanel = memo(function KeywordQueryPanel({ onClose, labe
             <button
               type="button"
               className="cg-keywordquery-retry"
-              onClick={() => { void runKeywordQuery(draft); }}
+              onClick={() => { queryWithThresholds(draft); }}
             >
               {t('keywordQuery.retry')}
             </button>
@@ -231,7 +297,7 @@ export const KeywordQueryPanel = memo(function KeywordQueryPanel({ onClose, labe
             <button
               type="button"
               className="cg-keywordquery-retry"
-              onClick={() => { void runKeywordQuery(draft); }}
+              onClick={() => { queryWithThresholds(draft); }}
             >
               {t('keywordQuery.retry')}
             </button>

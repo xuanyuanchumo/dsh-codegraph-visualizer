@@ -99,6 +99,53 @@
   cursor: not-allowed;
 }
 
+/* ---- 阈值控件（cycle-120）：深度 / token 预算的紧凑行内调节 ----
+   提交按钮之后、播报区之前，占据 form 的第二行（form 是纵向 flex）。
+   颜色/边框全部走既有 token，与面板其余部分同源；窄屏（面板 ≤300px）下
+   两项各占一半宽度自动换行是容器 flex-wrap 的自然行为，不需要断点。 */
+
+.cg-keywordquery-tuning {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cg-keywordquery-tune-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 96px;
+}
+
+.cg-keywordquery-tune-name {
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-family: var(--cg-font-sans);
+  white-space: nowrap;
+}
+
+.cg-keywordquery-tune-input {
+  width: 56px;
+  padding: 2px 4px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+}
+
+.cg-keywordquery-tune-input:focus-visible {
+  outline: 1px solid var(--cg-accent);
+  outline-offset: 0;
+}
+
+.cg-keywordquery-tune-input:disabled {
+  opacity: 0.55;
+}
+
 /* ---- 屏幕阅读器播报区：视觉隐藏但保留在可访问树里 ---- */
 
 .cg-keywordquery-live {

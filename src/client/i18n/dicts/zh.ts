@@ -737,4 +737,7 @@ export const zh: Record<string, string> = {
   'keywordQuery.matched': '命中：{terms}',
   'keywordQuery.depth': '深度 {depth}',
   'keywordQuery.budget': '预算 {budget}',
+  'keywordQuery.tuningLabel': '检索参数',
+  'keywordQuery.depthLabel': '深度',
+  'keywordQuery.budgetLabel': 'token 预算',
 };

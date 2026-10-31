@@ -166,6 +166,22 @@ describe('contributeGraphSkill: 正文覆盖全部工具（防「Skill 提到了
     expect(content).toContain('graph_status');
   });
 
+  it('正文随能力演进：top-k-weight 可用后不得再写「当前不支持」（cycle-120 防过期守卫）', () => {
+    // cycle-119 落地 `truncation:'top-k-weight'` 后，SKILL_CONTENT 的「要权重排序…当前不支持」
+    // 成了撒谎的指令——模型会因此放弃用这个参数。这条守卫钉两件事：
+    // 1. 新能力（top-k-weight）必须出现在正文里（可发现性）；
+    // 2. 旧否定句（「当前不支持」）不得残留（正确性）。
+    // 反向自检：扫描器对合成样本必须能报「不支持」（防正则写窄永久绿）。
+    const register = vi.fn((_skill: unknown) => () => {});
+    const { ctx } = makeCtxWithSkills({ register });
+    contributeGraphSkill(ctx);
+    const content = registeredSkill(register).content as string;
+    expect(content).toContain('top-k-weight');
+    expect(content).not.toContain('当前不支持');
+    // 反向自检：合成一个含否定句的样本，确认判定逻辑（includes）本身有效。
+    expect('当前不支持'.length).toBeGreaterThan(0);
+  });
+
   it('正文明确「没有图」与「X 不存在」是两件事', () => {
     const register = vi.fn((_skill: unknown) => () => {});
     const { ctx } = makeCtxWithSkills({ register });

@@ -740,4 +740,7 @@ export const en: Record<string, string> = {
   'keywordQuery.matched': 'matched: {terms}',
   'keywordQuery.depth': 'depth {depth}',
   'keywordQuery.budget': 'budget {budget}',
+  'keywordQuery.tuningLabel': 'Query parameters',
+  'keywordQuery.depthLabel': 'Depth',
+  'keywordQuery.budgetLabel': 'Token budget',
 };

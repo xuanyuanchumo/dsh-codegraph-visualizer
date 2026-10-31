@@ -199,7 +199,7 @@ describe('four visible states (J50)', () => {
     const retry = screen.getByRole('button', { name: '重试' });
     fireEvent.click(retry);
     // 重试必须真的再发一次**同一个词**：只断开错误 UI 而不重试等于让用户以为在等。
-    expect(runKeywordQuery).toHaveBeenCalledWith('alpha');
+    expect(runKeywordQuery).toHaveBeenCalledWith('alpha', { depth: 2, tokenBudget: 800 });
   });
 
   it('timeout is its own state, not a rewording of error', () => {
@@ -227,7 +227,7 @@ describe('keyboard and submission', () => {
     // 参数必须是**去掉首尾空白**的输入值：把空格原样发出去会让宿主的空查询分支
     // 与用户输入的实际词不一致（`q='  '` 是 400）。
     expect(runKeywordQuery).toHaveBeenCalledTimes(1);
-    expect(runKeywordQuery).toHaveBeenCalledWith('alpha');
+    expect(runKeywordQuery).toHaveBeenCalledWith('alpha', { depth: 2, tokenBudget: 800 });
   });
 
   it('an empty query does NOT issue a request', () => {
@@ -260,7 +260,52 @@ describe('keyboard and submission', () => {
     renderPanel();
     fireEvent.change(input(), { target: { value: 'beta' } });
     fireEvent.click(document.querySelector('.cg-keywordquery-submit') as HTMLButtonElement);
-    expect(runKeywordQuery).toHaveBeenCalledWith('beta');
+    // cycle-120：阈值控件引入后，提交总是携带夹紧后的默认 options。
+    expect(runKeywordQuery).toHaveBeenCalledWith('beta', { depth: 2, tokenBudget: 800 });
+  });
+
+  // ── 阈值控件（cycle-120 / graphify 关键词检索产品化）────────────────────────
+  // graphify 原则「截断必须显式」的另一半是「预算必须可调」：写死 800/2 让
+  // 「大词查不到」与「截断」无法区分。控件只存在于面板本地（击键 UI 态），
+  // 提交时夹紧——下面的用例钉的是「夹紧发生在提交时」与「retry 共用同一夹紧」。
+
+  it('tuning controls: custom depth/budget flow through to runKeywordQuery', () => {
+    renderPanel();
+    const depth = document.querySelector('#cg-keywordquery-depth') as HTMLInputElement;
+    const budget = document.querySelector('#cg-keywordquery-budget') as HTMLInputElement;
+    expect(depth).not.toBeNull();
+    expect(budget).not.toBeNull();
+    fireEvent.change(depth, { target: { value: '4' } });
+    fireEvent.change(budget, { target: { value: '2000' } });
+    fireEvent.change(input(), { target: { value: 'gamma' } });
+    fireEvent.click(document.querySelector('.cg-keywordquery-submit') as HTMLButtonElement);
+    expect(runKeywordQuery).toHaveBeenCalledWith('gamma', { depth: 4, tokenBudget: 2000 });
+  });
+
+  it('tuning controls: out-of-range values are clamped at submit time (not on keystroke)', () => {
+    renderPanel();
+    const depth = document.querySelector('#cg-keywordquery-depth') as HTMLInputElement;
+    const budget = document.querySelector('#cg-keywordquery-budget') as HTMLInputElement;
+    // 逐键不夹紧：输入框里的中间态可以是任意文本（用户可能想先打完整数字再退格修正）。
+    fireEvent.change(depth, { target: { value: '99' } });
+    fireEvent.change(budget, { target: { value: '10' } });
+    expect((depth as HTMLInputElement & { value: string }).value).toBe('99');
+    // 提交时才夹紧：depth 99→5（MAX_DEPTH），budget 10→50（MIN_TOKEN_BUDGET）。
+    // **必须用 fireEvent.submit(form) 或 Enter 键**：click submit 按钮会走 HTML 约束校验，
+    // 越界的 min/max 值（99 > max=5）让 jsdom（与真实浏览器一致）取消隐式提交——
+    // 那是浏览器对"number 越界"的保护行为，不是组件缺陷；显式 submit 事件绕过它，
+    // 走组件自己的 onSubmit → clampInt 夹紧路径，正是本用例要钉的契约。
+    fireEvent.change(input(), { target: { value: 'gamma' } });
+    fireEvent.submit(document.querySelector('.cg-keywordquery-form') as HTMLFormElement);
+    expect(runKeywordQuery).toHaveBeenCalledWith('gamma', { depth: 5, tokenBudget: 50 });
+  });
+  it('tuning controls: retry after error reuses the same clamped thresholds (no silent fallback)', () => {
+    primeStore({ keywordQueryStatus: 'error', keywordQueryError: 'keywordQuery.error', keywordQuery: 'alpha' });
+    renderPanel();
+    // 用户在出错前调过阈值：retry 必须沿用（cycle-119「两个按钮各写一份调用」的 UI 对应形态）。
+    fireEvent.change(document.querySelector('#cg-keywordquery-depth') as HTMLInputElement, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    expect(runKeywordQuery).toHaveBeenCalledWith('alpha', { depth: 3, tokenBudget: 800 });
   });
 });
 
