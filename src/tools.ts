@@ -198,19 +198,32 @@ export async function executeGraphData(
 
   const cached = graphCache.get(args.repoId);
   let merged: GraphData;
+  // XJ-11 消费端收口（cycle-122）：增量引擎的降级/健康信号必须落到返回值里——
+  // 「不可观测的降级等于没有降级」（incremental.ts 头注）。此前 pool.applyDelta
+  // 的返回值在这里被整行丢弃，模型永远看不到引擎状态。
+  let xuanjiSignal: GraphData['metadata']['xuanji'] | undefined;
   if (cached) {
     merged = deps.merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: source === 'both' ? 'codegraph' : source, timestamp: fresh.metadata.timestamp });
     // XJ-02：把 merger.applyDelta 产出的**真实**结构差（缓存基线 → 合并结果）转发给璇玑图适配层，
     // 让库里的增量引擎在生产上真的被调用；delta 不是这里手搓的，而是缓存与新结果的实际差异。
     if (xuanjiPool) {
       const delta = computeGraphDiff(cached.nodes, cached.edges, merged.nodes, merged.edges);
-      xuanjiPool.applyDelta(args.repoId, delta);
+      const poolDelta = xuanjiPool.applyDelta(args.repoId, delta);
+      xuanjiSignal = {
+        applied: poolDelta.applied,
+        // 仅 applied 时带数值：skipped 意味着引擎根本没跑，addedPaths=0 是假量化。
+        ...(poolDelta.applied ? { addedPaths: poolDelta.addedPaths } : {}),
+        ...(poolDelta.degradedRules.length > 0 ? { degradedRules: poolDelta.degradedRules } : {}),
+        ...(poolDelta.invariants.violated.length > 0 ? { invariantViolations: poolDelta.invariants.violated } : {}),
+      };
     }
   } else {
     // 没有缓存基线：适配层手里的可能是另一版修订，派生状态（图空间 + 增量索引）先丢掉。
     merged = fresh;
     xuanjiPool?.invalidate(args.repoId);
+    // 全量重建：不带 xuanji 信号（undefined = 「这次没走增量」，与 skipped 显式区分）。
   }
+  if (xuanjiSignal) merged = { ...merged, metadata: { ...merged.metadata, xuanji: xuanjiSignal } };
   cacheGraph(graphCache, args.repoId, merged);
 
   emitUpdate({
@@ -224,6 +237,9 @@ export async function executeGraphData(
     nodes: merged.nodes,
     edges: merged.edges,
     timestamp: merged.metadata.timestamp,
+    // XJ-11 消费端收口：信号随 SSE 图数据事件直达客户端 StatusBar（三层贯通：
+    // 增量引擎 → 工具返回值 → SSE 载荷 → store → UI）。
+    ...(xuanjiSignal ? { xuanji: xuanjiSignal } : {}),
   });
   return toJsonValue(merged);
 }

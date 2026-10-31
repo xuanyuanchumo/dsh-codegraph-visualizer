@@ -27,6 +27,7 @@ import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { GraphData } from '../../src/types/index.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
 import type { Context } from '@deepseek-ai/cordis';
+import { XuanjiAdapterPool } from '../../src/shared/analysis/XuanjiAdapter.ts';
 
 type TextOutput = Array<{ type: string; text: string }>;
 
@@ -738,6 +739,65 @@ describe('executeGraphData', () => {
     await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache, deps);
     const result2 = await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache, deps);
     expect(result2).toHaveProperty('nodes');
+  });
+
+  // ── XJ-11 消费端收口（cycle-122）：增量引擎健康面贯通到工具返回值 ──
+  // 缺口现场：pool.applyDelta 的返回值（applied/addedPaths/degradedRules/I4）
+  // 在 executeGraphData 里被整行丢弃——「不可观测的降级等于没有降级」。
+  it('XJ-11: 无缓存基线（全量重建）→ metadata.xuanji 缺席（undefined ≠ skipped 的显式区分）', async () => {
+    const invoke: UpstreamInvoker = async () => null;
+    const emitUpdate = vi.fn();
+    const emitData = vi.fn();
+    const graphCache = new Map<string, GraphData>();
+    const deps = await createGraphToolDeps();
+    const result = await executeGraphData(
+      { repoId: 'full-rebuild' }, invoke, emitUpdate, emitData, graphCache, deps,
+      new XuanjiAdapterPool(),
+    ) as unknown as GraphData;
+    expect('xuanji' in result.metadata).toBe(false);
+  });
+
+  it('XJ-11: 增量合并 → metadata.xuanji.applied 布尔 + skipped 不带 addedPaths（假量化防线）', async () => {
+    const invoke: UpstreamInvoker = async () => null;
+    const emitUpdate = vi.fn();
+    const emitData = vi.fn();
+    const graphCache = new Map<string, GraphData>();
+    const deps = await createGraphToolDeps();
+    const pool = new XuanjiAdapterPool();
+    // 首次：全量建基线（xuanji 缺席）
+    await executeGraphData({ repoId: 'signal-repo' }, invoke, emitUpdate, emitData, graphCache, deps, pool);
+    // 第二次：走增量分支（pool 里该 repo 无 adapter ⇒ applied=false 的 skipped 信号）
+    const result2 = await executeGraphData(
+      { repoId: 'signal-repo' }, invoke, emitUpdate, emitData, graphCache, deps, pool,
+    ) as unknown as GraphData;
+    expect(result2.metadata.xuanji).toBeDefined();
+    expect(result2.metadata.xuanji!.applied).toBe(false);
+    // skipped 时不得带 addedPaths：引擎没跑，0 是假量化
+    expect('addedPaths' in (result2.metadata.xuanji!)).toBe(false);
+    // 无降级时不带 degradedRules 键（诚实缺省：空数组冒充「体检过」是本仓反复出现的形态）
+    expect('degradedRules' in (result2.metadata.xuanji!)).toBe(false);
+  });
+
+  it('XJ-11: applied=true 路径携带 addedPaths 量化值（引擎真实产出）', async () => {
+    const invoke: UpstreamInvoker = async () => null;
+    const emitUpdate = vi.fn();
+    const emitData = vi.fn();
+    const graphCache = new Map<string, GraphData>();
+    const deps = await createGraphToolDeps();
+    const pool = new XuanjiAdapterPool();
+    // 时序约束：executeGraphData 的「无缓存基线」分支会 invalidate 预装 adapter
+    // （正确行为——没有基线就不能把两版图混在一起）。因此先跑一次建立 graphCache
+    // 基线，再预装载 adapter（装载与 fetchMergedGraph 同源的空图），第三次调用
+    // 才能同时满足「有缓存基线」+「adapter 已装载」⇒ applied=true。
+    await executeGraphData({ repoId: 'loaded-repo' }, invoke, emitUpdate, emitData, graphCache, deps, pool);
+    const adapter = pool.get('loaded-repo');
+    adapter.loadGraph({ nodes: [], edges: [], metadata: { timestamp: 0 } });
+    const result = await executeGraphData(
+      { repoId: 'loaded-repo' }, invoke, emitUpdate, emitData, graphCache, deps, pool,
+    ) as unknown as GraphData;
+    expect(result.metadata.xuanji).toBeDefined();
+    expect(result.metadata.xuanji!.applied).toBe(true);
+    expect(typeof result.metadata.xuanji!.addedPaths).toBe('number');
   });
 });
 

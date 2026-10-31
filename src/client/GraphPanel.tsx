@@ -110,7 +110,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
   const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible, indexStatus } = useGraphStatus();
   const { currentWorkspace, workspaceList, sessionWorkspace, pinnedWorkspace } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
-  const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
+  const { performanceDegradations, lodLevel, lodEnabled, xuanjiSignal } = useGraphPerformance();
   const { diffResult } = useGraphDiff();
   const actions = useGraphActions();
   const { panelHeight, panelWidth } = usePanelDimensions();
@@ -676,7 +676,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}
         watchEnabled={watchEnabled} workspaceName={currentWorkspace}
         truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length}
-        performanceDegradations={performanceDegradations} />
+        performanceDegradations={performanceDegradations} xuanjiSignal={xuanjiSignal} />
       <div className="cg-resize-handle" title={t('panel.resetSize')} />
     </div>
   );

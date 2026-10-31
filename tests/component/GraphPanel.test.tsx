@@ -145,7 +145,7 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
   useGraphStatus: vi.fn(() => ({ isLoading: false, error: null, lastUpdated: 0, truncated: false, totalNodeCount: 0, prerequisites: makePrerequisiteStatus({ graphSource: true }), watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true })),
   useGraphWorkspace: vi.fn(() => ({ currentWorkspace: '', workspaceList: [] })),
   useGraphAnalysis: vi.fn(() => ({ ruleViolations: [], selectedFunction: null, fanInThreshold: 0, fanOutThreshold: 0, visibleNodeTypes: new Set(), visibleEdgeTypes: new Set(), heatmapMode: 'none', todoMarkerMode: 'none' })),
-  useGraphPerformance: vi.fn(() => ({ performanceDegradations: [], lodLevel: 'full', lodEnabled: false })),
+  useGraphPerformance: vi.fn(() => ({ performanceDegradations: [], xuanjiSignal: null, lodLevel: 'full', lodEnabled: false })),
   useGraphActions: vi.fn(() => {
     const s = useGraphStore.getState();
     return {
@@ -1639,7 +1639,7 @@ describe('GraphPanel uncovered handler tests', () => {
     setupRendererMockWithCallbacks(mockRenderer);
 
     vi.mocked(useGraphPerformance).mockReturnValue({
-      performanceDegradations: [], lodLevel: 'full', lodEnabled: true,
+      performanceDegradations: [], xuanjiSignal: null, lodLevel: 'full', lodEnabled: true,
     });
 
     render(React.createElement(GraphPanel));
@@ -1668,7 +1668,7 @@ describe('GraphPanel uncovered handler tests', () => {
     setupRendererMockWithCallbacks(mockRenderer);
 
     vi.mocked(useGraphPerformance).mockReturnValue({
-      performanceDegradations: [], lodLevel: 'full', lodEnabled: true,
+      performanceDegradations: [], xuanjiSignal: null, lodLevel: 'full', lodEnabled: true,
     });
 
     render(React.createElement(GraphPanel));
@@ -1697,7 +1697,7 @@ describe('GraphPanel uncovered handler tests', () => {
     setupRendererMockWithCallbacks(mockRenderer);
 
     vi.mocked(useGraphPerformance).mockReturnValue({
-      performanceDegradations: [], lodLevel: 'full', lodEnabled: true,
+      performanceDegradations: [], xuanjiSignal: null, lodLevel: 'full', lodEnabled: true,
     });
 
     render(React.createElement(GraphPanel));

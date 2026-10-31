@@ -72,6 +72,8 @@ export function useGraphPerformance() {
   return useGraphStore(useShallow((s) => ({
     performanceDegradations: s.performanceDegradations,
     lodLevel: s.lodLevel, lodEnabled: s.lodEnabled,
+    // 璇玑图增量引擎健康信号（cycle-122）：StatusBar 状态条显示消费。
+    xuanjiSignal: s.xuanjiSignal,
   })));
 }
 

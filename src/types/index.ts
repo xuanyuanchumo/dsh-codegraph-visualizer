@@ -78,6 +78,28 @@ export interface GraphData {
     truncated?: boolean;
     totalNodeCount?: number;
     totalEdgeCount?: number;
+    /**
+     * 璇玑图增量引擎健康面（cycle-122，XJ-11 消费端收口）。
+     *
+     * 缺口现场：`xuanjiPool.applyDelta(...)` 的返回值（`PoolDeltaResult`：
+     * applied / addedPaths / degradedRules / I4 不变量报告）在 `src/tools.ts`
+     * 曾被**完全丢弃**——降级信号生产了但没有消费面，「不可观测的降级等于
+     * 没有降级」（XJ-11 头注原文）。
+     *
+     * 字段在 `executeGraphData` 组装（增量分支才有；全量重建时为 undefined）：
+     * 模型读 `graph_data` 返回值即可判断「这次合并走的是增量还是全量、有没有
+     * 规则被降级」——不再需要读源码才能知道引擎状态。
+     */
+    xuanji?: {
+      /** delta 是否真的被应用到缓存适配层（false = 全量重建 / 尚未装载）。 */
+      applied: boolean;
+      /** 本轮增量新增的物化路径数（增量引擎的真实产出，量化可观测）。 */
+      addedPaths?: number;
+      /** 因超出展开预算被降级重建的规则名（空数组 = 无降级）。 */
+      degradedRules?: readonly string[];
+      /** I4（stale 比例）判为不达标的规则名。 */
+      invariantViolations?: readonly string[];
+    };
   };
   layers?: Layer[];
 }
@@ -174,6 +196,16 @@ export interface GraphDataEvent {
   fingerprint?: string;
   /** File paths that triggered an incremental re-scan, when the watcher drove the update. */
   changedFiles?: string[];
+  /**
+   * 璇玑图增量引擎健康信号（cycle-122）：`executeGraphData` 组装、SSE 透传到
+   * 客户端 StatusBar（XJ-11 消费端收口）。增量分支才有；全量重建缺省。
+   */
+  xuanji?: {
+    applied: boolean;
+    addedPaths?: number;
+    degradedRules?: readonly string[];
+    invariantViolations?: readonly string[];
+  };
 }
 
 /**

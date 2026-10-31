@@ -498,3 +498,18 @@
   color: var(--cg-text-secondary);
   z-index: var(--cg-z-canvas-ui);
 }
+
+/* ── 璇玑图增量引擎健康信号（cycle-122，XJ-11 消费端收口）──────────────
+ * 白盒透明化：增量命中量化（+N 路径）常显；规则降级染警示色。
+ * 信号只在引擎真实跑过时出现（skipped/全量重建不显示——不伪造观测）。 */
+.cg-status-xuanji {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--cg-accent);
+  cursor: help;
+}
+.cg-status-xuanji.cg-xuanji-degraded {
+  color: var(--cg-warning);
+}

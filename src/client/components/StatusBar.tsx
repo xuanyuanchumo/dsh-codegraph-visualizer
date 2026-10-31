@@ -17,6 +17,13 @@ interface StatusBarProps {
   totalNodeCount?: number;
   displayedNodeCount?: number;
   performanceDegradations?: string[];
+  /**
+   * 璇玑图增量引擎健康信号（cycle-122）：null/缺省 = 本轮非增量路径 ⇒ 不显示。
+   * 显示规则（量化 + 白盒）：增量命中 ⇒「⚡ 增量 +N」；有规则被降级 ⇒ 追加「· R 降级」
+   * 并染警示色。信号只在引擎真实跑过时出现（skipped/全量重建都不显示——
+   * 不伪造观测）。
+   */
+  xuanjiSignal?: { applied: boolean; addedPaths?: number; degradedRules?: readonly string[]; invariantViolations?: readonly string[] } | null;
 }
 
 function formatTime(ts: number): string {
@@ -30,7 +37,7 @@ const DEGRADATION_KEYS: Record<string, string> = {
   'large-graph-mode': 'degradation.largeGraphMode',
 };
 
-export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations }: StatusBarProps) {
+export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations, xuanjiSignal }: StatusBarProps) {
   const t = useT();
   const statusDotClass = error ? 'cg-status-dot cg-error' : isLoading ? 'cg-status-dot cg-loading' : 'cg-status-dot';
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
@@ -39,6 +46,11 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
   const degradationLabels = hasDegradations
     ? performanceDegradations!.map((key) => DEGRADATION_KEYS[key] ? t(DEGRADATION_KEYS[key]) : key).join(', ')
     : '';
+  // 璇玑图增量信号（cycle-122）：applied 才显示；降级/违例染色警示。
+  const degradedRules = xuanjiSignal?.degradedRules ?? [];
+  const violatedRules = xuanjiSignal?.invariantViolations ?? [];
+  const showXuanji = xuanjiSignal?.applied === true;
+  const xuanjiDegraded = degradedRules.length > 0 || violatedRules.length > 0;
 
   const { expandedFunctionCount, totalFunctionCount, expandedNodeIdsSize } = useExpandedFunctionBodyCount();
   const showFunctionBudget = expandedFunctionCount > 0 || (totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIdsSize > 0);
@@ -85,6 +97,19 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
           {lastUpdated > 0 ? t('state.updated', { time: formatTime(lastUpdated) }) : t('state.noData')}
         </span>
       </div>
+      {showXuanji && (
+        <span
+          className={`cg-status-xuanji${xuanjiDegraded ? ' cg-xuanji-degraded' : ''}`}
+          title={[
+            t('state.xuanjiHint'),
+            ...(degradedRules.length > 0 ? [t('state.xuanjiDegraded', { rules: degradedRules.join(', ') })] : []),
+            ...(violatedRules.length > 0 ? [t('state.xuanjiViolated', { rules: violatedRules.join(', ') })] : []),
+          ].join('\n')}
+        >
+          ⚡ {t('state.xuanjiIncremental', { n: xuanjiSignal?.addedPaths ?? 0 })}
+          {degradedRules.length > 0 && <> · {t('state.xuanjiDegradedShort', { n: degradedRules.length })}</>}
+        </span>
+      )}
     </div>
   );
 });

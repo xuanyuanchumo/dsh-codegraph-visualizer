@@ -63,6 +63,19 @@ export function coerceGraphData(raw: unknown): GraphData | null {
   const truncated = typeof metadata?.truncated === 'boolean' ? metadata.truncated : false;
   const totalNodeCount = typeof metadata?.totalNodeCount === 'number' ? metadata.totalNodeCount : nodes.length;
   const totalEdgeCount = typeof metadata?.totalEdgeCount === 'number' ? metadata.totalEdgeCount : edges.length;
+  // 璇玑图增量引擎健康信号（cycle-122）：透传而不是丢弃。
+  // coerce 是「修形」不是「重造」——把已验证的未知形状字段剥掉，就会重演
+  // cycle-88「AST budget 的 hasMore 三层各丢一次」的家族缺陷（生产者给了、
+  // 传输层剥了、消费者永远看不到）。形状校验：applied 必须是布尔才采信。
+  const rawXuanji = metadata?.xuanji as Record<string, unknown> | undefined;
+  const xuanji = rawXuanji && typeof rawXuanji.applied === 'boolean'
+    ? {
+        applied: rawXuanji.applied,
+        ...(typeof rawXuanji.addedPaths === 'number' ? { addedPaths: rawXuanji.addedPaths } : {}),
+        ...(Array.isArray(rawXuanji.degradedRules) ? { degradedRules: rawXuanji.degradedRules as string[] } : {}),
+        ...(Array.isArray(rawXuanji.invariantViolations) ? { invariantViolations: rawXuanji.invariantViolations as string[] } : {}),
+      }
+    : undefined;
   return {
     nodes,
     edges,
@@ -74,6 +87,7 @@ export function coerceGraphData(raw: unknown): GraphData | null {
       truncated,
       totalNodeCount,
       totalEdgeCount,
+      ...(xuanji !== undefined ? { xuanji } : {}),
     },
   };
 }

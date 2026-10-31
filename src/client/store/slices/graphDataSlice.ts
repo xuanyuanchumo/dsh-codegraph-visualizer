@@ -31,7 +31,10 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
     truncated: false,
     totalNodeCount: 0,
     totalEdgeCount: 0,
-    setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null }) => {
+    // 璇玑图增量引擎健康信号（cycle-122）：null = 本轮没走增量（StatusBar 不显示）。
+    xuanjiSignal: null,
+    setXuanjiSignal: (signal) => _set({ xuanjiSignal: signal }),
+    setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null; xuanji?: { applied: boolean; addedPaths?: number; degradedRules?: readonly string[]; invariantViolations?: readonly string[] } }) => {
       try {
         clearLoadingFailsafe();
         // 整图替换会把 rawNodes 重置为"仅服务端来源"的节点，并把派生容器清空（`emptyEdgeState()`）——
@@ -95,6 +98,9 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
             healthScore: null,
             ruleViolations: [],
             performanceDegradations: newDegradations,
+            // 璇玑图增量信号：载荷带了就存（含降级清单），没带 = 本轮非增量路径 ⇒ 显式清 null
+            // （旧信号残留在状态条上会比没有信号更糟——它描述的是上一轮的引擎状态）。
+            xuanjiSignal: metadata?.xuanji ?? null,
             pendingRequests: new Map(),
             loadErrorsByNodeId: new Map(),
             ...emptyEdgeState(),
@@ -122,6 +128,8 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           healthScore: null,
           ruleViolations: [],
           performanceDegradations: newDegradations,
+          // 同上：增量信号与载荷同一次落库（没带 = 显式清 null，防旧信号残留）。
+          xuanjiSignal: metadata?.xuanji ?? null,
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
           ...emptyEdgeState(),

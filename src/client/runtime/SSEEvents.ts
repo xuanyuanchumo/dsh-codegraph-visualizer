@@ -62,7 +62,17 @@ export function setupSSEEvents(ctx: Context): void {
               log.info('SSE: graph-data ignored for another workspace', { repoId: data.repoId, activeRepoId: store.repoId });
               return;
             }
-            const graphData = coerceGraphData({ nodes: data.nodes, edges: data.edges, metadata: { repoId: data.repoId, timestamp: data.timestamp } });
+            // cycle-122：xuanji 信号随载荷透传（coerceGraphData 形状校验后保留）。
+            const xuanji = (data as { xuanji?: { applied: boolean; addedPaths?: number; degradedRules?: string[]; invariantViolations?: string[] } }).xuanji;
+            const graphData = coerceGraphData({
+              nodes: data.nodes,
+              edges: data.edges,
+              metadata: {
+                repoId: data.repoId,
+                timestamp: data.timestamp,
+                ...(xuanji && typeof xuanji.applied === 'boolean' ? { xuanji } : {}),
+              },
+            });
             if (graphData) {
               store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
             }

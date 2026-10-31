@@ -88,6 +88,29 @@ export interface GraphState {
   error: string | null;
   lastUpdated: number;
   /**
+   * 璇玑图增量引擎健康信号（cycle-122，XJ-11 消费端收口的客户端半环）。
+   *
+   * 来源：`graph_data` 工具返回值 / SSE `graph-data` 载荷的 `metadata.xuanji`
+   * （宿主在 `executeGraphData` 组装，见 `src/types/index.ts` 同名字段注释）。
+   * StatusBar 据此显示「增量 +N 路径 / 规则 R 降级」——白盒透明化引擎状态。
+   *
+   * `null` = 本轮没走增量（全量重建 / bootstrap / 尚未收到信号）→ 不显示。
+   * 不持久化（引擎状态只对当前画布有意义，persist 后是过期信号）。
+   */
+  xuanjiSignal: {
+    applied: boolean;
+    addedPaths?: number;
+    degradedRules?: readonly string[];
+    invariantViolations?: readonly string[];
+  } | null;
+  /** `setGraphData` 的 metadata 参数携带 xuanji 信号时写入；缺省 = null（显式清除）。 */
+  setXuanjiSignal: (signal: {
+    applied: boolean;
+    addedPaths?: number;
+    degradedRules?: readonly string[];
+    invariantViolations?: readonly string[];
+  } | null) => void;
+  /**
    * 服务端在最近一次 `200 /api/v1/codegraph/data` 里给出的 `etag`，原样保存、原样回传。
    *
    * 与 `lastUpdated` **刻意分开**：`lastUpdated` 是展示用的时间（`Date.now()` 与服务端
@@ -226,7 +249,7 @@ export interface GraphState {
   lodLevel: 'minimal' | 'compact' | 'full';
   lodEnabled: boolean;
 
-  setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null }) => void;
+  setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null; xuanji?: { applied: boolean; addedPaths?: number; degradedRules?: readonly string[]; invariantViolations?: readonly string[] } }) => void;
   setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setDagreRankDir: (dir: RankDir) => void;

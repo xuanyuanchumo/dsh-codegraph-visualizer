@@ -95,4 +95,41 @@ describe('StatusBar component', () => {
     const link = screen.getByRole('link');
     expect(link.getAttribute('aria-label')).toBeTruthy();
   });
+
+  // ── 璇玑图增量引擎健康信号（cycle-122，XJ-11 消费端收口的 UI 半环）──
+  describe('xuanji signal badge', () => {
+    it('applied=true 显示「增量 +N」量化徽标', () => {
+      render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false}
+        xuanjiSignal={{ applied: true, addedPaths: 42 }} />);
+      expect(screen.getByText(/增量 \+42/)).toBeInTheDocument();
+    });
+
+    it('xuanjiSignal 缺省/null 不显示（全量重建/未收到信号不伪造观测）', () => {
+      const { container } = render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
+      expect(container.querySelector('.cg-status-xuanji')).toBeNull();
+      const { container: c2 } = render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} xuanjiSignal={null} />);
+      expect(c2.querySelector('.cg-status-xuanji')).toBeNull();
+    });
+
+    it('applied=false（skipped）不显示——引擎没跑就不量化', () => {
+      const { container } = render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false}
+        xuanjiSignal={{ applied: false }} />);
+      expect(container.querySelector('.cg-status-xuanji')).toBeNull();
+    });
+
+    it('degradedRules 非空 → 徽标染警示色（cg-xuanji-degraded）+ 悬停含规则名', () => {
+      render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false}
+        xuanjiSignal={{ applied: true, addedPaths: 3, degradedRules: ['cycles'] }} />);
+      const badge = screen.getByText(/增量 \+3/).closest('.cg-status-xuanji');
+      expect(badge).toBeTruthy();
+      expect(badge!.className).toContain('cg-xuanji-degraded');
+      expect(badge!.getAttribute('title')).toContain('cycles');
+    });
+
+    it('invariantViolations 也触发警示染色', () => {
+      render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false}
+        xuanjiSignal={{ applied: true, invariantViolations: ['reachable'] }} />);
+      expect(screen.getByText(/增量 \+/).closest('.cg-status-xuanji')!.className).toContain('cg-xuanji-degraded');
+    });
+  });
 });
