@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Context } from '@deepseek-ai/cordis';
 import { IntegrationState } from '../../../src/client/integrations/IntegrationState.ts';
 import { integrateBetterSidebar } from '../../../src/client/integrations/BetterSidebarIntegration.ts';
+import { GraphPanel } from '../../../src/client/GraphPanel.tsx';
 import type { ClientFeatureFlags } from '../../../src/client/compat/ClientCompatLayer.ts';
 
 const storeState = vi.hoisted(() => ({
@@ -473,5 +474,61 @@ describe('integrateBetterSidebar', () => {
     expect(typeof descriptor.title).toBe('function');
     expect(typeof descriptor.description).toBe('function');
     expect(typeof descriptor.icon).toBe('function');
+  });
+
+  // ── 会话跟随接线（cycle-121 增强：better-sidebar 通道）──────────────────
+  // 宿主实测（dsh-better-sidebar lib/client.js useSessionScope）：tab 组件收到
+  // scope = { sessionId, cwd }。跟随引擎吃 useSessions 形状，适配器在此转换。
+  describe('session follow wiring', () => {
+    function renderedPanelProps(component: unknown, props: Record<string, unknown>): Record<string, unknown> | null {
+      // component 返回 React element 树；GraphPanel 包在 GraphErrorBoundary 里。
+      // 沿 element 树找到 type === GraphPanel 的节点，返回它的 props。
+      const stack: Array<{ type: unknown; props: Record<string, unknown> }> = [];
+      const root = component as (p: Record<string, unknown>) => { props?: { children?: unknown } };
+      let children = root(props)?.props?.children;
+      while (children !== null && children !== undefined) {
+        if (typeof children !== 'object') break;
+        const el = children as { type?: unknown; props?: Record<string, unknown> };
+        if (el.type === GraphPanel) return el.props ?? {};
+        stack.push({ type: el.type, props: el.props ?? {} });
+        children = el.props?.children;
+      }
+      return null;
+    }
+
+    it('scope 携带会话身份 ⇒ GraphPanel 收到 sessionId + useSessions 适配器', () => {
+      const dispose = vi.fn();
+      const api = makeBetterSidebarApi({ registerTab: vi.fn(() => dispose) });
+      const { state } = makeState(undefined, api);
+      integrateBetterSidebar(state);
+      const component = (getTabDescriptor(api).component as (p: Record<string, unknown>) => unknown);
+      const panelProps = renderedPanelProps(component, {
+        ctx: state.ctx, visible: true, tab: { id: 't', title: 'T' },
+        scope: { sessionId: 'sess-1', cwd: 'D:\\proj\\x' },
+      });
+      expect(panelProps).not.toBeNull();
+      expect(panelProps!.sessionId).toBe('sess-1');
+      // 适配器形状：useSessions(selector) → selector({byId: {sess-1: {cwd}}})
+      const useSessions = panelProps!.useSessions as (s: (x: { byId: Record<string, { cwd?: string } | undefined> }) => unknown) => unknown;
+      expect(typeof useSessions).toBe('function');
+      const cwd = useSessions((s) => s.byId['sess-1']?.cwd);
+      expect(cwd).toBe('D:\\proj\\x');
+    });
+
+    it('scope 缺席 / 无 sessionId ⇒ GraphPanel 收到 undefined（unknown 态宁缺勿猜）', () => {
+      const dispose = vi.fn();
+      const api = makeBetterSidebarApi({ registerTab: vi.fn(() => dispose) });
+      const { state } = makeState(undefined, api);
+      integrateBetterSidebar(state);
+      const component = (getTabDescriptor(api).component as (p: Record<string, unknown>) => unknown);
+      // scope 整体缺席
+      const p1 = renderedPanelProps(component, { ctx: state.ctx, visible: true, tab: { id: 't', title: 'T' } });
+      expect(p1!.sessionId).toBeUndefined();
+      expect(p1!.useSessions).toBeUndefined();
+      // scope 在场但 sessionId 缺席
+      const p2 = renderedPanelProps(component, { ctx: state.ctx, visible: true, tab: { id: 't', title: 'T' }, scope: { cwd: 'D:\\x' } });
+      expect(p2!.sessionId).toBeUndefined();
+      expect(p2!.useSessions).toBeUndefined();
+    });
   });
 });

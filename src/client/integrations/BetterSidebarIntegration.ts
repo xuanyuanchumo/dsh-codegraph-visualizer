@@ -83,6 +83,27 @@ export function integrateBetterSidebar(state: IntegrationState): void {
     const hasFeature = (f: string): boolean => bsFeatures.includes(f);
     log.info('better-sidebar features', { version: safeCheck(() => betterSidebarApi?.version, 'unknown'), features: bsFeatures });
 
+
+/**
+ * 把 better-sidebar 的 scope（`{sessionId, cwd}`）适配成 `useSessions` 形状
+ * （`readSessionCwd` 的消费契约：`useSessions(selector) → selector({byId})`）。
+ *
+ * 为什么是适配器而不是直接传 cwd：`GraphPanel` 的跟随引擎统一吃宿主会话 scope
+ * 形状（`SessionScopeProps`），四个通道一个实现——better-sidebar 的 `scope.cwd`
+ * 是渲染期快照（`useSessionScope` 的 useMemo），与 `useSessions.byId[].cwd`
+ * 在「本组件渲染时刻」语义等价。
+ *
+ * hook 纪律：`useSessionWorkspaceFollow` 内部把该函数当 hook 调用（React 规则
+ * 要求 hooks 只在组件体调用）。这里返回的函数**必须**保持「每次渲染同一函数
+ * 实例之外还有稳定调用序」——由组件体内条件分支 `typeof scope?.sessionId === 'string'`
+ * 保证：sessionId 在场时始终传 fn，缺席时始终传 undefined（同一渲染树内一致）。
+ */
+function makeUseSessionsFromScope(scope: { sessionId: string; cwd?: string }): (
+  selector: (s: { byId: Record<string, { cwd?: string } | undefined> }) => unknown,
+) => unknown {
+  return (selector) => selector({ byId: { [scope.sessionId]: { cwd: scope.cwd } } });
+}
+
     const tabDescriptor: Parameters<NonNullable<Context['betterSidebar']>['registerTab']>[0] = {
       id: PLUGIN_TAB_KIND,
       title: () => t('nav.title'),
@@ -94,11 +115,23 @@ export function integrateBetterSidebar(state: IntegrationState): void {
         ctx: Context;
         visible: boolean;
         tab: { id: string; title: string; path?: string };
+        /**
+         * 会话 scope（cycle-121 跟随的 better-sidebar 通道接线）。
+         *
+         * 宿主实测（dsh-better-sidebar lib/client.js `useSessionScope`）：
+         * tab 组件收到的 scope = `{ sessionId, cwd }`（cwd 在场！），比本仓
+         * `src/types/index.ts` 的 `scope: unknown` 声明更具体。结构化消费：
+         * 字段缺失/改名都不炸，跟随引擎自行降级（宁缺勿猜）。
+         */
+        scope?: { sessionId?: string; cwd?: string } | unknown;
       }) => {
         // 渲染期把可见性同步回 store：DSH 的可见性由宿主布局决定，组件只能如实转述。
         state.panelVisible = props.visible;
         useGraphStore.getState().setPanelVisible(props.visible);
         if (props.tab?.id) state.betterSidebarTabId = props.tab.id;
+        // 会话跟随（better-sidebar 通道）：scope={sessionId, cwd} 是稳定引用
+        // （useMemo 构造），直接转述给 GraphPanel 的跟随引擎。cwd 缺席 ⇒ unknown 态。
+        const scope = props.scope as { sessionId?: string; cwd?: string } | undefined;
         return React.createElement(
           'div',
           {
@@ -106,7 +139,17 @@ export function integrateBetterSidebar(state: IntegrationState): void {
             'data-cg-visible': String(props.visible),
             'data-cg-sidebar-visible': String(props.visible),
           },
-          React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
+          React.createElement(
+            GraphErrorBoundary,
+            null,
+            React.createElement(GraphPanel, {
+              sessionId: scope?.sessionId,
+              // 窄化与分支条件一致（sessionId 为 string 才构造适配器，TS 无法跨表达式收窄）。
+              useSessions: scope?.sessionId !== undefined
+                ? makeUseSessionsFromScope({ sessionId: scope.sessionId, cwd: scope.cwd })
+                : undefined,
+            }),
+          ),
         );
       },
     };
