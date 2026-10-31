@@ -809,3 +809,54 @@ Object.defineProperty(window, 'localStorage', {
 **live 实测层**（宿主侧，`probeRegistry(deps)`）：声明式 `lifecycle` 回答设计意图，`live` 回答此刻宿主进程实况——数据路由有图数据即 live / 无则 idle；`/watch` `/events` 随 watcher；元路由（/status /health /workspace /registry）恒 live；entries 在宿主侧 unknown（DOM 在客户端），basis 字段说明依据。`/status.registry.liveCounts` 是它的轻量形态。
 
 **新业务接入清单**（三处同步，缺一被守卫抓住）：`businessRegistry.ts` 登记一行 + `guardTest` 指向真实测试 + routes.ts 注册数对齐。live 探针形状由契约 2 例守卫（全覆盖 + 空数据 idle 方向）。
+
+## 附3：会话工作区跟随（cycle-121 / ff8033d）
+
+**机制**：图谱画布默认工作区 = 当前对话会话的工作区。三态状态机：
+
+| 态 | 触发 | 行为 |
+|---|---|---|
+| following（默认） | 宿主注入会话 scope 且未 pin | 会话 cwd 变化 ⇒ 透明跟随（setCurrentWorkspace：etag/diff 作废 + DOM 事件） |
+| pinned | 用户手动切换/新增工作区 | 停止跟随；轮询抑制且**不推进 lastDshWorkspace**（pending 变化保持待应用） |
+| unknown | 宿主未注入会话 scope（桌面/旧代/降级通道） | 维持现状（宁缺勿猜）；桌面端实测自动生效（同一 client bundle，见 09 号文档 §桌面） |
+
+**宿主证据**（asar 0.2.1-rc.2）：`conversation.view` 渲染在会话 scope（`ConversationContent` 解构 `sessionId`/`useSessions`）；renderer `standardProps` 自动注入 `sessionId` + `useSessions`（`ui-session BUILTIN_SOURCE: props:['sessionId'], hooks:{session,projection}`）；官方读法 `useSessions(s => s.byId[sessionId]?.cwd)`。
+
+**客户端 API 面**：
+
+| API | 说明 |
+|---|---|
+| `useSessionWorkspaceFollow(props)` | 副作用 hook：写 `sessionWorkspace` 真相源 + 未 pin 时对齐 `currentWorkspace`；cwd 为依赖（避免行对象引用抖动） |
+| `readSessionCwd(props)` | 六路降级读取（props/sessionId/useSessions/行/cwd/抛错 ⇒ null，宁缺勿猜） |
+| `store.sessionWorkspace` | 跟随态真相源（不进 persist） |
+| `store.pinnedWorkspace` / `pinWorkspace(path\|null)` | 用户 pin（粘性）；null = 解除并**立即对齐**会话工作区 |
+| `WorkspaceSelector` 徽标 | 「跟随对话」SPAN /「已固定·回到对话」BUTTON（点击解除）/ 无回调 SPAN 退化 |
+
+**测试**：`tests/component/sessionFollow.test.tsx`（17）+ `WorkspaceBootstrap` 负向 2 + `WorkspaceSelector` 徽标 4。
+
+**桌面端**：自动生效（同 bundle 同槽位装配）；CDP 受限使浏览器级探针不可用，属验证手段限制。
+
+## 附4：璇玑图增量引擎健康信号（cycle-122 / 4bc72cf）
+
+**三层贯通链**（每层都有守卫，断任意一环即红）：
+
+```
+增量引擎(degradedIndexes) → PoolDeltaResult → executeGraphData（metadata.xuanji / SSE xuanji）
+  → coerceGraphData（形状校验透传）→ store.xuanjiSignal → StatusBar「⚡ 增量 +N」
+```
+
+**显式缺席纪律**（三种状态严格区分，全被测试钉住）：
+
+| 状态 | metadata.xuanji | UI |
+|---|---|---|
+| 全量重建 | 缺席（undefined） | 不显示 |
+| skipped（基线不匹配/未装载） | `{applied:false}`，不带 addedPaths（0 是假量化） | 不显示 |
+| 真实执行 | `{applied:true, addedPaths, degradedRules?, invariantViolations?}` | 徽标；降级染警示 + 悬停规则名 |
+
+**API 面**：`GraphData.metadata.xuanji?`（模型可读——SKILL_CONTENT 已写进「不要做」：降级近似要披露、缺席非异常）；`store.xuanjiSignal` + `setXuanjiSignal`；StatusBar `xuanjiSignal?` prop。
+
+**指纹豁免**：`computeGraphFingerprint` 只取 metadata 5 显式字段 ⇒ xuanji 零 re-fingerprint 代价。
+
+**守卫**：`xuanjiIntegrationContract`「graph_data 必须消费 pool.applyDelta 返回值」（捕获→消费→下发三环，防 XJ-11 死链复活；变异探针 M1 验证过红→还原→绿）+ `hostSkillContribution` 指令面同步 2 例。
+
+**基准**：`node scripts/bench-xuanji.mjs` —— rebuildPerCall ratio 2.39（cycle-122 复测）、reach 127.5→4.9 ms；已入 `.cycles/performance-baseline.md`。
