@@ -836,6 +836,15 @@ Object.defineProperty(window, 'localStorage', {
 
 **桌面端**：自动生效（同 bundle 同槽位装配）；CDP 受限使浏览器级探针不可用，属验证手段限制。
 
+**四通道接线状态**（cycle-121 增强 / 2bc4e42）：
+
+| 通道 | 会话跟随 | 机制 |
+|---|---|---|
+| conversation.view | ✅ | 槽位组件透传 sessionId/useSessions（cycle-121） |
+| sidebar-right | ✅ 零改动 | 宿主 `sidebar.right.pane.tab` 槽声明 `scope:'session'`（keyed），GraphPanel 直挂自动获得标准 props（asar 实测 dsh-client-ui-sidebar-right） |
+| better-sidebar | ✅ 适配器 | tab 组件收 `scope={sessionId,cwd}`（宿主 useSessionScope 实测）→ `makeUseSessionsFromScope` 适配为跟随引擎形状 |
+| slots-fallback / floating | unknown 态 | 页脚/自绘无会话上下文，宁缺勿猜（合理缺席，非缺口） |
+
 ## 附4：璇玑图增量引擎健康信号（cycle-122 / 4bc72cf）
 
 **三层贯通链**（每层都有守卫，断任意一环即红）：
