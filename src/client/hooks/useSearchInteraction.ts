@@ -5,6 +5,7 @@ import { NodeId } from '../../types/index.ts';
 import { useDebounce, useNodeSearch } from './index.ts';
 import type { SearchResultItem } from '../components/SearchBar.tsx';
 import { fetchKeywordQuery } from '../api/keywordQuery.ts';
+import { useGraphStore } from '../store/graphStore.ts';
 import { UI } from '../../shared/constants.ts';
 import { scoped } from '../../shared/Logger.ts';
 
@@ -16,6 +17,12 @@ export interface GetDataApi {
   getEdgeData: (id: string) => GraphEdge | null;
   /** Reveals a node hidden by `hideNode` and centres the viewport on it; `false` when it cannot. */
   revealNode: (id: string) => boolean;
+  /**
+   * cycle-133：把一个不在当前显示层的节点（远程索引命中）合并进画布并选中。
+   * 只对 remote 命中项调用；本地命中项走既有的 getNodeData + revealNode 路径。
+   * 第二参 label 是 /query 的查询词（宿主按 label/filePath 匹配，id 不是匹配维度）。
+   */
+  revealRemoteNode?: (id: string, label: string) => Promise<boolean>;
 }
 
 interface UseSearchInteractionOpts {
@@ -25,6 +32,8 @@ interface UseSearchInteractionOpts {
   setSelectedNodeData: (data: GraphNode | ClusterNode | null) => void;
   getDataRef: React.RefObject<GetDataApi | null>;
   setShowSearch: (v: boolean) => void;
+  /** 结果条目的 remote 标记查询（cycle-133：remote 项点击走 revealRemoteNode 链路）。 */
+  isRemoteHit?: (id: string) => boolean;
 }
 
 interface UseSearchInteractionReturn {
@@ -34,7 +43,7 @@ interface UseSearchInteractionReturn {
 }
 
 export function useSearchInteraction(opts: UseSearchInteractionOpts): UseSearchInteractionReturn {
-  const { searchQuery, rawNodes, setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch } = opts;
+  const { searchQuery, rawNodes, setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch, isRemoteHit } = opts;
 
   const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
   const { search: searchNodes } = useNodeSearch(rawNodes);
@@ -57,7 +66,15 @@ export function useSearchInteraction(opts: UseSearchInteractionOpts): UseSearchI
       return;
     }
     const controller = new AbortController();
-    fetchKeywordQuery({ q: debouncedSearch, depth: 0 }, controller.signal)
+    // cycle-133：**必须带当前工作区**。缺省时宿主把查询落到「会话默认工作区」
+    // （dsh-anic），而画布上显示的是插件自己的工作区——真机实证：搜索
+    // sanitizeTypedGraph 回 200 但 seeds 为空（request 无 workspace 参数），
+    // 表现就是「索引命中列表永远空」。工作区与画布同源才可能命中同一张图。
+    const workspace = useGraphStore.getState().currentWorkspace;
+    fetchKeywordQuery(
+      { q: debouncedSearch, depth: 0, ...(workspace && workspace !== '.' ? { workspace } : {}) },
+      controller.signal,
+    )
       .then((outcome) => {
         if (controller.signal.aborted) return;
         if (outcome.kind !== 'data') { setRemoteHits([]); return; }
@@ -77,6 +94,21 @@ export function useSearchInteraction(opts: UseSearchInteractionOpts): UseSearchI
 
   const handleSelectSearchResult = useCallback((id: string) => {
     try {
+      // cycle-133：remote 命中项不在显示层——走 store 的 revealRemoteNode（拉有界
+      // 子图合并进画布再选中），而不是 setSelectedNode 一个渲染层里不存在的 id
+      // （那正是「点了没反应」的来源；旧路径的 log.warn 只对开发者可见）。
+      if (isRemoteHit?.(id) && getDataRef.current?.revealRemoteNode) {
+        setShowSearch(false);
+        // 查询词取结果项的 label。**必须查 mergedResults**：remote 命中项只存在于
+        // mergedResults（本地 searchResults 零命中时是空数组）——捕获后者会让
+        // find 永远落空、label 回退成 id，而 id 不是宿主的匹配维度（E2E 实测：
+        // /query?q=n3 返回的载荷不含 n3 之外的相关节点，合并失败）。
+        const hitLabel = mergedResults.find((r) => r.id === id)?.label ?? id;
+        void getDataRef.current.revealRemoteNode(id, hitLabel).then((ok) => {
+          if (!ok) log.warn('remote search hit could not be revealed', { id });
+        });
+        return;
+      }
       setSelectedNode(NodeId(id));
       const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
       setSelectedNodeData(data);
@@ -88,7 +120,7 @@ export function useSearchInteraction(opts: UseSearchInteractionOpts): UseSearchI
     } catch (err) {
       log.error('handleSelectSearchResult failed', { id, err });
     }
-  }, [setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch]);
+  }, [setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch, isRemoteHit, mergedResults]);
 
   return { debouncedSearch, searchResults: mergedResults, handleSelectSearchResult };
 }

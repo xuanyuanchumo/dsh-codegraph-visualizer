@@ -144,6 +144,10 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
     setSelectedNodeData,
     getDataRef,
     setShowSearch: panel.setShowSearch,
+    // cycle-133：remote 命中项点击走 revealRemoteNode（合并子图进画布再选中），
+    // 本地命中项走既有 getNodeData + revealNode 路径。判定读 hook 返回的
+    // mergedResults（remoteHits 只在其本地零命中时非空，mergedResults 即最终列表）。
+    isRemoteHit: (id) => searchResults.some((r) => r.id === id && r.remote === true),
   });
 
   const adjacencyMap = useAdjacencyMap(edges);
@@ -199,6 +203,9 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
       getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
       getEdgeData: (id: string) => renderer.rendererRef.current?.getEdgeData(id) ?? null,
       revealNode: (id: string) => renderer.rendererRef.current?.revealNode(id) ?? false,
+      // cycle-133：远程命中的合并+选中走 store 动作（增量聚类通道）。
+      // 查询词用 label（宿主按 label/filePath 匹配，id 不是匹配维度）。
+      revealRemoteNode: (id: string, label: string) => useGraphStore.getState().revealRemoteNode(id, label),
     };
   }, [renderer.rendererRef]);
 

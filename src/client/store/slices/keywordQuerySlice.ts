@@ -2,7 +2,8 @@ import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { GraphState } from '../types.ts';
 import { fetchKeywordQuery, commitKeywordQueryEtag } from '../../api/keywordQuery.ts';
 import type { KeywordQueryResult, KeywordSeed } from '../../api/keywordQuery.ts';
-import { log } from '../internals.ts';
+import { log, mergeAndRecluster } from '../internals.ts';
+import { KEYWORD_QUERY_LIMITS } from '../../../shared/constants.ts';
 
 type SetFn = (partial: Partial<GraphState>) => void;
 type GetFn = () => GraphState;
@@ -74,6 +75,17 @@ declare module '../types.ts' {
     clearKeywordQuery: () => void;
     /** 选中一个种子节点，并把命中集合标到画布上。 */
     selectKeywordSeed: (nodeId: string) => void;
+    /**
+     * cycle-133：把一个**不在当前显示层**的节点带进画布并选中（expand-then-reveal）。
+     *
+     * @param nodeId 目标节点 id（remote 命中项携带）
+     * @param label  目标节点 label——**查询词必须是 label 而不是 id**：宿主
+     * `selectSeeds` 按 label/filePath 匹配（keyword-query.ts scoreOnce），
+     * 用 id 查询在真实宿主上永远零命中（E2E 实测：/query?q=n3 返回空载荷）。
+     * 返回 `true` 表示节点现在已在 rawNodes 且被选中；`false` 表示拉取失败/
+     * 载荷不含目标（调用方不假装成功）。
+     */
+    revealRemoteNode: (nodeId: string, label: string) => Promise<boolean>;
   }
 }
 
@@ -87,6 +99,7 @@ export const KEYWORD_QUERY_KEYS = Object.freeze([
   'runKeywordQuery',
   'clearKeywordQuery',
   'selectKeywordSeed',
+  'revealRemoteNode',
 ] as const);
 
 /** 与宿主 `QUERY` 同口径的默认值（各写一份会静默分叉，故此处集中）。 */
@@ -188,6 +201,51 @@ export function createKeywordQuerySlice(_set: SetFn, _get: GetFn): Partial<Graph
         selectedNodeId: nodeId as GraphState['selectedNodeId'],
         highlightedNodeIds: seedIdsOf(state.keywordQueryResult),
       });
+    },
+
+    revealRemoteNode: async (nodeId, label) => {
+      const state = _get();
+      // 已在显示层：与 selectKeywordSeed 同语义（选中，不重复拉取）。
+      if (state.rawNodes.some((node) => (node.id as string) === nodeId)) {
+        _set({ selectedNodeId: nodeId as GraphState['selectedNodeId'] });
+        return true;
+      }
+      // 不在显示层：以节点 **label** 为词拉一次有界子图（id 不是宿主的匹配维度，
+      // 用 id 查询在真实宿主上永远零命中——E2E 实测教训，见本动作 docstring）。
+      // depth=1 保证载荷有界（命中节点的一跳邻域）。
+      const workspace = state.currentWorkspace;
+      const outcome = await fetchKeywordQuery({
+        q: label,
+        depth: 1,
+        tokenBudget: KEYWORD_QUERY_LIMITS.DEFAULT_TOKEN_BUDGET,
+        ...(workspace && workspace !== '.' ? { workspace } : {}),
+      });
+      if (outcome.kind !== 'data') {
+        log.warn('revealRemoteNode: query failed', { nodeId, kind: outcome.kind });
+        return false;
+      }
+      // 载荷必须真的包含目标节点：上游对未知 id 可能返回空 seeds/空 nodes，
+      // 合并一个不含目标的载荷只会给画布添一堆无关节点。
+      const target = outcome.data.nodes.find((n) => (n.id as string) === nodeId);
+      if (!target) {
+        log.warn('revealRemoteNode: payload does not contain the requested node', { nodeId });
+        return false;
+      }
+      // 合并语义（与 AST/outline 一致）：只增不替换。`setGraphData` 会 clearEtagCache
+      // 并清空全部派生容器——那是整图替换的语义，用在按需合并上会把已展开的
+      // outline/AST 全部抹掉。
+      mergeAndRecluster(outcome.data.nodes, outcome.data.edges, _set, 'remote search hit merged', { nodeId });
+      // 合并是同步的（internals.mergeAndRecluster 内部直接 set），此刻节点必然已在
+      // rawNodes；防御性再查一次（聚类上下文异常时宁可失败也不谎报）。
+      if (!_get().rawNodes.some((node) => (node.id as string) === nodeId)) {
+        log.warn('revealRemoteNode: node still absent after merge', { nodeId });
+        return false;
+      }
+      _set({
+        selectedNodeId: nodeId as GraphState['selectedNodeId'],
+        highlightedNodeIds: outcome.data.seeds.map((s) => s.id) as GraphState['highlightedNodeIds'],
+      });
+      return true;
     },
   };
 }

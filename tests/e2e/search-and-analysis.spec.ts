@@ -58,20 +58,43 @@ test.describe('J3: 符号搜索与定位', () => {
   // 徽标断言会立即变红。
   test('falls back to /query index hits with a remote badge when local search misses', async ({ page }) => {
     await setupPluginPage(page);
-    // 模拟 slim 显示层：全部 label 换成与 'adapters' 无交集的名字（真实大仓形态）。
+    // 模拟 slim 显示层（真实大仓形态）：符号节点与其 module 容器都不在显示层
+    // （已折叠进更高层的目录簇）——本地搜索对 'CodeGraphAdapter' 零命中，
+    // 但 /query 的 label/filePath 维度仍命中（桩已补 SCORE_PATH 匹配）。
+    // 点击后 revealRemoteNode 以 label 为查询词拉子图合并进画布。
     await page.evaluate(() => {
-      const store = (window as unknown as { __graphStore?: { setState: (p: Partial<{ rawNodes: unknown[] }>, replace?: boolean) => void } }).__graphStore;
+      const store = (window as unknown as { __graphStore?: { setState: (p: Partial<{ rawNodes: unknown[] }>) => void; getState: () => { rawNodes: Array<{ id: string }> } } }).__graphStore;
       if (!store) throw new Error('__graphStore missing — dev-server must set localStorage.__cg_debug=1');
-      const raw = (store.getState?.() ?? (store as unknown as { getState: () => { rawNodes: Array<Record<string, unknown>> } }).getState()).rawNodes as Array<Record<string, unknown>>;
-      store.setState({ rawNodes: raw.map((n) => ({ ...n, label: `zzz_${String(n.id)}` })) });
+      const raw = store.getState().rawNodes;
+      store.setState({ rawNodes: raw.filter((n) => !['n3', 'n4', 'm3', 'm4'].includes(n.id)) });
     });
     await clickSearchButton(page);
-    await page.locator(SEARCH.input).fill('adapters');
-    // 防抖 200ms + 请求往返：桩 /query 的 filePath 维度命中 4 项
-    // （n3/n4 符号 + m3/m4 模块，filePath 均为 src/adapters/*）。
-    await expect(page.locator(SEARCH.resultItem)).toHaveCount(4, { timeout: TIMEOUTS.ACTION });
+    await page.locator(SEARCH.input).fill('CodeGraphAdapter');
+    // 防抖 200ms + 请求往返：桩 /query 命中 n3（label 精确）+ m3（filePath 弱匹配）。
+    await expect(page.locator(SEARCH.resultItem)).toHaveCount(2, { timeout: TIMEOUTS.ACTION });
     // 徽标出现在每个 remote 项上。
-    await expect(page.locator(SEARCH.remoteBadge)).toHaveCount(4);
+    await expect(page.locator(SEARCH.remoteBadge)).toHaveCount(2);
+    // cycle-133 完整闭环：点击 remote 命中项 → revealRemoteNode 合并子图 → 选中。
+    const before = await page.evaluate(() => {
+      const store = (window as unknown as { __graphStore?: { getState: () => { rawNodes: unknown[] } } }).__graphStore;
+      return store ? store.getState().rawNodes.length : 0;
+    });
+    await page.locator(SEARCH.resultItem).first().click();
+    // 合并 + 聚类重算：rawNodes 增长（n3 等被合并进显示层）。
+    await page.waitForFunction(
+      (prev) => {
+        const store = (window as unknown as { __graphStore?: { getState: () => { rawNodes: unknown[] } } }).__graphStore;
+        return store ? store.getState().rawNodes.length > prev : false;
+      },
+      before,
+      { timeout: TIMEOUTS.ACTION },
+    );
+    // 选中态落库（详情面板数据源）。
+    const selected = await page.evaluate(() => {
+      const store = (window as unknown as { __graphStore?: { getState: () => { selectedNodeId: string | null } } }).__graphStore;
+      return store ? store.getState().selectedNodeId : null;
+    });
+    expect(selected).not.toBeNull();
   });
 });
 
