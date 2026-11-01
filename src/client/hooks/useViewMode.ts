@@ -93,6 +93,37 @@ export function useViewMode(
         setError(t('error.loadGraph'));
         setLoading(false);
       });
+    } else if (['inheritance', 'callgraph', 'package', 'class'].includes(newMode)) {
+      // 宏视图数据拉取（cycle-125 补遗）：bootstrap 只回顶层骨架（file/module/import），
+      // rawNodes 里没有 class/interface 节点 ⇒ 继承等宏视图组装出 0 节点空态。
+      // 与 dependencies 同款守卫：/data 全量拉取 + 身份守卫 + abort。
+      depsFetchAbortRef.current?.abort();
+      setGraphType('all');
+      setFilterType('all');
+      setLoading(true);
+      const controller = new AbortController();
+      depsFetchAbortRef.current = controller;
+      const requestedWorkspace = currentWorkspace && currentWorkspace !== '.' ? currentWorkspace : undefined;
+      const params = new URLSearchParams();
+      if (requestedWorkspace) params.set('workspace', requestedWorkspace);
+      const qs = params.toString();
+      fetchWithTimeout(`/api/v1/codegraph/data${qs ? `?${qs}` : ''}`, { signal: controller.signal })
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then((data) => {
+          if (controller.signal.aborted) return;
+          // 身份守卫（P0 同款）：外来负载不回退全量。
+          if (isForeignRepo(data.metadata?.repoId, requestedWorkspace)) {
+            log.info('macro view graph ignored for another workspace', {
+              repoId: data.metadata?.repoId, requestedWorkspace, activeWorkspace: currentWorkspace,
+            });
+            return;
+          }
+          if (!data.nodes || data.nodes.length === 0) return;
+          setViewMode(newMode);
+          setGraphData(data.nodes, data.edges, data.metadata?.repoId || requestedWorkspace || currentWorkspace);
+        })
+        .catch(() => { if (!controller.signal.aborted) setError(t('error.loadGraphData')); })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else {
       depsFetchAbortRef.current?.abort();
       setGraphType('all');
