@@ -249,16 +249,20 @@ describe('path enumeration behavior', () => {
     expect(code).toBe(400);
   });
 
-  it('槽为空 ⇒ 404（无图无身份）', async () => {
+  it('槽为空 ⇒ 200 空结果 + reason no-graph-data（真机冒烟修正：404 WORKSPACE_PATH_NOT_ALLOWED 有误导性）', async () => {
     const harness = makeHarness(null);
-    const { code } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&source=n-alpha&target=n-beta`);
-    expect(code).toBe(404);
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&source=n-alpha&target=n-beta`);
+    expect(code).toBe(200);
+    expect(body.reason).toBe('no-graph-data');
+    expect(body.paths).toEqual([]);
   });
 
-  it('图槽属于另一个工作区 ⇒ 404（P0-B 身份守卫，不把别人的路径发给请求方）', async () => {
+  it('图槽属于另一个工作区 ⇒ 同样 200 空结果（身份守卫拒绝供图，但不泄身份语义）', async () => {
     const harness = makeHarness(makeFixtureGraph('/other/workspace', 2000));
-    const { code } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&source=n-alpha&target=n-beta`);
-    expect(code).toBe(404);
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&source=n-alpha&target=n-beta`);
+    expect(code).toBe(200);
+    expect(body.reason).toBe('no-graph-data');
+    expect(body.paths).toEqual([]);
   });
 
   it('edgeTypes 过滤生效：edgeTypes=import 时 call 边不可走（空结果）', async () => {

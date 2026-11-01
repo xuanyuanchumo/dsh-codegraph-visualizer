@@ -78,7 +78,13 @@ export function registerPathsRoute(rc: RouteContext): void {
       // 1) 图源：lastGraphData 槽（身份守卫）优先——所见即所查。
       const graph = getWorkspaceScopedGraphData(deps, workspacePath);
       if (!graph || graph.nodes.length === 0) {
-        sendError(res, 404, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
+        // 槽空（宿主 fresh 启动 / 索引未建）≠ 工作区不允许：真机冒烟发现 404
+        // WORKSPACE_PATH_NOT_ALLOWED 有误导性（会让 API 消费方以为是权限问题）。
+        // 与「端点不在图」同语义：200 + reason，客户端据此提示「先扫描/等索引」。
+        sendJson(res, 200, {
+          paths: [], truncated: false, total: 0, nextCursor: null,
+          reason: 'no-graph-data',
+        }, req, corsConfig);
         return;
       }
 
