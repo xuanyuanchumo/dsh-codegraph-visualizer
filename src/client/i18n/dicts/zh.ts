@@ -150,6 +150,9 @@ export const zh: Record<string, string> = {
   'detail.edgesAggregated': '已按文件对聚合',
   'detail.edgesExpandAggregated': '展开明细边',
   'detail.edgesDetailActive': '已展开明细，不再聚合',
+  // cycle-126 · T3：继承视图 AST 增补边标识
+  'detail.edgeAstBadge': 'AST',
+  'detail.edgeAstBadgeHint': '此继承边由 AST 推断增补（上游索引未直接产出）',
   'detail.edgeIncoming': '入',
   'detail.edgeOutgoing': '出',
 

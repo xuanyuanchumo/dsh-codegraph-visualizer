@@ -287,4 +287,33 @@ describe('NodeEdgeList component', () => {
     expect(region?.getAttribute('role')).toBe('region');
     expect(region?.getAttribute('aria-label')).toBe('Edges');
   });
+
+  // ── cycle-126 · T3：AST 增补边徽章（继承视图披露）────────────────────────
+
+  it('shows the AST badge for an edge carrying edgeOrigin=ast', async () => {
+    mocks.fetchEdges.mockResolvedValue(
+      page([makeEdge('xj:1', 'n1', 'n2', 'extend', { edgeOrigin: 'ast', edgeLocatable: false })]),
+    );
+    render(<NodeEdgeList nodeId="n1" />);
+    await waitFor(() => expect(document.querySelector('.cg-detail-edge-ast-badge')).toBeTruthy());
+    const badge = document.querySelector('.cg-detail-edge-ast-badge');
+    expect(badge?.textContent).toBe('AST');
+  });
+
+  it('shows no AST badge for a plain upstream edge', async () => {
+    mocks.fetchEdges.mockResolvedValue(page([makeEdge('e1', 'n1', 'n2', 'extend')]));
+    render(<NodeEdgeList nodeId="n1" />);
+    await waitFor(() => expect(document.querySelector('.cg-detail-edge-list')).toBeTruthy());
+    expect(document.querySelector('.cg-detail-edge-ast-badge')).toBeNull();
+  });
+
+  it('badge hint explains the AST provenance', async () => {
+    mocks.fetchEdges.mockResolvedValue(
+      page([makeEdge('xj:1', 'n1', 'n2', 'extend', { edgeOrigin: 'ast' })]),
+    );
+    render(<NodeEdgeList nodeId="n1" />);
+    await waitFor(() => expect(document.querySelector('.cg-detail-edge-ast-badge')).toBeTruthy());
+    const badge = document.querySelector('.cg-detail-edge-ast-badge');
+    expect(badge?.getAttribute('title')).toContain('AST');
+  });
 });

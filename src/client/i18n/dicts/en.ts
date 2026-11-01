@@ -150,6 +150,9 @@ export const en: Record<string, string> = {
   'detail.edgesAggregated': 'Aggregated by file pair',
   'detail.edgesExpandAggregated': 'Expand into individual edges',
   'detail.edgesDetailActive': 'Expanded — no longer aggregated',
+  // cycle-126 · T3: AST-supplemented inheritance edge badge
+  'detail.edgeAstBadge': 'AST',
+  'detail.edgeAstBadgeHint': 'This inheritance edge was inferred via AST (not produced by the upstream indexer)',
   'detail.edgeIncoming': 'in',
   'detail.edgeOutgoing': 'out',
 

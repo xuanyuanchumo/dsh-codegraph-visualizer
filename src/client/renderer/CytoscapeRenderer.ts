@@ -118,6 +118,9 @@ export class CytoscapeRenderer implements IRenderer {
       this.impactAnalyzer = new ImpactAnalyzer(cy);
       this.viewportCtrl = new ViewportController(cy);
       this.dataCtrl = new DataController(cy);
+      // cycle-126 · T1：把邻接缓存并网通道交给 DataController——结构性增量路径
+      // 由此逐边同步缓存，全量重置路径由此显式 invalidate。
+      this.dataCtrl.setAdjacencyCache(this.adjacencyCache!);
       this.filterCtrl = new FilterController(cy);
       this.searchCtrl = new SearchController(cy, this.dataCtrl.getRawNodesMap(), this.dataCtrl.getRawToVisibleMap());
       this.exportCtrl = new ExportController(cy);
@@ -173,8 +176,22 @@ export class CytoscapeRenderer implements IRenderer {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     if (!this.cy) throw new Error('CytoscapeRenderer: init() must be called before updateData()');
     this.safeCall('updateData', () => {
-      this.dataCtrl?.updateData(nodes, edges);
-      this.adjacencyCache?.invalidate();
+      // cycle-126 · T1：DataController 返回「邻接缓存同步决定」——
+      // patch = 已逐边并网（version 对账通过则禁 invalidate），
+      // dirty = 无法追踪（批量异步 / 桩 / 换端点降级），必须整体失效。
+      const sync = this.dataCtrl?.updateData(nodes, edges);
+      const cache = this.adjacencyCache;
+      if (!cache) {
+        // 无缓存通道：保持旧总行为（filter/highlight 失效照做）。
+      } else if (!sync || sync.kind === 'dirty') {
+        cache.invalidate();
+      } else if (sync.expectedVersion !== undefined && cache.getVersion() !== sync.expectedVersion) {
+        // O(1) 内容对账：版本号不一致说明缓存被别的路径动过（筛选/高亮重建），
+        // 此时 DataController 的并网账本已不可信——降级全量重建。
+        cache.invalidate();
+      }
+      // expectedVersion === undefined（旧测试桩未带通道）时保持现状：
+      // DataController 已并网或已显式 invalidate，这里不再叠加失效。
       this.filterCtrl?.invalidateCache();
       this.highlightCtrl?.invalidateCache();
       if (this.cy && nodes.length > 0) {

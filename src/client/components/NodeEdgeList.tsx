@@ -92,6 +92,10 @@ export const NodeEdgeList = memo(function NodeEdgeList({ nodeId, enabled = true 
       <ul className="cg-detail-edge-list">
         {visibleEdges.map((edge) => {
           const outgoing = edge.source === nodeId;
+          // cycle-126 · T3：继承视图的 AST 增补边带 edgeOrigin: 'ast' 标记
+          // （src/host/inheritanceEnhancer.ts 注入），此处披露给用户——
+          // 「这条继承边来自 AST 推断，不是上游索引器的直接产物」。
+          const isAstSupplemented = edge.properties?.edgeOrigin === 'ast';
           return (
             <li className="cg-detail-edge-item" key={edge.id} title={edge.id}>
               <span
@@ -102,6 +106,11 @@ export const NodeEdgeList = memo(function NodeEdgeList({ nodeId, enabled = true 
               </span>
               <span className="cg-detail-edge-label">{endpointLabel(edge, nodeId, labels)}</span>
               <span className="cg-detail-edge-type">{edge.type}</span>
+              {isAstSupplemented && (
+                <span className="cg-detail-edge-ast-badge" title={t('detail.edgeAstBadgeHint')}>
+                  {t('detail.edgeAstBadge')}
+                </span>
+              )}
             </li>
           );
         })}

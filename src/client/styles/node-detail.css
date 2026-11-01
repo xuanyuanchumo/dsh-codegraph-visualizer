@@ -215,6 +215,19 @@
   font-family: var(--cg-font-mono);
 }
 
+/* cycle-126 · T3：AST 增补边徽章——披露「这条继承边来自 AST 推断」。 */
+.cg-node-detail-panel .cg-detail-edge-ast-badge {
+  flex-shrink: 0;
+  font-size: 8px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: var(--cg-on-accent);
+  background: var(--cg-accent);
+  font-family: var(--cg-font-mono);
+  cursor: help;
+}
+
 .cg-node-detail-panel .cg-detail-edges-more {
   margin-top: 6px;
   width: 100%;

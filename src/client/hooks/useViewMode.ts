@@ -125,6 +125,15 @@ export function useViewMode(
             return;
           }
           if (!data.nodes || data.nodes.length === 0) return;
+          // cycle-126 · T5：宏视图拉取的量化观测——节点/边数、耗时、workspace 一条
+          // 记录性日志（可观测性：真机排障时「继承视图 0 节点」这类症状的第一现场）。
+          log.info('macro view data loaded', {
+            viewMode: newMode,
+            nodes: data.nodes.length,
+            edges: data.edges?.length ?? 0,
+            workspace: requestedWorkspace ?? currentWorkspace,
+            revision: data.metadata?.revision,
+          });
           setViewMode(newMode);
           setGraphData(data.nodes, data.edges, data.metadata?.repoId || requestedWorkspace || currentWorkspace);
         })

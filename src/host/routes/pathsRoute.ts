@@ -39,11 +39,10 @@
  * 若未来客户端需要条件请求（如结果订阅），必须先补齐全部 11 维请求键并加
  * 双向守卫测试（参照 computeQueryEtag 的五维先例）。
  */
-import { resolveWorkspaceFromRequest, getWorkspaceScopedGraphData, withRouteMiddleware, type RouteContext, log } from './shared.ts';
+import { resolveWorkspaceFromRequest, getWorkspaceScopedGraphData, withRouteMiddleware, type RouteContext } from './shared.ts';
 import { sendJson, sendError } from '../HttpHelpers.ts';
 import { ERROR_CODES } from '../../shared/constants.ts';
 import { XuanjiAdapterPool, type AdapterEdgeType, DEFAULT_PATH_EDGE_TYPES } from '../../shared/analysis/XuanjiAdapter.ts';
-import { NodeId } from '../../types/index.ts';
 
 /** 路由面独立池（与工具面 xuanjiPool 隔离——工具面的缓存基线语义不同）。 */
 const routePool = new XuanjiAdapterPool(2);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { HealthScorer } from '../../shared/analysis/HealthScorer.ts';
@@ -176,6 +176,21 @@ export function useAnalysisPanels(
     }
   }, [showHotspot, rawNodes, rawEdges, hotspotAnalyzer, churnByFile]);
 
+  // cycle-126 · T3-P2：核心函数与死代码两个分析器是 O(V+E) 重计算，触发条件
+  // （rawNodes/rawEdges）在 SSE/delta、宏视图拉取下高频变化。用 RAF 把「重算」
+  // 与「提交」拆开：同一帧内多次数据变化只算最后一次（去抖），且不阻塞图谱渲染。
+  // 刻意不用 useDeferredValue——「deferred 值 + 依赖它的 setState effect」在
+  // 同步渲染环境（renderHook/jsdom）构成无限渲染循环（实测 OOM 复现，探针
+  // tests/component/probe-udv 三轮），生产语义等价性也无法在测试里验证。
+  const rafRef = useRef<number | null>(null);
+  const rafCleanup = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+  useEffect(() => rafCleanup, [rafCleanup]);
+
   useEffect(() => {
     if (showGodModule && rawNodes.length > 0) {
       setGodModules(godModuleDetector.detect(rawNodes, rawEdges, godModuleThreshold));
@@ -203,17 +218,27 @@ export function useAnalysisPanels(
 
   useEffect(() => {
     if (showCoreFunction && rawNodes.length > 0) {
-      setCoreFunctions(coreFunctionAnalyzer.analyze(rawNodes, rawEdges));
+      rafCleanup();
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        setCoreFunctions(coreFunctionAnalyzer.analyze(rawNodes, rawEdges));
+      });
+      return rafCleanup;
     }
-  }, [showCoreFunction, rawNodes, rawEdges, coreFunctionAnalyzer]);
+  }, [showCoreFunction, rawNodes, rawEdges, coreFunctionAnalyzer, rafCleanup]);
 
   useEffect(() => {
     if (showDeadCode && rawNodes.length > 0) {
-      setDeadCodeResult(deadCodeAnalyzer.analyze(rawNodes, rawEdges));
+      rafCleanup();
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        setDeadCodeResult(deadCodeAnalyzer.analyze(rawNodes, rawEdges));
+      });
+      return rafCleanup;
     } else {
       setDeadCodeResult(null);
     }
-  }, [showDeadCode, rawNodes, rawEdges, deadCodeAnalyzer]);
+  }, [showDeadCode, rawNodes, rawEdges, deadCodeAnalyzer, rafCleanup]);
 
   return {
     handleHealthCheck, handleRulesCheck, hotspotNodes, godModules, impactStats,

@@ -1,10 +1,29 @@
 import type { Core, NodeDataDefinition } from 'cytoscape';
 import { NodeId, safeString, safeNumber, safeBoolean, isNodeType, type GraphNode, type GraphEdge } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
+import { AdjacencyCache } from './AdjacencyCache.ts';
 import { DATA_CONTROLLER } from '../../shared/constants.ts';
 import { scoped } from '../../shared/Logger.ts';
 
 const log = scoped('data-controller');
+
+/**
+ * 数据更新后邻接缓存的**决定**（cycle-126 · T1）。
+ *
+ * - `dirty`：调用方**必须** invalidate（全量重建降级路径——端点变化 / 桩 / 细节不可追踪）。
+ *   这是历史唯一行为，缺省即 dirty，语义上不可能「忘判」。
+ * - `patch`：DataController 已用结构化 addEdge/removeEdge **并网**过 AdjacencyCache，
+ *   内容与 cytoscape 逐边一致，调用方**禁止** invalidate（否则等于全量重建浪费）。
+ *   version 尾部对账是最后一道防线（cycle-107 C-1 教训：双源内容漂移静默）。
+ */
+export interface AdjacencySyncOutcome {
+  readonly kind: 'patch' | 'dirty';
+  /** 仅 patch 时有意义：调用方用它做 O(1) 内容对账，失败即降级 invalidate。 */
+  readonly expectedVersion?: number;
+}
+
+/** 缺省结果：任何未表态路径都必须回到「必须失效」的安全方向。 */
+const DIRTY: AdjacencySyncOutcome = { kind: 'dirty' } as const;
 
 export class DataController {
   private cy: Core;
@@ -16,9 +35,21 @@ export class DataController {
   private batchRaf: number | null = null;
   private batchQueue: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
   private lastAddedNodeIds: Set<string> = new Set();
+  /** 邻接缓存的并网通道（cycle-126 · T1）。null 时一切结果等价 dirty，调用方自会失效。 */
+  private adjacencyCache: AdjacencyCache | null = null;
 
   constructor(cy: Core) {
     this.cy = cy;
+  }
+
+  /**
+   * 注入邻接缓存并网通道（cycle-126 · T1）。
+   * 注入后 DataController 在结构性增量路径上用 addEdge/removeEdge 把缓存与
+   * cytoscape **并网**（逐边同步），全量重置路径则显式 invalidate —— 两类路径
+   * 都不再依赖调用方的猜测。
+   */
+  setAdjacencyCache(cache: AdjacencyCache): void {
+    this.adjacencyCache = cache;
   }
 
   getLastAddedNodeIds(): Set<string> {
@@ -42,21 +73,23 @@ export class DataController {
     for (const n of rawNodes) this.rawNodesMap.set(n.id, n);
   }
 
-  updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
+  updateData(nodes: GraphNode[], edges: GraphEdge[]): AdjacencySyncOutcome {
     this.buildRawToVisibleMap(nodes);
     const changes = this.detectChanges(nodes, edges);
     if (!changes.hasNewNodes && !changes.hasStaleNodes && !changes.hasNewEdges && !changes.hasStaleEdges) {
       const hasUpdatedNodes = this.detectPropertyChanges(nodes);
-      if (!hasUpdatedNodes) return;
+      // cycle-126 · T2：图本体（节点集合 + 边集合）未变 ⇒ 缓存仍与 cytoscape 一致，
+      // 纯属性更新不应触发邻接表失效。旧实现「属性变化 ⇒ invalidate」是误报风暴。
+      if (!hasUpdatedNodes) return { kind: 'patch', expectedVersion: this.adjacencyCache?.getVersion() };
       this.applyIncrementalUpdates(nodes, edges);
       this.computeNodeWeights();
-      return;
+      return { kind: 'patch', expectedVersion: this.adjacencyCache?.getVersion() };
     }
     if (changes.hasStaleNodes) {
       this.handleFullReset(nodes, edges);
-      return;
+      return DIRTY;
     }
-    this.handleIncrementalUpdate(nodes, edges, changes);
+    return this.handleIncrementalUpdate(nodes, edges, changes);
   }
 
   private buildRawToVisibleMap(nodes: GraphNode[]): void {
@@ -87,7 +120,13 @@ export class DataController {
         if (!newNodeIds.has(id)) { hasStaleNodes = true; break; }
       }
     }
-    const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
+    // cycle-126 · T1（C-4 发现）：同 id 换端点是结构性变化——旧实现只按 id 判重，
+    // 换端点落在「无变化」分支被静默忽略（图本体与缓存双双漂移）。
+    const hasNewEdges = edges.some((e) => {
+      const prev = this.currentEdges.get(e.id);
+      if (!prev) return true;
+      return prev.source !== e.source || prev.target !== e.target;
+    });
     let hasStaleEdges = cyEdgeCount !== edges.length || this.currentEdges.size > newEdgeIds.size;
     if (!hasStaleEdges && this.currentEdges.size === newEdgeIds.size) {
       for (const id of this.currentEdges.keys()) {
@@ -97,11 +136,14 @@ export class DataController {
     return { hasNewNodes, hasStaleNodes, hasNewEdges, hasStaleEdges };
   }
 
-  private handleFullReset(nodes: GraphNode[], edges: GraphEdge[]): void {
+  private handleFullReset(nodes: GraphNode[], edges: GraphEdge[]): AdjacencySyncOutcome {
     this.cy.elements().remove();
     this.currentNodes.clear();
     this.currentEdges.clear();
     this.lastAddedNodeIds.clear();
+    // cycle-126 · T1：全量重置后缓存内容整体失效——显式 invalidate，
+    // 不再依赖调用方事后补救。随后 rebuild 会一次性重建全部邻接项。
+    this.adjacencyCache?.invalidate();
     this.cy.batch(() => {
       for (const n of nodes) {
         this.addNode(n);
@@ -115,16 +157,32 @@ export class DataController {
       }
     });
     this.computeNodeWeights();
+    return DIRTY;
   }
 
   private handleIncrementalUpdate(
     nodes: GraphNode[], edges: GraphEdge[],
     changes: { hasNewNodes: boolean; hasStaleNodes: boolean; hasNewEdges: boolean; hasStaleEdges: boolean },
-  ): void {
+  ): AdjacencySyncOutcome {
     const newNodeIds = new Set<string>(nodes.map((n) => n.id));
     const newEdgeIds = new Set<string>(edges.map((e) => e.id));
     const nodesToAdd: GraphNode[] = [];
     const edgesToAdd: GraphEdge[] = [];
+    // cycle-126 · T1：结构性增删的并网账本。每个动作要么逐边入账，要么把本轮
+    // 降级为 dirty——两套数据源（cytoscape 图本体 vs AdjacencyCache）只允许在
+    // 「逐边可追踪」时并存，否则必须整体失效。
+    const cache = this.adjacencyCache;
+    const patchOps: Array<{ op: 'add' | 'remove'; edge: GraphEdge; prev?: GraphEdge }> = [];
+    let dirty = false;
+
+    const recordAdd = (e: GraphEdge): void => {
+      if (!cache) return;
+      const prev = this.currentEdges.get(e.id);
+      if (prev && (prev.source !== e.source || prev.target !== e.target)) {
+        patchOps.push({ op: 'remove', edge: prev });
+      }
+      patchOps.push({ op: 'add', edge: e, prev: prev && prev.source === e.source && prev.target === e.target ? prev : undefined });
+    };
 
     if (changes.hasStaleNodes) {
       const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
@@ -137,7 +195,14 @@ export class DataController {
       const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
       if (staleEdges.length > 0) this.cy.remove(staleEdges);
       for (const id of this.currentEdges.keys()) {
-        if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
+        if (!newEdgeIds.has(id)) {
+          if (cache) {
+            const removed = this.currentEdges.get(id);
+            if (removed) patchOps.push({ op: 'remove', edge: removed });
+            else dirty = true;
+          }
+          this.currentEdges.delete(id);
+        }
       }
     }
 
@@ -153,13 +218,17 @@ export class DataController {
     for (const e of edges) {
       if (!this.currentEdges.has(e.id)) {
         edgesToAdd.push(e);
+        recordAdd(e);
       }
       else {
         const existing = this.currentEdges.get(e.id);
         const cyEdge = this.cy.getElementById(e.id);
         if (cyEdge.length > 0 && existing && (existing.source !== e.source || existing.target !== e.target)) {
+          // 同 id 换端点：recordAdd 内部会先入账 remove(旧端点) 再入账 add(新端点)，
+          // 这里只负责图本体（cytoscape 侧删旧加新）。
           this.cy.remove(cyEdge);
           edgesToAdd.push(e);
+          recordAdd(e);
         } else {
           if (cyEdge.length > 0 && e.properties) {
             for (const [key, value] of Object.entries(e.properties)) {
@@ -172,13 +241,20 @@ export class DataController {
     }
 
     if (nodesToAdd.length === 0 && edgesToAdd.length === 0) {
+      // cycle-126 · T2：无结构性变化（无增无删无换端点）——图本体未动，邻接表
+      // 仍与 cytoscape 一致。返回 patch（缓存免失效），由调用方做 version 对账。
       this.computeNodeWeights();
-      return;
+      return { kind: 'patch', expectedVersion: cache?.getVersion() };
     }
-    this.processBatchAdd(nodesToAdd, edgesToAdd);
+    return this.processBatchAdd(nodesToAdd, edgesToAdd, patchOps, dirty);
   }
 
-  private processBatchAdd(nodesToAdd: GraphNode[], edgesToAdd: GraphEdge[]): void {
+  private processBatchAdd(
+    nodesToAdd: GraphNode[],
+    edgesToAdd: GraphEdge[],
+    patchOps: Array<{ op: 'add' | 'remove'; edge: GraphEdge; prev?: GraphEdge }> = [],
+    dirty = false,
+  ): AdjacencySyncOutcome {
     const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
     if (nodesToAdd.length <= BATCH_SIZE) {
       this.cy.batch(() => {
@@ -188,7 +264,7 @@ export class DataController {
         }
       });
       this.computeNodeWeights();
-      return;
+      return this.reconcileAdjacency(patchOps, dirty);
     }
     const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
     const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
@@ -204,8 +280,46 @@ export class DataController {
       }
     });
 
+    // 分批异步追加：剩余批次在 RAF 里逐批入图，邻接缓存此刻无法逐边追踪
+    // ——降级为 dirty（安全方向：多一次全量重建，绝不持有漂移内容）。
     this.batchQueue = { nodes: remainingNodes, edges: remainingEdges };
     this.processBatchQueue();
+    return DIRTY;
+  }
+
+  /**
+   * 把并网账本回放到 AdjacencyCache（cycle-126 · T1）。
+   *
+   * 顺序敏感：同一 id 的「换端点」会先 remove 旧端点再 add 新端点，必须按入账
+   * 顺序执行（remove(旧)→add(新)），否则 add 先写、remove 后删会把新边从缓存
+   * 里删掉（同 id 键冲突）。
+   * 任何一步与预期不符（返回 false / 抛错）⇒ 整体 invalidate，回到安全方向。
+   */
+  private reconcileAdjacency(
+    patchOps: Array<{ op: 'add' | 'remove'; edge: GraphEdge; prev?: GraphEdge }>,
+    dirty: boolean,
+  ): AdjacencySyncOutcome {
+    const cache = this.adjacencyCache;
+    if (dirty || !cache) return DIRTY;
+    if (patchOps.length === 0) {
+      // 无可入账的结构性边变化：缓存内容仍与图本体一致。
+      return { kind: 'patch', expectedVersion: cache.getVersion() };
+    }
+    try {
+      for (const op of patchOps) {
+        if (op.op === 'add') {
+          cache.addEdge(op.edge.source, op.edge.target, op.edge.id, op.edge.type);
+        } else {
+          const removed = cache.removeEdge(op.edge.source, op.edge.target, op.edge.id, op.edge.type);
+          if (!removed) throw new Error(`adjacency removeEdge missed: ${op.edge.id}`);
+        }
+      }
+      return { kind: 'patch', expectedVersion: cache.getVersion() };
+    } catch (err) {
+      log.warn('adjacency reconcile failed — invalidating cache', { err: String(err) });
+      cache.invalidate();
+      return DIRTY;
+    }
   }
 
   private detectPropertyChanges(nodes: GraphNode[]): boolean {
