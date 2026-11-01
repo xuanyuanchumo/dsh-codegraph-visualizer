@@ -49,6 +49,30 @@ test.describe('J3: 符号搜索与定位', () => {
     await page.locator(SEARCH.closeBtn).click();
     await expect(page.locator(SEARCH.bar)).not.toBeVisible();
   });
+
+  // cycle-132：本地显示层零命中 → 回退 /query 索引 → 渲染「索引命中」徽标。
+  // 精确语义：把 store.rawNodes 换成只剩 label 与查询词毫无交集的节点（大仓 slim
+  // 显示层的形状），此时本地搜索必然零命中，回退链路真实触发。'adapters' 命中桩
+  // /query 的 filePath 维度（n3/n4，src/adapters/*；桩已补 SCORE_PATH 匹配）。
+  // 此前桩只匹配 label，该链路在 E2E 不可达；而接口缺字段被 TS 静默丢弃时
+  // 徽标断言会立即变红。
+  test('falls back to /query index hits with a remote badge when local search misses', async ({ page }) => {
+    await setupPluginPage(page);
+    // 模拟 slim 显示层：全部 label 换成与 'adapters' 无交集的名字（真实大仓形态）。
+    await page.evaluate(() => {
+      const store = (window as unknown as { __graphStore?: { setState: (p: Partial<{ rawNodes: unknown[] }>, replace?: boolean) => void } }).__graphStore;
+      if (!store) throw new Error('__graphStore missing — dev-server must set localStorage.__cg_debug=1');
+      const raw = (store.getState?.() ?? (store as unknown as { getState: () => { rawNodes: Array<Record<string, unknown>> } }).getState()).rawNodes as Array<Record<string, unknown>>;
+      store.setState({ rawNodes: raw.map((n) => ({ ...n, label: `zzz_${String(n.id)}` })) });
+    });
+    await clickSearchButton(page);
+    await page.locator(SEARCH.input).fill('adapters');
+    // 防抖 200ms + 请求往返：桩 /query 的 filePath 维度命中 4 项
+    // （n3/n4 符号 + m3/m4 模块，filePath 均为 src/adapters/*）。
+    await expect(page.locator(SEARCH.resultItem)).toHaveCount(4, { timeout: TIMEOUTS.ACTION });
+    // 徽标出现在每个 remote 项上。
+    await expect(page.locator(SEARCH.remoteBadge)).toHaveCount(4);
+  });
 });
 
 test.describe('J4: 调用链追踪', () => {

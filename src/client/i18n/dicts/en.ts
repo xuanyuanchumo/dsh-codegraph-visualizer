@@ -70,6 +70,7 @@ export const en: Record<string, string> = {
   'search.placeholder': 'Search symbols…',
   'search.close': 'Close search',
   'search.noMatch': 'No matching symbols',
+  'search.remoteHit': 'index hit',
   'search.match': '{n} match',
   'search.matches': '{n} matches',
   'search.debounced': 'debounced 200ms',

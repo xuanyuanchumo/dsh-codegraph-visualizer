@@ -338,7 +338,7 @@ describe('registerRoutes', () => {
       // registryContract.test.ts 守卫，这里只钉「字段存在且四面计数齐全」。
       registry: expect.objectContaining({
         total: expect.any(Number),
-        byFace: expect.objectContaining({ tools: 11, routes: 21, entries: 4, skill: 1 }),
+        byFace: expect.objectContaining({ tools: 12, routes: 21, entries: 4, skill: 1 }),
         brokenLinks: [],
       }),
     });

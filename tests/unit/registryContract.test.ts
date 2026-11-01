@@ -55,7 +55,8 @@ describe('business registry contract', () => {
     for (const face of ['tools', 'routes', 'entries', 'skill']) {
       expect(entries.some((e) => e.face === face), face).toBe(true);
     }
-    expect(TOOL_ENTRIES.length).toBe(11);
+    // cycle-132：+graph_integrity（璇玑图白盒可观测工具）。
+    expect(TOOL_ENTRIES.length).toBe(12);
     expect(ROUTE_ENTRIES.length).toBe(21);
     expect(ENTRY_ITEMS.length).toBe(4);
     expect(SKILL_ENTRIES.length).toBe(1);

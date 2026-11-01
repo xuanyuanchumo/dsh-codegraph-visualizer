@@ -664,3 +664,96 @@ describe('XuanjiAdapter.registerRule 校验闸门（XJ-05）', () => {
     expect(adapter.findPathsBetween('a', 'c').total).toBe(1);
   });
 });
+
+describe('integrity() 图完整性报告（cycle-132 / D-06 + D-10 剩余半边清偿）', () => {
+  it('未装载时 loaded:false（诚实空态，区别于「空图」）', () => {
+    const adapter = new XuanjiAdapter();
+    const report = adapter.integrity();
+    expect(report.loaded).toBe(false);
+    expect(report.graph).toEqual({ nodes: 0, edges: 0, version: 0 });
+    expect(report.rules).toEqual([]);
+    // 「没装载」不冒充「休眠」：incrementalIdle 的定义是 loaded && 零注册规则。
+    expect(report.incrementalIdle).toBe(false);
+  });
+
+  it('已装载：图规模与版本如实上报，休眠态显式披露（零注册规则）', () => {
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(graphData([node('a'), node('b')], [edge('a', 'b', 'import')]));
+    const report = adapter.integrity();
+    expect(report.loaded).toBe(true);
+    // version 逐变更事件递增：2 个 add-node + 1 个 add-edge = 3。
+    expect(report.graph).toEqual({ nodes: 2, edges: 1, version: 3 });
+    // 生产枚举用一次性内联索引，注册面恒空 ⇒ 休眠。这是白盒事实，不是健康告警。
+    expect(report.rules).toEqual([]);
+    expect(report.incrementalIdle).toBe(true);
+  });
+
+  it('只读调用 drained 恒 null，pending 如实（只读水位优先，不排水）', () => {
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(graphData([node('a'), node('b')], [edge('a', 'b', 'import')]));
+    const report = adapter.integrity();
+    expect(report.changeLog.drained).toBeNull();
+    // 装载记录了 2 个 add-node + 1 个 add-edge = 3 条未消费事件。
+    expect(report.changeLog.pending).toBe(3);
+    expect(report.changeLog.dropped).toBe(0);
+  });
+
+  it('drainChanges:true 显式排水：drained 非空、事件被消费、dropped 累计不清零', () => {
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(graphData([node('a'), node('b')], [edge('a', 'b', 'import')]));
+    const first = adapter.integrity({ drainChanges: true });
+    expect(first.changeLog.drained).toBe(3);
+    // 排水后水位归零（本次调用读到的就是排水后的终态）。
+    expect(first.changeLog.pending).toBe(0);
+    // 第二次排水 drained:0——不是 null（「排了 0 条」与「没排」必须可区分）。
+    const second = adapter.integrity({ drainChanges: true });
+    expect(second.changeLog.drained).toBe(0);
+    // dropped 只因上界覆盖而增长，drain 不清零它（graph-space.ts 契约）。
+    expect(second.changeLog.dropped).toBe(0);
+  });
+
+  it('dropped 计数：超过 MAX_CHANGE_LOG 的最旧事件被覆盖且可观测', () => {
+    const adapter = new XuanjiAdapter();
+    // MAX_CHANGE_LOG=10_000：造 10_001 条 add-node 事件，最旧一条被覆盖。
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 10_001; i++) nodes.push(node(`n${i}`));
+    adapter.loadGraph(graphData(nodes, []));
+    const report = adapter.integrity();
+    expect(report.changeLog.dropped).toBe(1);
+    expect(report.changeLog.pending).toBe(10_000);
+  });
+
+  it('注册规则后逐规则计数如实（休眠解除；物化走 applyDelta 增量通道）', () => {
+    const adapter = new XuanjiAdapter();
+    adapter.loadGraph(graphData([node('a'), node('b'), node('c')], [edge('a', 'b'), edge('b', 'c')]));
+    const rule: PathRule = {
+      name: 'walk',
+      version: 1,
+      start: () => true,
+      edgeTypes: new Set(['call' as const]),
+      lMin: 1,
+      lMax: 3,
+      simple: true,
+      normalize: 'none',
+      output: (nodes) => nodes,
+    };
+    const registration = adapter.registerRule(rule);
+    expect(registration.index).not.toBeNull();
+    // registerRule 建的是**惰性空索引**（与 RuleRegistry 语义一致）：物化只发生在
+    // 增量通道（onEdgeAdded / onEdgeRemovedDetailed）——这正是「休眠态」的机理。
+    expect(adapter.integrity().rules[0]!.counters.total).toBe(0);
+    // 一条真实 delta（新增节点 d 与边 c→d）：经过 c→d 的合法路径 = [c,d] / [b,c,d] /
+    // [a,b,c,d]（旧图反向前缀 × 正向后缀，全部 simple）⇒ 3 条物化。
+    const delta = emptyDelta();
+    delta.addedNodes.push(node('d'));
+    delta.addedEdges.push(edge('c', 'd'));
+    const applied = adapter.applyDelta(delta);
+    expect(applied.degradedRules).toEqual([]);
+    const report = adapter.integrity();
+    expect(report.incrementalIdle).toBe(false);
+    expect(report.rules).toHaveLength(1);
+    expect(report.rules[0]!.name).toBe('walk');
+    expect(report.rules[0]!.counters.total).toBe(3);
+    expect(report.rules[0]!.counters.stale).toBe(0);
+  });
+});

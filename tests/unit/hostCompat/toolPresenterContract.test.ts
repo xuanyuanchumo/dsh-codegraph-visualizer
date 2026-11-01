@@ -73,6 +73,8 @@ const REGISTERED_TOOL_NAMES = Object.freeze([
   'graph_health',
   'graph_rules_check',
   'graph_focus',
+  'graph_query',
+  'graph_integrity',
 ]);
 
 /** 每个工具的**合法**参数样本：必须满足 `required: true` 的每一项且类型正确。 */
@@ -88,6 +90,7 @@ const VALID_ARGS: Record<string, Record<string, unknown>> = Object.freeze({
   graph_rules_check: { repoId: 'repo-1' },
   graph_focus: { repoId: 'repo-1', symbolId: 'sym-1' },
   graph_query: { repoId: 'repo-1', query: 'alpha' },
+  graph_integrity: { repoId: 'repo-1' },
 });
 
 type MockCtx = Context & {

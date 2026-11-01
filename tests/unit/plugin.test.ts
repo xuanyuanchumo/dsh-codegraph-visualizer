@@ -191,11 +191,12 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 11 tools and 6 event listeners', async () => {
+  it('should register 12 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     await apply(ctx);
-    expect(ctx.tools.register).toHaveBeenCalledTimes(11);
+    // cycle-132：+graph_integrity（璇玑图白盒可观测）。
+    expect(ctx.tools.register).toHaveBeenCalledTimes(12);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/scanned', expect.any(Function));
@@ -234,9 +235,12 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     // cycle-107 的死工具（工厂返回了、入口没解构，/tools 里永远看不到）。
     expect(registeredNames).toContain('graph_query');
     expect(returnedNames).toContain('graph_query');
-    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 11」，
+    // cycle-132：graph_integrity 同样两侧都必须出现（白盒可观测工具）。
+    expect(registeredNames).toContain('graph_integrity');
+    expect(returnedNames).toContain('graph_integrity');
+    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 12」，
     // 否则「工厂和入口同时漏掉同一个工具」仍然满足集合相等。
-    expect(registeredNames).toHaveLength(11);
+    expect(registeredNames).toHaveLength(12);
   });
 
 

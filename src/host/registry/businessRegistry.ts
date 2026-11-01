@@ -42,6 +42,7 @@ export const TOOL_ENTRIES: RegistryEntry[] = [
   { id: 'graph_rules_check', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '规则引擎违规清单', consumers: ['LLM 会话', 'tests/unit/tools.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
   { id: 'graph_focus', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '邻域聚焦子图', consumers: ['LLM 会话', 'tests/unit/tools.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
   { id: 'graph_query', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '关键词图检索（璇玑图 top-k）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/keywordQueryApi.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
+  { id: 'graph_integrity', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '璇玑图白盒体检（变更日志水位 / 逐规则索引计数 / 休眠态披露）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/xuanjiAdapter.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
 ];
 
 /** HTTP 路由（19 条）——tree-sitter/health 的消费面是测试与 E2E（外部消费）。 */

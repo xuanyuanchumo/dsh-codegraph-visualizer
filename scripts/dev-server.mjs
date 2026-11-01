@@ -1132,7 +1132,10 @@ async function handleApi(req, res, url) {
       return;
     }
     const terms = q.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
-    const seedNodes = API_GRAPH.nodes.filter((n) => terms.some((t) => n.label.toLowerCase().includes(t)));
+    // cycle-132：补 filePath 弱匹配（真实宿主 selectSeeds 的 SCORE_PATH 维度，见
+    // keyword-query.ts:153-157）。桩此前只匹配 label，使「本地显示层未命中 + 索引命中」
+    // 的搜索回退链路在 E2E 里不可达——徽标用例只能靠假数据形态。
+    const seedNodes = API_GRAPH.nodes.filter((n) => terms.some((t) => n.label.toLowerCase().includes(t) || n.filePath.toLowerCase().includes(t)));
     const seedIds = new Set(seedNodes.map((n) => n.id));
     // 有界 BFS（深度用请求值，桩不钳制到 3：客户端只关心"参数被正确发送"）。
     let frontier = new Set(seedIds);

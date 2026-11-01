@@ -976,6 +976,67 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
+  // cycle-132 / D-06 + D-10 剩余半边：璇玑图白盒可观测工具。语义契约见
+  // GraphIntegrityReport 头注三条设计决定（只读水位优先 / 不跑覆盖型不变量 /
+  // 休眠态显式披露）。未装载时返回诚实空态而不是编造零值健康。
+  const graphIntegrity = defineTool({
+    name: 'graph_integrity',
+    description: 'White-box integrity report of the Xuanji graph layer: change-log watermark (pending/dropped, with optional explicit drain), per-rule index health counters, and whether the incremental pipeline is dormant (loaded but zero registered rules).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      drainChanges: {
+        type: 'boolean',
+        description: "Explicitly drain the change log in this call (events are consumed, not just counted). Default: false — read-only watermark, because a report that silently empties the log trades a memory issue for a data-loss issue.",
+      },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as
+          | { loaded?: boolean; graph?: { nodes: number; edges: number; version: number }; changeLog?: { pending: number; dropped: number; drained: number | null }; rules?: ReadonlyArray<{ name: string; counters: { total: number; stale: number } }>; incrementalIdle?: boolean }
+          | null;
+        if (!v || v.loaded !== true) {
+          return [{ type: 'text' as const, text: TOOL_MESSAGES.INSUFFICIENT_DATA?.en ?? 'Graph layer not loaded for this repo yet' }];
+        }
+        const g = v.graph ?? { nodes: 0, edges: 0, version: 0 };
+        const c = v.changeLog ?? { pending: 0, dropped: 0, drained: null };
+        const drainNote = c.drained === null ? '' : ` drained=${String(c.drained)}`;
+        const ruleLines = (v.rules ?? []).map((r) => `    ${r.name}: total=${String(r.counters.total)} stale=${String(r.counters.stale)}`);
+        const lines = [
+          `Graph integrity: nodes=${String(g.nodes)} edges=${String(g.edges)} version=${String(g.version)}`,
+          `  changeLog: pending=${String(c.pending)} dropped=${String(c.dropped)}${drainNote}`,
+          ...(v.incrementalIdle ? ['  incremental pipeline: dormant (loaded, zero registered rules — enumerations use one-shot inline indexes)'] : []),
+          ...(ruleLines.length > 0 ? ['  rules:'] : []),
+          ...ruleLines,
+        ];
+        return [{ type: 'text' as const, text: lines.join('\n') }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { repoId: string };
+      return { card: 'generic' as const, title: 'Check graph integrity', kind: 'other' as const, rawInput: { repoId: a.repoId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Integrity check failed' : 'Graph integrity',
+    }),
+    execute: async (args) => {
+      const a = args as { repoId: string; drainChanges?: boolean };
+      // 与其余读法工具同链路：先同步到该仓库的最新图状态（syncGraph 内部按结构等价
+      // 判定 'none'/'delta'/'full'），再报白盒水位——否则报告的是陈旧图上的健康度。
+      // 同步失败（上游不可达）不抛错：integrity 报告的是适配层当前状态，loaded 字段
+      // 会如实反映「从未装载」。
+      try {
+        const data = await fetchMergedGraph(invoke, a.repoId);
+        xuanjiPool.get(a.repoId).syncGraph(data);
+      } catch (err) {
+        log.warn('graph_integrity: graph sync failed, reporting last known state', { repoId: a.repoId, error: err });
+      }
+      const adapter = xuanjiPool.get(a.repoId);
+      return toJsonValue(adapter.integrity(a.drainChanges === true ? { drainChanges: true } : {}));
+    },
+  });
+
   return {
     graphStatus,
     graphData,
@@ -988,6 +1049,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     graphRulesCheck,
     graphFocus,
     graphQuery,
+    graphIntegrity,
     dispose: () => {
       xuanjiPool.dispose();
       graphCache.clear();

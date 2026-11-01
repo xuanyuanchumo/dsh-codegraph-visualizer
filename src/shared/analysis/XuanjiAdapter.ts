@@ -153,6 +153,50 @@ export interface PoolDeltaResult extends DeltaApplicationResult {
   readonly applied: boolean;
 }
 
+/** 逐规则索引健康快照（integrity 报告的一行）。 */
+export interface RuleIndexHealth {
+  readonly name: string;
+  /** PathIndex 的 O(1) 计数器（total 含 stale，与 I4 口径同源）。 */
+  readonly counters: { total: number; stale: number };
+}
+
+/**
+ * 图完整性报告（璇玑图白盒可观测层，cycle-132 / D-06 + D-10 剩余半边清偿）。
+ *
+ * ## 三条设计决定（每条都是取舍，不是缺省）
+ *
+ * 1. **只读水位优先，排水显式开启**。`drainChanges: true` 才调 `drainChangeLog()`——
+ *    「报告顺手清空日志」会把内存问题换成数据丢失问题（仓库对这对代价的经典裁决，
+ *    见 `graph-space.ts` 头注 N-1）：默认只读时调用方拿到 pending/dropped 水位，
+ *    真正的消费方（增量重放 / 审计）显式排水并自己拿走事件。
+ * 2. **不跑 I1/I2**。它们是「覆盖型」不变量（每类边/每种角色至少出现在一条物化路径），
+ *    而生产枚举带 `maxPaths` 截断——截断索引上跑 I1/I2 会把「少枚举了」误报成
+ *    「索引坏了」（伪违规）。只跑无歧义的计数面（I4 已在 applyDelta 内线），
+ *    覆盖型检查保留给测试 oracle。
+ * 3. **休眠态必须显式说出**。生产路径（graph_path_enumerate / graph_cycles）用一次性
+ *    内联索引，`rules` 注册面恒空 ⇒ 增量管道处于「正确但休眠」状态。报告里的
+ *    `incrementalIdle: true` 就是这个事实的白盒化——而不是让空数组冒充「一切健康」
+ *    （本仓库反复出现的「空集冒充全绿」形态）。
+ */
+export interface GraphIntegrityReport {
+  /** 图空间是否装载过（未装载时其余字段全是零值，调用方以此区分「空图」与「没装载」）。 */
+  readonly loaded: boolean;
+  readonly graph: { nodes: number; edges: number; version: number };
+  /**
+   * 变更日志水位：`pending` = 未消费事件数（≤ MAX_CHANGE_LOG）；`dropped` = 因上界被
+   * 覆盖的最旧事件累计数（drain 不清零）；`drained` = 本次调用排走的条数，
+   * **仅在 `drainChanges: true` 时非 null**（只读调用恒 null，与「没排」区分）。
+   */
+  readonly changeLog: { pending: number; dropped: number; drained: number | null };
+  /** 已注册规则的健康行（注册序）。生产休眠态下为空数组。 */
+  readonly rules: readonly RuleIndexHealth[];
+  /**
+   * 增量管道是否休眠（已装载但零注册规则 ⇒ 索引全部一次性、无增量维护面）。
+   * `loaded: false` 时恒 false——「没装载」不冒充「休眠」。
+   */
+  readonly incrementalIdle: boolean;
+}
+
 /**
  * 本轮 `applyDelta` 跑到的 I4 不变量结论（XJ-04 第 3 步 / D-10）。
  *
@@ -710,6 +754,45 @@ export class XuanjiAdapter {
 
   stats(): { nodes: number; edges: number; version: number } {
     return { nodes: this.space.nodeCount, edges: this.space.edgeCount, version: this.space.version };
+  }
+
+  /**
+   * 图完整性报告（D-06 清偿：`drainChangeLog` 的**显式**生产消费点；D-10 剩余半边：
+   * 注册面/计数器/日志水位统一白盒面）。语义契约见 {@link GraphIntegrityReport} 头注
+   * 的三条设计决定。
+   */
+  integrity(options: { drainChanges?: boolean } = {}): GraphIntegrityReport {
+    const rules = [...this.indexes.entries()].map(([name, index]) => ({
+      name,
+      counters: { total: index.counters.total, stale: index.counters.stale },
+    }));
+    const incrementalIdle = this.loaded && this.indexes.size === 0;
+    if (options.drainChanges === true) {
+      // 排水在快照之后：先读水位（pending 是排水前的口径），再取走事件。
+      const drained = this.space.drainChangeLog();
+      return {
+        loaded: this.loaded,
+        graph: { nodes: this.space.nodeCount, edges: this.space.edgeCount, version: this.space.version },
+        changeLog: {
+          pending: 0,
+          dropped: this.space.droppedChangeEvents,
+          drained: drained.length,
+        },
+        rules,
+        incrementalIdle,
+      };
+    }
+    return {
+      loaded: this.loaded,
+      graph: { nodes: this.space.nodeCount, edges: this.space.edgeCount, version: this.space.version },
+      changeLog: {
+        pending: this.space.pendingChangeEvents,
+        dropped: this.space.droppedChangeEvents,
+        drained: null,
+      },
+      rules,
+      incrementalIdle,
+    };
   }
 
   /**

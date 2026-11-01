@@ -957,6 +957,17 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   white-space: nowrap;
 }
 
+/* cycle-132：「索引命中」徽标——该条来自 /query 远程索引回退（本地显示层未命中）。 */
+.cg-search-remote-badge {
+  font-size: 10px;
+  color: var(--cg-accent);
+  border: 1px solid var(--cg-accent);
+  border-radius: var(--cg-radius-sm);
+  padding: 1px 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .cg-search-result-path {
   font-size: 11px;
   color: var(--cg-text-tertiary);

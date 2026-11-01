@@ -7,6 +7,12 @@ export interface SearchResultItem {
   label: string;
   type: string;
   filePath: string;
+  /**
+   * cycle-132：`true` 表示该条来自 `/query` 远程索引回退（本地显示层未命中）。
+   * 此前 useSearchInteraction 写入了这个字段而接口没有声明——TS 结构化类型把
+   * 多余属性静默丢弃，渲染层永远读不到，「索引命中」徽标因此从未出现过。
+   */
+  remote?: boolean;
 }
 
 interface SearchBarProps {
@@ -122,6 +128,9 @@ export const SearchBar = memo(function SearchBar({ query, matchCount, searchResu
             >
               <span className="cg-search-result-type">{item.type}</span>
               <span className="cg-search-result-label">{item.label}</span>
+              {item.remote === true && (
+                <span className="cg-search-remote-badge">{t('search.remoteHit')}</span>
+              )}
               <span className="cg-search-result-path">{item.filePath}</span>
             </li>
           ))}

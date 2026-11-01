@@ -70,6 +70,7 @@ export const zh: Record<string, string> = {
   'search.placeholder': '搜索符号…',
   'search.close': '关闭搜索',
   'search.noMatch': '无匹配符号',
+  'search.remoteHit': '索引命中',
   'search.match': '{n} 个匹配',
   'search.matches': '{n} 个匹配',
   'search.debounced': '防抖 200ms',

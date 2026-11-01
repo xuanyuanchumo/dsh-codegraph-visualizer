@@ -97,3 +97,53 @@ describe('SearchBar (FR-07) component', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
+
+describe('SearchBar 「索引命中」徽标（cycle-132）', () => {
+  const localItem = { id: 'n1', label: 'GraphPanel', type: 'function', filePath: 'src/GraphPanel.tsx' };
+  const remoteItem = { id: 'r1', label: 'skillClosure', type: 'function', filePath: 'lib/skill.ts', remote: true };
+
+  it('remote:true 的结果项渲染「索引命中」徽标', () => {
+    render(<SearchBar query="skill" matchCount={0} searchResults={[remoteItem]} onChange={noop} onClose={noop} onSelectResult={noop} />);
+    const badge = document.querySelector('.cg-search-remote-badge');
+    expect(badge).not.toBeNull();
+    // 文案必须来自 i18n（zh 词典），不是硬编码英文字符串。
+    expect(badge!.textContent).toBe('索引命中');
+  });
+
+  it('本地结果项不渲染徽标（remote 缺省/undefined 均不命中）', () => {
+    render(<SearchBar query="graph" matchCount={1} searchResults={[localItem]} onChange={noop} onClose={noop} onSelectResult={noop} />);
+    expect(document.querySelector('.cg-search-remote-badge')).toBeNull();
+  });
+
+  it('remote:false（显式 false）与 undefined 同样不渲染徽标', () => {
+    render(
+      <SearchBar
+        query="mix"
+        matchCount={2}
+        searchResults={[{ ...localItem, remote: false }, remoteItem]}
+        onChange={noop}
+        onClose={noop}
+        onSelectResult={noop}
+      />,
+    );
+    const badges = document.querySelectorAll('.cg-search-remote-badge');
+    expect(badges.length).toBe(1);
+  });
+
+  it('混合列表：徽标只出现在 remote 项上（位置可区分）', () => {
+    render(
+      <SearchBar
+        query="mix"
+        matchCount={2}
+        searchResults={[localItem, remoteItem]}
+        onChange={noop}
+        onClose={noop}
+        onSelectResult={noop}
+      />,
+    );
+    const options = screen.getAllByRole('option');
+    expect(options.length).toBe(2);
+    expect(options[0]!.querySelector('.cg-search-remote-badge')).toBeNull();
+    expect(options[1]!.querySelector('.cg-search-remote-badge')).not.toBeNull();
+  });
+});

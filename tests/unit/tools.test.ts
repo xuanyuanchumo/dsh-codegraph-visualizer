@@ -332,7 +332,7 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 11 tools with correct names', async () => {
+  it('should create 12 tools with correct names', async () => {
     const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
@@ -346,8 +346,57 @@ describe('createGraphTools', () => {
     expect(tools.graphFocus.name).toBe('graph_focus');
     // GF-P0-2：关键词查询工具（graphify P0-2）
     expect(tools.graphQuery.name).toBe('graph_query');
+    // cycle-132：璇玑图白盒可观测工具（D-06 / D-10 剩余半边清偿）
+    expect(tools.graphIntegrity.name).toBe('graph_integrity');
     // 数量也要钉住：只断言「每个名字对」时，漏掉一个工具不会有任何断言变红。
-    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(11);
+    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(12);
+  });
+
+  // ── graph_integrity ──────────────────────────────────────────────────
+
+  it('graph_integrity 上游沉默时同步得到空图：loaded:true + 零规模 + 休眠（诚实态）', async () => {
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphIntegrity.execute({ repoId: 'w1' }, mockExec)) as {
+      loaded: boolean;
+      graph: { nodes: number; edges: number; version: number };
+      incrementalIdle: boolean;
+      changeLog: { pending: number; dropped: number; drained: number | null };
+      rules: unknown[];
+    };
+    // execute 与其余工具同链路：先 fetchMergedGraph（上游全 null ⇒ 空图）再 syncGraph。
+    // 「已装载、图为空」与「从未装载」（loaded:false，适配器级测试覆盖）是两个事实，
+    // 报告必须能区分它们。
+    expect(result.loaded).toBe(true);
+    expect(result.graph).toEqual({ nodes: 0, edges: 0, version: 0 });
+    expect(result.incrementalIdle).toBe(true);
+    expect(result.rules).toEqual([]);
+    // 默认只读：drained 恒 null（排水必须显式）。
+    expect(result.changeLog.drained).toBeNull();
+  });
+
+  it('graph_integrity 已装载后报告图规模与休眠态（经 fetchMergedGraph 同链路）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'a', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'b', type: 'function', filePath: 'b.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphIntegrity.execute({ repoId: 'w1' }, mockExec)) as {
+      loaded: boolean;
+      graph: { nodes: number; edges: number };
+      incrementalIdle: boolean;
+      changeLog: { drained: number | null };
+    };
+    expect(result.loaded).toBe(true);
+    // version 逐变更事件递增：2 节点 + 1 边 = 3。
+    expect(result.graph).toEqual({ nodes: 2, edges: 1, version: 3 });
+    expect(result.incrementalIdle).toBe(true);
+    // 默认只读：drained 恒 null（排水必须显式）。
+    expect(result.changeLog.drained).toBeNull();
   });
 
   // ── graph_status ─────────────────────────────────────────────────────
@@ -1599,6 +1648,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphRulesCheck: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 },
   graphFocus: { repoId: 'repo-1', symbolId: 'sym-1' },
   graphQuery: { repoId: 'repo-1', query: 'graphStore' },
+  graphIntegrity: { repoId: 'repo-1' },
 };
 
 const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawInput: unknown }> = [
@@ -1613,6 +1663,7 @@ const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawI
   { key: 'graphRulesCheck', title: 'Check architecture rules', kind: 'other', rawInput: { repoId: 'repo-1', maxIndegree: 7, maxOutdegree: 9 } },
   { key: 'graphFocus', title: 'Focus on symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
   { key: 'graphQuery', title: 'Query graph', kind: 'search', rawInput: { repoId: 'repo-1', query: 'graphStore' } },
+  { key: 'graphIntegrity', title: 'Check graph integrity', kind: 'other', rawInput: { repoId: 'repo-1' } },
 ];
 
 const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = [
@@ -1627,6 +1678,7 @@ const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = 
   { key: 'graphRulesCheck', ok: 'Rules checked', fail: 'Rules check failed' },
   { key: 'graphFocus', ok: 'Symbol neighborhood', fail: 'Focus failed' },
   { key: 'graphQuery', ok: 'Graph query result', fail: 'Graph query failed' },
+  { key: 'graphIntegrity', ok: 'Graph integrity', fail: 'Integrity check failed' },
 ];
 
 describe('createGraphTools presentation callbacks', () => {

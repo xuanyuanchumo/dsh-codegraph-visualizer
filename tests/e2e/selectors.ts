@@ -152,6 +152,8 @@ export const SEARCH = {
   closeBtn: '.cg-search-close-btn',
   resultItem: '.cg-search-result-item',
   results: '.cg-search-results',
+  /** cycle-132：「索引命中」徽标（SearchBar 对 remote===true 项渲染）。 */
+  remoteBadge: '.cg-search-remote-badge',
 } as const;
 
 /**
