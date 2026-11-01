@@ -504,6 +504,24 @@ const DEAD_SYMBOL_EXEMPTIONS: readonly ReachabilityExemption[] = Object.freeze(
         owner: 'D-15',
       },
       {
+        symbol: 'edgeTypesBetween',
+        reason:
+          'cycle-134 库内自用：compilePathRule 的 pathConstraint 内部用它把节点对解析成并列标签；宿主不解析边类型，只传 ρ 文本（与 edgeKey/edgePairKey 同族）',
+        owner: 'library-internal',
+      },
+      {
+        symbol: 'PathPatternRuleOptions',
+        reason:
+          'cycle-134 ρ 编译器的选项类型：适配层 pathsByPattern 直接以内联对象字面量调用 compilePathRule，未显式 import 类型名（与 EdgeRemovalOptions 同族）',
+        owner: 'library-internal',
+      },
+      {
+        symbol: 'PatternNode',
+        reason:
+          'cycle-134 ρ 语法树类型：只在 path-pattern.ts 内部由 parser 产出、由 compiler 消费；宿主只用文本形式（graph_path_pattern 的 pattern 参数），不构造语法树',
+        owner: 'library-internal',
+      },
+      {
         symbol: 'concatRules',
         reason: 'D-07 组合代数：宿主无规则组合需求（规范 §六 已判定「不引入」）；cycle-108 只修了正确性',
         owner: 'D-07',

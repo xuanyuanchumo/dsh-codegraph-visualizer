@@ -24,6 +24,15 @@
 export * from './core/graph-space.ts';
 export * from './core/path-rule.ts';
 export * from './core/path-entry.ts';
+// 路径模式 ρ（cycle-134）：边类型序列正则 → PathRule 的唯一编译入口。
+// 放在 core 一层而不是 query：它只依赖 graph-space / path-rule，不依赖索引或
+// 枚举引擎，因此规则层可以独立演进；枚举仍由 query-engine 负责，两者不互相反灌。
+//
+// 与已删除的 `core/nfa.ts`（见上）的区别必须说清，否则会看起来像把它加回来了：
+// 那个模块只有 `states = lMax - lMin + 1` 一个减法且零生产调用点；本模块的 NFA
+// 是**由 ρ 文本编译出的、规模与正则同阶的一次性判定器**，由 `compilePathRule`
+// 翻译成 `pathConstraint` 供枚举引擎终判——它不是索引结构，不做乘积，不进哈希表。
+export * from './core/path-pattern.ts';
 
 // ops
 export * from './ops/booth.ts';

@@ -235,12 +235,20 @@ describe('XJ-08 墓碑：core/nfa.ts 已移除，两条守卫分别挡两种复�
     const files = readdirSync(CORE_DIR)
       .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
       .sort();
-    expect(files).toEqual(['graph-space.ts', 'path-entry.ts', 'path-rule.ts']);
+    // `path-pattern.ts` 是 cycle-134 的有意新增（路径模式 ρ）。它与已删除的
+    // `nfa.ts` 不是同一件事：那个模块只有 `states = lMax - lMin + 1` 一个减法且
+    // 零生产调用点；本模块是 ρ 文本 → NFA → PathRule 的编译器，由 `graph_path_pattern`
+    // 工具与 `XuanjiAdapter` 生产使用（可达性守卫另有专测）。
+    // 清单必须逐字列出：清单相等是本测试存在的意义（`not.toContain` 抓不到新增）。
+    expect(files).toEqual(['graph-space.ts', 'path-entry.ts', 'path-pattern.ts', 'path-rule.ts']);
   });
 
   it('反向自检：清单断言真的会因多一个文件而红（否则上面的清单相等是空转）', () => {
     // 不碰真实目录：把同一个比较逻辑喂给一个含 nfa.ts 的合成清单，必须先失败。
-    const synthetic = ['graph-space.ts', 'nfa.ts', 'path-entry.ts', 'path-rule.ts'];
-    expect(synthetic).not.toEqual(['graph-space.ts', 'path-entry.ts', 'path-rule.ts']);
+    const expected = ['graph-space.ts', 'path-entry.ts', 'path-pattern.ts', 'path-rule.ts'];
+    const synthetic = ['graph-space.ts', 'nfa.ts', 'path-entry.ts', 'path-pattern.ts', 'path-rule.ts'];
+    expect(synthetic).not.toEqual(expected);
+    // 第二个方向：少了 path-pattern.ts 也必须红（防止有人把它从清单里删掉而清单「相等」）
+    expect(['graph-space.ts', 'path-entry.ts', 'path-rule.ts']).not.toEqual(expected);
   });
 });

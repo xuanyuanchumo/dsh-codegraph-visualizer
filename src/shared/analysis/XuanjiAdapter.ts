@@ -41,6 +41,13 @@ import {
   type InvariantThresholds,
 } from '../../xuanji/ops/invariants.ts';
 import { enumerate, readPathPage } from '../../xuanji/query/query-engine.ts';
+import {
+  compilePathPattern,
+  compilePathRule,
+  describePatternError,
+  parsePathPattern,
+  type CompiledPathPattern,
+} from '../../xuanji/core/path-pattern.ts';
 
 /** 允许的边类型（项目 `GraphEdge.type` 的取值域）。 */
 export type AdapterEdgeType = GraphEdge['type'];
@@ -109,6 +116,83 @@ export interface CycleEnumerationOptions {
   readonly cursor?: number;
   /** 每页条数（缺省等于 `limit`）。 */
   readonly pageSize?: number;
+}
+
+/**
+ * 路径模式 ρ 的枚举参数（cycle-134）。
+ *
+ * 与 {@link PathEnumerationOptions} 的关键区别：**没有 `edgeTypes`**。
+ * 边类型集合由 ρ 文本自身决定（`compilePathPattern` 分析得出），
+ * 让调用方另传一份只会产生「两份真源」——它们能不一致，且不一致时的语义
+ * 无法定义（是求交还是替换？）。要限制类型请直接改 ρ。
+ */
+export interface PatternEnumerationOptions {
+  /** 起点节点 id；限定后只从该点出发（**缩小起点**，不是过滤结果）。 */
+  readonly startNode?: string;
+  /** 终点节点 id；作为 ρ 之外的附加终点谓词。 */
+  readonly endNode?: string;
+  /** 显式起点集合（`startNode` 的批量版；两者同时给时 `startNode` 优先）。 */
+  readonly starts?: Iterable<string>;
+  /** 最少跳数；与 ρ 自身的长度下界取**交集**。 */
+  readonly minHops?: number;
+  /** 最多跳数；与 ρ 自身的长度上界取**交集**。缺省 8。 */
+  readonly maxHops?: number;
+  /** 最多返回多少条路径（分页语义同 `findPathsBetween`）。 */
+  readonly limit?: number;
+  readonly cursor?: number;
+  readonly pageSize?: number;
+  /** 是否要求简单路径；缺省 `true`。 */
+  readonly simple?: boolean;
+  /** 是否闭合（环形态的 ρ）。 */
+  readonly closed?: boolean;
+  /** 截断策略；语义同 {@link PathEnumerationOptions.truncation}。 */
+  readonly truncation?: 'dfs-order' | 'top-k-weight';
+}
+
+/** 路径模式枚举结果：在 {@link PathEnumerationResult} 之上补 ρ 的元信息。 */
+export interface PatternEnumerationResult extends PathEnumerationResult {
+  /** 回显原始 ρ（调用方可断言「我拿到的确实是这条模式的结果」）。 */
+  readonly pattern: string;
+  /** ρ 中出现的边类型（已排序；诊断用——说明「这条模式会走哪些关系」）。 */
+  readonly patternEdgeTypes: readonly string[];
+  /** 编译后的 NFA 状态数（预算/性能诊断用）。 */
+  readonly stateCount: number;
+}
+
+/**
+ * 把 ρ 语法错误渲染成人类/模型可读的诊断（带 `^` 位置指示）。
+ *
+ * 为什么在适配层而不是直接在工具层用 `describePatternError`：工具层拿到的
+ * 是适配器暴露的 `pathsByPattern`，它可能抛 `PathPatternError`。把「如何解释
+ * 这个错误」放在适配层，工具层就只需要 `catch` + 调用本函数，不必再 import
+ * 库内类型（保持工具层只依赖适配层公共面）。
+ */
+export function formatPatternError(pattern: string, error: unknown): string {
+  return describePatternError(pattern, error);
+}
+
+/**
+ * ρ 的**语法预检**：只解析不编译。
+ *
+ * 为什么单独暴露一个「只解析」的入口，而不是让调用方直接调 `compilePathPattern`：
+ * 编译要建 NFA（状态数与 `{n,m}` 的 m 线性相关，`call{1,50}` 会造 50 份拷贝）。
+ * 界面上的「模式输入框」需要在用户**每次按键**后判断合法性，那里必须付不起
+ * 编译成本——只解析是 O(|ρ|) 且无分配放大。
+ *
+ * @throws {PathPatternError} 语法错误
+ */
+export function checkPatternSyntax(pattern: string): { ok: true } | { ok: false; error: unknown } {
+  try {
+    parsePathPattern(pattern);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+/** 编译 ρ 并返回其静态分析（不枚举）。工具层用它先做「模式是否可用」的预检。 */
+export function inspectPathPattern(pattern: string): CompiledPathPattern {
+  return compilePathPattern(pattern);
 }
 
 /**
@@ -725,9 +809,135 @@ export class XuanjiAdapter {
     };
   }
 
+  /**
+   * 按**路径模式 ρ**（边类型序列正则）枚举路径——cycle-134 新增的读法。
+   *
+   * 与 {@link findPathsBetween} 的分工（这是本方法存在的唯一理由）：
+   * - `findPathsBetween` 的 `edgeTypes` 是**扁平集合**：「每一步可以走这些类型之一」。
+   *   它无法表达「第一步 call、第二步 import」这种**顺序**约束。
+   * - 本方法的 ρ 是**序列正则**：`call+ . import? . dependency` 这类跨视图路径
+   *   只有它能表达。研究方案 §4 把查询形式化为 `P = (v_s, ρ, v_t)`，
+   *   这是那个形式化第一次有真实实现。
+   *
+   * 实现上完全复用既有引擎（`compilePathRule` → `enumerate`），因此免费获得
+   * 分页游标、Booth 规范化去重、`maxPaths` 截断与 `top-k-weight` 排序。
+   *
+   * ## 错误处理：ρ 语法错误**抛错**而不是返回空结果
+   *
+   * 空结果与语法错误在返回面上必须可区分。若把 `PathPatternError` 吞成「零条路径」，
+   * 模型会以为「这个模式在这个仓库里没有匹配」——而真相是「模式写错了」。
+   * 这是本仓反复出现的「空集冒充结论」形态，故这里让错误上抛，由工具层
+   * 用 {@link formatPatternError} 渲染成带 `^` 指示的诊断。
+   *
+   * @param pattern ρ 文本（见 `path-pattern.ts` 的语法说明）
+   * @param options 起点/终点/跳数窗/分页
+   * @throws {PathPatternError} ρ 语法错误
+   */
+  pathsByPattern(pattern: string, options: PatternEnumerationOptions = {}): PatternEnumerationResult {
+    const compiled = compilePathPattern(pattern);
+    const starts = this.resolvePatternStarts(options);
+
+    /**
+     * ρ 里出现、但**当前图上一概不存在**的边类型 ⇒ 直接返回零结果。
+     *
+     * 为什么不是「裁剪掉缺失类型继续枚举」：裁剪会把 `call . deadtype` 静默
+     * 降级成 `call`，调用方拿到的路径**不满足它写的 ρ**——这是本仓最忌讳的
+     * 「静默近似」。为什么也不是「抛错」：ρ 语法本身合法，只是这张图上没有
+     * 那种关系，这是**合法的零结果**（与 `graph_cycles` 在没有环的图上返回空同族）。
+     *
+     * 两者必须在返回面上可区分：语法错 ⇒ 抛 `PathPatternError`（工具层渲染成
+     * 带 ^ 的诊断）；关系不存在 ⇒ 零结果 + `paths: []`。
+     *
+     * 这同时绕开 `assertRule` 的 Σ_R ⊆ Σ 静态校验（它按「边类型必须出现在图里」
+     * 判非法规则）——那个校验适用于 `findPathsBetween` 的手写 edgeTypes，
+     * 对本方法会把「合法的零结果」误判成「非法规则」。
+     */
+    const present = this.space.edgeTypes();
+    const absent = [...compiled.edgeTypes].filter((type) => !present.has(type));
+    if (absent.length > 0) {
+      return {
+        paths: [], truncated: false, total: 0, nextCursor: null,
+        pattern, patternEdgeTypes: [...compiled.edgeTypes].sort(), stateCount: compiled.stateCount,
+      };
+    }
+
+    // ρ 的长度区间与调用方窗口取交集后，若为空窗口则直接返回空（不必进枚举）。
+    const minHops = Math.max(0, options.minHops ?? 0);
+    const maxHops = Math.max(minHops, options.maxHops ?? 8);
+    if (compiled.maxEdges < minHops || compiled.minEdges > maxHops) {
+      return {
+        paths: [], truncated: false, total: 0, nextCursor: null,
+        pattern, patternEdgeTypes: [...compiled.edgeTypes].sort(), stateCount: compiled.stateCount,
+      };
+    }
+
+    const cursor = Math.max(0, Math.floor(options.cursor ?? 0));
+    const pageSize = Math.max(1, Math.floor(options.pageSize ?? options.limit ?? 20));
+
+    const rule = compilePathRule(pattern, {
+      name: `pattern:${pattern}`,
+      minHops,
+      maxHops,
+      simple: options.simple ?? true,
+      ...(options.closed === true ? { closed: true } : {}),
+      ...(options.startNode === undefined ? {} : { start: (id: string) => id === options.startNode }),
+      ...(options.endNode === undefined ? {} : { end: (id: string) => id === options.endNode }),
+      // 闭合 ρ 的规范化必须与 `cycles()` 一致（cycle-134 实测缺陷修复）。
+      //
+      // 缺陷形态：`closed: true` 但 `normalize` 走 `compilePathRule` 的缺省 `'none'`，
+      // 于是三节点环 `a→b→c→a` 会以**三个起点各报一次**（`[a,b,c,a]` / `[b,c,a,b]` /
+      // `[c,a,b,c]`）——同一首诗从不同字起读被当成三首。`cycles()` 传 `'canonical'`
+      // 所以只报一条。两者对「同一个环有几条」给出了不同答案，而这是**同一个库**。
+      //
+      // 只在闭合时改为 canonical：开放路径的 `normalize: 'none'` 是刻意的
+      // （`findPathsBetween` 也如此）——开放路径的「起点」有语义（从谁出发），
+      // 旋转等价不成立，规范化会改变结果集。
+      ...(options.closed === true ? { normalize: 'canonical' as const } : {}),
+    });
+
+    // 校验闸门：与 findPathsBetween 同源（不是另写一份校验）。
+    this.assertRule(rule);
+
+    const index = new PathIndex();
+    const entries = enumerate(this.space, rule, starts, index, {
+      maxPaths: cursor + pageSize + 1,
+      ...(options.truncation ? { truncation: options.truncation } : {}),
+    });
+    const truncated = entries.length > cursor + pageSize;
+    const page = readPathPage(rule, entries, { cursor, pageSize });
+    return {
+      paths: page.entries.map((entry) => [...entry.nodes]),
+      truncated,
+      total: page.entries.length,
+      labels: page.labels,
+      nextCursor: page.nextCursor,
+      pattern,
+      patternEdgeTypes: [...compiled.edgeTypes].sort(),
+      stateCount: compiled.stateCount,
+    };
+  }
+
+  /**
+   * ρ 枚举的起点集合。
+   *
+   * 缺省「全部节点」是**故意**的：ρ 本身已表达类型序列，起点常常未知
+   * （「哪些地方存在 call→import 这条链」）。指定 `startNode` 时只从该点出发
+   * ——注意这既缩小了搜索，也改变了语义（不是「过滤结果」而是「缩小起点」）。
+   */
+  private resolvePatternStarts(options: PatternEnumerationOptions): string[] {
+    if (options.startNode !== undefined) {
+      return this.space.hasNode(options.startNode) ? [options.startNode] : [];
+    }
+    // simple 且无界 ρ 时全节点枚举可能很贵；调用方用 `options.starts` 显式缩小
+    // （工具层默认传「前 N 个节点」以外的做法会静默改语义，故不设隐式上限）。
+    if (options.starts !== undefined) {
+      return [...options.starts].filter((id) => this.space.hasNode(id));
+    }
+    return [...this.space.nodeIds()];
+  }
+
   /** 从一批起点沿边类型可正向到达的节点集合（BFS，与 DeadCodeAnalyzer 语义一致）。 */
-  reachableFrom(sources: Iterable<string>, edgeTypes?: readonly AdapterEdgeType[]): Set<string> {
-    const types = new Set<AdapterEdgeType>(edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
+  reachableFrom(sources: Iterable<string>, edgeTypes?: readonly AdapterEdgeType[]): Set<string> {    const types = new Set<AdapterEdgeType>(edgeTypes ?? DEFAULT_PATH_EDGE_TYPES);
     const visited = new Set<string>();
     const queue: string[] = [];
     for (const source of sources) {
