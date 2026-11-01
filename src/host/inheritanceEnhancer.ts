@@ -258,3 +258,95 @@ function resolveAmbiguous(
 
 /** 保留 relative 导入（防 lint 未用告警的占位——目录消歧在歧义计数提升后启用）。 */
 void relative;
+
+/* ── 指纹键缓存层（cycle-125：增强下沉到 fetchMergedGraph 单一合并点）────── */
+
+/**
+ * 共享 TreeSitterAdapter（模块级单例：wasm 懒加载一次，全 host 复用）。
+ * null = 运行时不可用（永久降级）。
+ */
+let sharedAdapter: TreeSitterAdapter | null = null;
+let sharedAdapterPromise: Promise<TreeSitterAdapter | null> | null = null;
+
+export async function getSharedTreeSitterAdapter(): Promise<TreeSitterAdapter | null> {
+  if (sharedAdapter) return sharedAdapter;
+  if (!sharedAdapterPromise) {
+    sharedAdapterPromise = (async () => {
+      try {
+        const { TreeSitterAdapter: Impl } = await import('../adapters/TreeSitterAdapter.ts');
+        const a = new Impl();
+        await a.init();
+        if (!a.isAvailable()) return null;
+        sharedAdapter = a;
+        return a;
+      } catch (e) {
+        log.info('shared tree-sitter adapter unavailable', { error: String(e) });
+        return null;
+      }
+    })();
+  }
+  return sharedAdapterPromise;
+}
+
+interface CachedEnhancement {
+  fingerprint: string;
+  edges: GraphEdge[];
+  meta: InheritanceEnhancement;
+}
+
+/** 每仓库一条缓存（host 进程内单例；仓库数量级小，无需 LRU）。 */
+const enhancementCache = new Map<string, CachedEnhancement>();
+
+/** 测试注入点（默认走共享单例）。 */
+export async function enhanceInheritanceDataCached(
+  merged: GraphData,
+  workspacePath: string,
+  adapterOverride?: TreeSitterAdapterLike | null,
+): Promise<InheritanceEnhancement> {
+  const base: InheritanceEnhancement = {
+    applied: false, extracted: 0, added: 0, ambiguous: 0,
+    unresolved: 0, duplicates: 0, filesScanned: 0, durationMs: 0,
+  };
+  // 守卫 0：合并图里没有 class/interface 节点 ⇒ 跳过扫描（lens-only 路径省 4.6s）
+  const hasClasses = merged.nodes.some((n) => /^(class|interface):/.test(String(n.id)));
+  if (!hasClasses) return base;
+
+  // 守卫 1：指纹命中 ⇒ 复用缓存边（跳过 AST 扫描）。上游节点 id 是内容哈希
+  // （class:<hash>），指纹相同 ⇒ 内容相同 ⇒ id 相同 ⇒ 缓存边端点必然有效。
+  const { computeGraphFingerprint } = await import('../shared/graphFingerprint.ts');
+  const fingerprint = computeGraphFingerprint(merged);
+  const hit = enhancementCache.get(workspacePath);
+  if (hit && hit.fingerprint === fingerprint) {
+    const existingKeys = new Set(merged.edges.map((e) => `${e.type}|${e.source}|${e.target}`));
+    const fresh = hit.edges.filter((e) => !existingKeys.has(`${e.type}|${e.source}|${e.target}`));
+    if (fresh.length > 0) {
+      merged.edges = [...merged.edges, ...fresh];
+      merged.metadata = { ...merged.metadata, edgeCount: merged.edges.length };
+    }
+    const out = { ...hit.meta, applied: hit.edges.length > 0, added: fresh.length, durationMs: 0 };
+    merged.metadata = { ...merged.metadata, inheritance: out };
+    return out;
+  }
+
+  // 缓存未命中 ⇒ 全量增强（真实 AST 扫描）
+  const adapter = adapterOverride !== undefined ? adapterOverride : await getSharedTreeSitterAdapter();
+  const result = await enhanceInheritanceData(merged, workspacePath, adapter);
+  // 收集本轮注入的边（fingerprint 相同时复用，避免重复扫描）
+  const beforeKeys = new Set<string>();
+  const injected = merged.edges.filter((e) => {
+    const k = `${e.type}|${e.source}|${e.target}`;
+    if (beforeKeys.has(k)) return false;
+    beforeKeys.add(k);
+    return e.properties?.edgeOrigin === 'ast' && (e.type === 'extend' || e.type === 'implement') && result.applied;
+  });
+  enhancementCache.set(workspacePath, { fingerprint, edges: injected, meta: result });
+  merged.metadata = { ...merged.metadata, inheritance: result };
+  return result;
+}
+
+/** 测试与降级清理（宿主销毁时调用，防跨会话缓存泄漏）。 */
+export function resetInheritanceCache(): void {
+  enhancementCache.clear();
+  sharedAdapter = null;
+  sharedAdapterPromise = null;
+}

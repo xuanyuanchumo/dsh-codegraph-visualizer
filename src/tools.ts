@@ -88,36 +88,6 @@ export interface GraphToolDeps {
   codegraphAdapter: CodeGraphAdapter;
   lensAdapter: LensAdapter;
   merger: GraphDataMerger;
-  /**
-   * 继承数据增强器（cycle-123）：null = tree-sitter 运行时不可用（探测失败）。
-   * 懒构造——首次 graph_data 全量轮才 import（避免无谓的 wasm 加载）。
-   */
-  enhanceInheritance?: (merged: GraphData, workspacePath: string) => Promise<GraphData['metadata']['inheritance']>;
-}
-
-/** 继承增强器的懒构造缓存（deps 每次创建都新建，模块级缓存防重复 init wasm）。 */
-let inheritanceEnhancerPromise: Promise<GraphToolDeps['enhanceInheritance']> | null = null;
-
-async function buildInheritanceEnhancer(): Promise<GraphToolDeps['enhanceInheritance']> {
-  if (inheritanceEnhancerPromise) return inheritanceEnhancerPromise;
-  inheritanceEnhancerPromise = (async () => {
-    try {
-      const [{ TreeSitterAdapter }, { enhanceInheritanceData }] = await Promise.all([
-        import('./adapters/TreeSitterAdapter.ts'),
-        import('./host/inheritanceEnhancer.ts'),
-      ]);
-      const adapter = new TreeSitterAdapter();
-      await adapter.init();
-      if (!adapter.isAvailable()) return undefined;
-      return (merged: GraphData, workspacePath: string) =>
-        enhanceInheritanceData(merged, workspacePath, adapter);
-    } catch (e) {
-      // 运行时不可用（wasm 缺失等）⇒ 永久降级为 undefined（本次会话内不再重试）。
-      log.info('inheritance enhancer unavailable', { error: String(e) });
-      return undefined;
-    }
-  })();
-  return inheritanceEnhancerPromise;
 }
 
 export async function createGraphToolDeps(): Promise<GraphToolDeps> {
@@ -129,7 +99,6 @@ export async function createGraphToolDeps(): Promise<GraphToolDeps> {
     codegraphAdapter: new CGA(),
     lensAdapter: new LA(),
     merger: new GraphDataMerger(),
-    enhanceInheritance: await buildInheritanceEnhancer(),
   };
 }
 
@@ -163,6 +132,16 @@ export async function fetchMergedGraph(
   const merged = d.merger.merge(results, makeRepoId(repoId));
   if (source === 'auto' && merged.nodes.length === 0) {
     log.info('fetchMergedGraph: auto mode — external sources returned empty, built-in analysis always available');
+  }
+  // 继承数据增强（cycle-125 下沉）：在此单一合并点注入，watcher（客户端 /data 槽
+  // 填充）/ queryRoute / graph_data 工具三路自动受益——此前只接在 executeGraphData
+  // （模型工具）里，客户端继承视图永远看不到增强边（cycle-122 贯通家族的客户端断环）。
+  // 指纹键缓存：同指纹跳过 4.6s AST 扫描（enhanceInheritanceDataCached 内部管理）。
+  try {
+    const { enhanceInheritanceDataCached } = await import('./host/inheritanceEnhancer.ts');
+    await enhanceInheritanceDataCached(merged, repoId);
+  } catch (e) {
+    log.warn('inheritance enhancement failed in fetchMergedGraph', { error: String(e) });
   }
   return merged;
 }
@@ -256,19 +235,12 @@ export async function executeGraphData(
   }
   if (xuanjiSignal) merged = { ...merged, metadata: { ...merged.metadata, xuanji: xuanjiSignal } };
 
-  // 继承数据增强（cycle-123，研究报告 Phase 1 P0 数据质量缺口）：上游索引对
-  // interface extends 检出为 0（本仓 17 处源码 extends 只出 9 条 class→class）。
-  // merger 之后调用（那里持有最终节点表，label 解析与语义去重可见全貌）；
-  // 失败/不可用 ⇒ 图保持原样（宁缺勿造），结果进 metadata.inheritance 可观测。
-  // 只在全量路径跑：增量轮的 merged 由缓存 + delta 组成，缓存已含上轮增强边。
-  let inheritanceSignal: GraphData['metadata']['inheritance'] | undefined;
-  if (!cached && deps.enhanceInheritance) {
-    try {
-      const result = (await deps.enhanceInheritance(merged, args.repoId)) ?? null;
-      if (result && (result.applied || result.extracted > 0)) inheritanceSignal = result;
-    } catch { /* 增强失败不阻断取数（enhancer 内部已兜底，双保险） */ }
+  // 继承增强已下沉到 fetchMergedGraph（cycle-125）：fresh 的 metadata.inheritance
+  // 在此透传（缓存路径由 applyDelta 的 ...current.metadata 保留旧值，此处用 fresh
+  // 的最新值覆盖——它描述当前全量图的真实增强状态）。
+  if (fresh.metadata.inheritance) {
+    merged = { ...merged, metadata: { ...merged.metadata, inheritance: fresh.metadata.inheritance } };
   }
-  if (inheritanceSignal) merged = { ...merged, metadata: { ...merged.metadata, inheritance: inheritanceSignal } };
 
   cacheGraph(graphCache, args.repoId, merged);
 
