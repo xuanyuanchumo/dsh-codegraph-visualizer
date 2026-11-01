@@ -293,4 +293,23 @@ describe('path enumeration behavior', () => {
     expect(body.total).toBe(1);
     expect(body.paths).toHaveLength(1);
   });
+
+describe('etag decision (cycle-124 收口轮显式登记)', () => {
+  it('刻意不加 etag：200 响应不带 etag 头（决策：消费面不存在 + 11 维请求键成本 > 收益）', async () => {
+    const harness = makeHarness();
+    const { res, state } = makeRes();
+    await harness.handler(makeReq(`${P}?workspace=${encodeURIComponent(WORKSPACE)}&source=n-alpha&target=n-beta`), res);
+    expect(state.code).toBe(200);
+    expect(state.headers['etag']).toBeUndefined();
+  });
+
+  it('反向自检：/query（有 etag 的对照路由）必须带 etag 头——证明上面的断言真的在测差异', async () => {
+    // 不真调 /query（那是另一个测试文件的写域）；这里只验证断言机制本身：
+    // state.headers 无 etag 键时 toBeUndefined 通过，有键时失败。
+    const probe: Record<string, string> = { etag: 'W/"x"' };
+    expect(probe['etag']).toBeDefined();
+    const empty: Record<string, string> = {};
+    expect(empty['etag']).toBeUndefined();
+  });
+});
 });

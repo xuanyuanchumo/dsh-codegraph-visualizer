@@ -24,6 +24,20 @@
  * 与全部只读路由同款：工作区解析（query 参数 + 允许列表 + realpath）、限流、
  * CORS、输入 clamp。参数与工具 schema 对齐（minHops/maxHops/limit/cursor/
  * pageSize/edgeTypes/truncation），越界一律夹紧不报错（与工具行为一致）。
+ *
+ * ## etag 裁决（cycle-124 收口轮，显式决策登记）
+ *
+ * **刻意不加 etag。** 三条理由，全部成立才维持此决策：
+ * 1. **消费面不存在**：客户端 PathBar 是用户驱动的即时查询，无「同参重试」场景；
+ *    挂 etag 而无 If-None-Match 消费方 = 死代码（cycle-91「校验器可达 ≠ 校验值
+ *    有用」教训的直接应用）；
+ * 2. **请求键维度爆炸**：paths 结果由 workspace+source+target+minHops+maxHops+
+ *    limit+cursor+pageSize+edgeTypes+truncation+图 revision 共 11 维决定，任何
+ *    一维漏哈希就是假 304（P0-R16-02 家族），而 11 维全哈希的维护成本 > 收益；
+ * 3. **计算成本已被池化抵消**：syncGraph 的 'none' 快路径让重复请求零物化成本，
+ *    etag 省下的只有枚举本身的计算——而枚举有 maxPaths 上界，非无界开销。
+ * 若未来客户端需要条件请求（如结果订阅），必须先补齐全部 11 维请求键并加
+ * 双向守卫测试（参照 computeQueryEtag 的五维先例）。
  */
 import { resolveWorkspaceFromRequest, getWorkspaceScopedGraphData, withRouteMiddleware, type RouteContext, log } from './shared.ts';
 import { sendJson, sendError } from '../HttpHelpers.ts';
