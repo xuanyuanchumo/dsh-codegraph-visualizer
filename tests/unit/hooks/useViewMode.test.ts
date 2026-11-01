@@ -79,6 +79,10 @@ describe('useViewMode', () => {
 
     // Mock global fetch
     mockFetch = vi.fn();
+    // 默认 ok 响应：宏视图分支（cycle-125）对 /data 的消费链有 .json()/.finally，
+    // 无默认值的 vi.fn() 会让 fetch 返回 undefined ⇒ 'Cannot read finally' 崩溃
+    // Response body 只能读一次 ⇒ 用 mockImplementation 每次生成新 Response
+    mockFetch.mockImplementation(async () => new Response(JSON.stringify({ nodes: [{ id: 'n1', label: 'n1', type: 'class', filePath: 'a.ts', lineNumber: 1 }], edges: [], metadata: { repoId: 'test-workspace' } }), { status: 200 }));
     global.fetch = mockFetch as unknown as typeof fetch;
 
     // Fresh abort ref for each test
@@ -472,14 +476,18 @@ describe('useViewMode', () => {
 
     // ── macro view modes (inheritance/callgraph/package/class) ───────
 
-    it('should switch to inheritance mode directly with no API call', () => {
+    it('should switch to inheritance mode and fetch full graph from /data (cycle-125 宏视图拉取)', async () => {
       const { result } = renderViewModeHook('code');
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('inheritance');
       });
 
-      expect(mockFetch).not.toHaveBeenCalled();
+      // cycle-125：bootstrap 只回顶层骨架，宏视图需 /data 全量（否则 0 节点空态）
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/codegraph/data'),
+        expect.objectContaining({ signal: expect.anything() }),
+      );
 
       expect(mockStoreState.setGraphType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setFilterType).toHaveBeenCalledWith('all');
@@ -487,38 +495,50 @@ describe('useViewMode', () => {
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('inheritance');
     });
 
-    it('should switch to callgraph mode directly with no API call', () => {
+    it('should switch to callgraph mode and fetch full graph from /data (cycle-125 宏视图拉取)', async () => {
       const { result } = renderViewModeHook('code');
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('callgraph');
       });
 
-      expect(mockFetch).not.toHaveBeenCalled();
+      // cycle-125：bootstrap 只回顶层骨架，宏视图需 /data 全量（否则 0 节点空态）
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/codegraph/data'),
+        expect.objectContaining({ signal: expect.anything() }),
+      );
       expect(mockStoreState.setSelectedFunction).toHaveBeenCalledWith(null);
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('callgraph');
     });
 
-    it('should switch to package mode directly with no API call', () => {
+    it('should switch to package mode and fetch full graph from /data (cycle-125 宏视图拉取)', async () => {
       const { result } = renderViewModeHook('code');
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('package');
       });
 
-      expect(mockFetch).not.toHaveBeenCalled();
+      // cycle-125：bootstrap 只回顶层骨架，宏视图需 /data 全量（否则 0 节点空态）
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/codegraph/data'),
+        expect.objectContaining({ signal: expect.anything() }),
+      );
       expect(mockStoreState.setSelectedFunction).toHaveBeenCalledWith(null);
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('package');
     });
 
-    it('should switch to class mode directly with no API call', () => {
+    it('should switch to class mode and fetch full graph from /data (cycle-125 宏视图拉取)', async () => {
       const { result } = renderViewModeHook('code');
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('class');
       });
 
-      expect(mockFetch).not.toHaveBeenCalled();
+      // cycle-125：bootstrap 只回顶层骨架，宏视图需 /data 全量（否则 0 节点空态）
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/codegraph/data'),
+        expect.objectContaining({ signal: expect.anything() }),
+      );
       expect(mockStoreState.setSelectedFunction).toHaveBeenCalledWith(null);
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('class');
     });
@@ -561,14 +581,14 @@ describe('useViewMode', () => {
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('sequence');
     });
 
-    it('should abort previous dependencies fetch when switching to a macro/micro mode', () => {
+    it('should abort previous dependencies fetch when switching to a macro/micro mode', async () => {
       const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
       const controller = new AbortController();
       depsFetchAbortRef.current = controller;
 
       const { result } = renderViewModeHook('dependencies');
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('inheritance');
       });
 
@@ -829,10 +849,10 @@ describe('useViewMode', () => {
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
-    it('should handle switching through multiple macro view modes', () => {
+    it('should handle switching through multiple macro view modes', async () => {
       const { result } = renderViewModeHook('code');
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('inheritance');
       });
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('inheritance');
@@ -842,7 +862,7 @@ describe('useViewMode', () => {
       mockStoreState.setSelectedNode.mockReset();
       mockStoreState.setHighlightedNodes.mockReset();
 
-      act(() => {
+      await act(async () => {
         result.current.handleViewModeChange('callgraph');
       });
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('callgraph');

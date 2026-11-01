@@ -94,6 +94,12 @@ export function useViewMode(
         setLoading(false);
       });
     } else if (['inheritance', 'callgraph', 'package', 'class'].includes(newMode)) {
+      setSelectedNode(null);
+      setHighlightedNodes([]);
+      // 宏视图不保留微视图的函数选中（切视图语义与旧 else 分支一致）
+      if (!isMicroMode(newMode)) {
+        setSelectedFunction(null);
+      }
       // 宏视图数据拉取（cycle-125 补遗）：bootstrap 只回顶层骨架（file/module/import），
       // rawNodes 里没有 class/interface 节点 ⇒ 继承等宏视图组装出 0 节点空态。
       // 与 dependencies 同款守卫：/data 全量拉取 + 身份守卫 + abort。
