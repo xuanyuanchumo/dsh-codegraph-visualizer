@@ -118,6 +118,18 @@ export interface GraphData {
       filesScanned: number;
       durationMs: number;
     };
+    /**
+     * 图层来源声明（cycle-127 · T3）：本次合并数据来自哪条通道。
+     *
+     * - `'upstream'`：上游 dsh-codegraph 索引（SQLite）参与合并；
+     * - `'native'`：原生通道（目录结构 + TreeSitter 符号 + AST 边）——仅在
+     *   auto 降级链第三级（上游与 lens 双缺席）启用；
+     * - `'empty'`：所有通道均无产出（headless / 工作区不可读），诚实空态。
+     *
+     * 「不可观测的降级等于没有降级」（XJ-11 家族）：模型与客户端据此向用户
+     * 披露数据来源，而不是把空图当作「工作区没有代码」。
+     */
+    graphLayer?: 'upstream' | 'native' | 'empty';
   };
   layers?: Layer[];
 }

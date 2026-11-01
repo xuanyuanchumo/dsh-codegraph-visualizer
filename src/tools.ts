@@ -88,6 +88,23 @@ export interface GraphToolDeps {
   codegraphAdapter: CodeGraphAdapter;
   lensAdapter: LensAdapter;
   merger: GraphDataMerger;
+  /**
+   * 原生代码图谱通道（cycle-127）：目录结构 + TreeSitter 符号 + AST 边。
+   * `null` = 宿主未注入文件系统能力（headless/受限环境），auto 降级链跳过该级。
+   */
+  nativeAdapter: NativeGraphAdapter | null;
+}
+
+/**
+ * 原生图适配的最小契约（cycle-127）。
+ *
+ * 刻意用结构类型而非直接 import FileSystemAdapter：依赖方向是 tools → 契约，
+ * 具体实现（Node fs 注入版）由宿主组装方决定，测试也可注入内存 fs 桩。
+ * `fetchDataWithSymbols` 一次产出「目录树 + 符号 + 边」的完整原生图。
+ */
+export interface NativeGraphAdapter {
+  readonly source: 'tree-sitter';
+  fetchDataWithSymbols(repoId: string): Promise<AdapterResult>;
 }
 
 export async function createGraphToolDeps(): Promise<GraphToolDeps> {
@@ -99,6 +116,8 @@ export async function createGraphToolDeps(): Promise<GraphToolDeps> {
     codegraphAdapter: new CGA(),
     lensAdapter: new LA(),
     merger: new GraphDataMerger(),
+    // 默认无文件系统能力：host/index.ts 组装时通过 attachNativeAdapter 注入。
+    nativeAdapter: null,
   };
 }
 
@@ -130,8 +149,39 @@ export async function fetchMergedGraph(
     .filter((r): r is PromiseFulfilledResult<AdapterResult> => r.status === 'fulfilled')
     .map((r) => r.value);
   const merged = d.merger.merge(results, makeRepoId(repoId));
+  // cycle-127 · T3：图层来源声明——上游任一通道有产出即 'upstream'（原生通道
+  // 不再启用）；否则进入降级链评估，最终标记见下方 native 分支与空态。
+  (merged.metadata as GraphData['metadata']).graphLayer = merged.nodes.length > 0 ? 'upstream' : 'empty';
+  // cycle-127 · T1：auto 降级链第三级——上游 DB 与 lens 双缺席时启用原生通道
+  // （目录结构 + TreeSitter 符号 + AST 边）。此前该场景 merge 结果为空图，而
+  // :134 的日志宣称「built-in analysis always available」——假承诺。原生通道
+  // 只在**外部源双双缺席**时启用：上游在场时行为逐字节不变（兼容矩阵见规划 §3）。
+  if (source === 'auto' && merged.nodes.length === 0 && d.nativeAdapter) {
+    try {
+      const nativeResult = await d.nativeAdapter.fetchDataWithSymbols(repoId);
+      if (nativeResult.nodes.length > 0) {
+        const nativeMerged = d.merger.merge([nativeResult], makeRepoId(repoId));
+        log.info('fetchMergedGraph: auto fallback to native graph layer', {
+          nodes: nativeMerged.nodes.length,
+          edges: nativeMerged.edges.length,
+          source: nativeResult.source,
+        });
+        // 继承增强同样作用于原生图（AST 推断边是它的核心输入）。
+        try {
+          const { enhanceInheritanceDataCached } = await import('./host/inheritanceEnhancer.ts');
+          await enhanceInheritanceDataCached(nativeMerged, repoId);
+        } catch (e) {
+          log.warn('inheritance enhancement failed on native graph', { error: String(e) });
+        }
+        (nativeMerged.metadata as GraphData['metadata']).graphLayer = 'native';
+        return nativeMerged;
+      }
+    } catch (e) {
+      log.warn('native graph layer failed in fetchMergedGraph', { error: String(e) });
+    }
+  }
   if (source === 'auto' && merged.nodes.length === 0) {
-    log.info('fetchMergedGraph: auto mode — external sources returned empty, built-in analysis always available');
+    log.info('fetchMergedGraph: auto mode — external sources returned empty and no native graph layer available');
   }
   // 继承数据增强（cycle-125 下沉）：在此单一合并点注入，watcher（客户端 /data 槽
   // 填充）/ queryRoute / graph_data 工具三路自动受益——此前只接在 executeGraphData
@@ -279,10 +329,34 @@ export async function executeGraphImpact(args: { symbolId: string }, invoke: Ups
 
 // ── Tool factory ────────────────────────────────────────────────────────
 
-export const createGraphTools = async (ctx: Context, options: { requestTimeout?: number; apiCompat?: ApiCompatLayer } = {}) => {
+export const createGraphTools = async (ctx: Context, options: { requestTimeout?: number; apiCompat?: ApiCompatLayer; /** 原生图谱通道的工作区根（cycle-127）；缺省 = 不启用原生通道。 */ nativeWorkspaceRoot?: string } = {}) => {
   const invoke = createInvoke(ctx, options.requestTimeout, options.apiCompat);
   const graphCache = new Map<string, GraphData>();
   const deps = await createGraphToolDeps();
+  // cycle-127 · T2：宿主声明了工作区根 ⇒ 组装原生图适配器（Node fs + TreeSitter
+  // 单例）。wasm 运行时不可用时 batchScan 优雅降级为结构-only（FileSystemAdapter
+  // 既有语义），目录树仍然可用——原生层的下限是结构图，不是空图。
+  if (options.nativeWorkspaceRoot) {
+    try {
+      const [{ FileSystemAdapter: FSA }, { TreeSitterAdapter: TSA }, nodeFs] = await Promise.all([
+        import('./adapters/FileSystemAdapter.ts'),
+        import('./adapters/TreeSitterAdapter.ts'),
+        import('node:fs'),
+      ]);
+      const fsAdapter = new FSA();
+      fsAdapter.setFileSystem({
+        readdir: (p) => nodeFs.readdirSync(p, { encoding: 'utf-8' }),
+        readFile: (p) => nodeFs.readFileSync(p, 'utf-8'),
+        stat: (p) => ({ isDirectory: nodeFs.statSync(p).isDirectory() }),
+      });
+      const tsAdapter = new TSA();
+      fsAdapter.setTreeSitterAdapter(tsAdapter);
+      deps.nativeAdapter = fsAdapter;
+      log.info('native graph layer attached', { workspaceRoot: options.nativeWorkspaceRoot });
+    } catch (e) {
+      log.warn('native graph layer init failed — auto fallback disabled', { error: String(e) });
+    }
+  }
   // XJ-02：按 repoId 缓存璇玑图适配层，让增量引擎有真正的宿主入口；
   // 生命周期挂在返回的 dispose 上（src/index.ts 的 ctx.effect 清理会调用它）。
   const xuanjiPool = new XuanjiAdapterPool();
