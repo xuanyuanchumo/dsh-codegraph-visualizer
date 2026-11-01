@@ -16,7 +16,12 @@
  * - N-4 原生通道缺席（nativeAdapter: null）+ 双缺席 ⇒ 空图 + 'empty' 标记
  *   （诚实空态，不再假装有内置分析）。
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { closeNativeIndexConnections } from '../../src/adapters/nativeIndex.ts';
+import { closeAllDbConnections } from '../../src/adapters/codeGraphDb.ts';
 import { fetchMergedGraph, type GraphToolDeps, type NativeGraphAdapter } from '../../src/tools.ts';
 import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
 import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter.ts';
@@ -54,13 +59,27 @@ function makeDeps(native: NativeGraphAdapter | null): GraphToolDeps {
 }
 
 describe('原生代码图谱层降级链（cycle-127）', () => {
+  // cycle-131：per-test 独立 workspace——实时扫描会把索引回写到磁盘（writeNativeIndex），
+  // 共用 workspace 会让后跑的用例被先跑用例的索引命中挡住（N-5 假失败实证）。
+  let workspace: string;
+  let workRoot: string;
+  beforeEach(() => {
+    workRoot = mkdtempSync(join(tmpdir(), 'native-layer-'));
+    workspace = join(workRoot, 'proj');
+  });
+  afterEach(() => {
+    closeNativeIndexConnections();
+    closeAllDbConnections();
+    rmSync(workRoot, { recursive: true, force: true });
+  });
+
   it('N-1 auto + 上游双缺席 + 原生通道在场 ⇒ 非空图（假承诺清偿）', async () => {
     const native = makeNativeAdapter(
       [makeNode('dir:src'), makeNode('file:a.ts', 'module'), makeNode('a:fn:main', 'function')],
       [makeEdge('c1', 'dir:src', 'file:a.ts'), makeEdge('c2', 'file:a.ts', 'a:fn:main')],
     );
     const deps = makeDeps(native);
-    const data = await fetchMergedGraph(nullInvoke, 'D:/proj', 'auto', deps);
+    const data = await fetchMergedGraph(nullInvoke, workspace, 'auto', deps);
     expect(data.nodes.length).toBeGreaterThan(0);
     expect(data.edges.length).toBeGreaterThan(0);
   });
@@ -68,7 +87,7 @@ describe('原生代码图谱层降级链（cycle-127）', () => {
   it('N-2 graphLayer 标记：原生降级成功 = native', async () => {
     const native = makeNativeAdapter([makeNode('dir:src')], []);
     const deps = makeDeps(native);
-    const data = await fetchMergedGraph(nullInvoke, 'D:/proj', 'auto', deps);
+    const data = await fetchMergedGraph(nullInvoke, workspace, 'auto', deps);
     expect(data.metadata.graphLayer).toBe('native');
   });
 
@@ -81,7 +100,7 @@ describe('原生代码图谱层降级链（cycle-127）', () => {
       fetchData: async () => ({ nodes: upstreamNodes, edges: [], source: 'codegraph', timestamp: 1 }) as AdapterResult,
     } as unknown as CodeGraphAdapter;
     deps.codegraphAdapter = upstreamStub;
-    const data = await fetchMergedGraph(nullInvoke, 'D:/proj', 'auto', deps);
+    const data = await fetchMergedGraph(nullInvoke, workspace, 'auto', deps);
     expect(data.metadata.graphLayer).toBe('upstream');
     // 原生节点不得混入（兼容矩阵：上游在场 = 现行为）。
     expect(data.nodes.some((n) => String(n.id).startsWith('dir:native'))).toBe(false);
@@ -89,7 +108,7 @@ describe('原生代码图谱层降级链（cycle-127）', () => {
 
   it('N-4 原生通道缺席 + 双缺席 ⇒ 空图 + empty 标记（诚实空态）', async () => {
     const deps = makeDeps(null);
-    const data = await fetchMergedGraph(nullInvoke, 'D:/proj', 'auto', deps);
+    const data = await fetchMergedGraph(nullInvoke, workspace, 'auto', deps);
     expect(data.nodes.length).toBe(0);
     expect(data.metadata.graphLayer).toBe('empty');
   });
@@ -102,7 +121,37 @@ describe('原生代码图谱层降级链（cycle-127）', () => {
       fetchDataWithSymbols: async (p: string) => { calls.push(p); return native.fetchDataWithSymbols(p); },
     };
     const deps = makeDeps(spy);
-    await fetchMergedGraph(nullInvoke, 'D:/proj', 'both', deps);
+    await fetchMergedGraph(nullInvoke, workspace, 'both', deps);
+    // cycle-131 语义反转：'both' 双缺席**必须**触发原生补位（生产主路径硬编码
+    // 'both'——降级链只认 auto 使原生层在真实宿主零可达，真机取证后修复）。
+    expect(calls.length).toBe(1);
+  });
+
+  it('N-6 source=both + 双缺席 + 原生在场 ⇒ 非空图 + native 标记（cycle-131 P0 守卫）', async () => {
+    const native = makeNativeAdapter(
+      [makeNode('dir:src'), makeNode('file:a.ts', 'module')],
+      [makeEdge('c1', 'dir:src', 'file:a.ts')],
+    );
+    const deps = makeDeps(native);
+    const data = await fetchMergedGraph(nullInvoke, workspace, 'both', deps);
+    expect(data.nodes.length).toBeGreaterThan(0);
+    expect(data.metadata.graphLayer).toBe('native');
+  });
+
+  it('N-7 source=both + 上游在场 ⇒ 原生不启用（兼容不变量回归）', async () => {
+    const calls: string[] = [];
+    const native = makeNativeAdapter([makeNode('dir:native')], []);
+    const spy = {
+      ...native,
+      fetchDataWithSymbols: async (p: string) => { calls.push(p); return native.fetchDataWithSymbols(p); },
+    };
+    const deps = makeDeps(spy);
+    const upstreamStub = {
+      fetchData: async () => ({ nodes: [makeNode('db:node1', 'function')], edges: [], source: 'codegraph', timestamp: 1 }) as AdapterResult,
+    } as unknown as CodeGraphAdapter;
+    deps.codegraphAdapter = upstreamStub;
+    const data = await fetchMergedGraph(nullInvoke, workspace, 'both', deps);
     expect(calls).toEqual([]);
+    expect(data.metadata.graphLayer).toBe('upstream');
   });
 });

@@ -1,4 +1,5 @@
 import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, FILE_OUTLINE } from '../../shared/constants.ts';
+import { existsSync } from 'node:fs';
 import type { GraphEdge, GraphNode, GraphData } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import {
@@ -59,6 +60,21 @@ function getGraphIndex(data: GraphData): GraphIndex {
   return index;
 }
 
+// cycle-131：索引域抽象——上游库不可读时回落原生索引（schema 兼容，读侧零改动）。
+// 每个按需路由（/bootstrap /children /outline /symbols /edges）的 dbPath 都经此
+// 解析；上游在场行为逐字节不变，原生工作区的按需路由从「内存 500 节点回落」
+// 升级为「全量索引直读」。
+const resolveIndexDbPath = async (workspacePath: string): Promise<string> => {
+  const upstream = resolveDbPath(workspacePath);
+  if (existsSync(upstream)) return upstream;
+  try {
+    const { resolveNativeIndexPath } = await import('../../adapters/nativeIndex.ts');
+    return resolveNativeIndexPath(workspacePath);
+  } catch {
+    return upstream;
+  }
+};
+
 export function registerDataRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter } = rc;
   const { ctx } = deps;
@@ -118,7 +134,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = resolveDbPath(workspacePath);
+        const dbPath = await resolveIndexDbPath(workspacePath);
         const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
         if (dbResult && dbResult.nodes.length > 0) {
           const topLevelNodes = mapDbNodesToGraphNodes(dbResult.nodes);
@@ -136,6 +152,8 @@ export function registerBootstrapRoute(rc: RouteContext): void {
               timestamp: Date.now(),
               totalNodeCount: dbResult.total,
               totalEdgeCount: countEdgesInDb(dbPath),
+              // cycle-131：上游 DB 可读分支的来源声明（与 lastGraphData 回落分支对称）。
+              graphLayer: 'upstream',
             },
           }, req, corsConfig, etagHeader);
           return;
@@ -223,7 +241,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = resolveDbPath(workspacePath);
+        const dbPath = await resolveIndexDbPath(workspacePath);
         const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
         if (dbResult && dbResult.nodes.length > 0) {
           const page = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
@@ -299,7 +317,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = resolveDbPath(workspacePath);
+        const dbPath = await resolveIndexDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
           const symbols = mapDbNodesToGraphNodes(dbResult.nodes, nodeId).slice(0, FILE_OUTLINE.MAX_SYMBOLS);
@@ -367,7 +385,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = resolveDbPath(workspacePath);
+        const dbPath = await resolveIndexDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
           const allAstNodes = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
@@ -479,7 +497,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = resolveDbPath(workspacePath);
+        const dbPath = await resolveIndexDbPath(workspacePath);
         // DB-first: when DB is readable, its answer is authoritative — empty edges means
         // no edges exist, NOT "fall back to memory". This intentionally differs from
         // other routes (bootstrap/children/outline/ast) which use `dbResult.nodes.length > 0`

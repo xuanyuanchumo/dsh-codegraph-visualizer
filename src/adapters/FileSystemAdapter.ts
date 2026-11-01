@@ -244,16 +244,24 @@ export class FileSystemAdapter implements IDataAdapter {
     // fileSet 是绝对域（`D:/proj/src/a.ts`）；别名解析产出 repo 相对路径——
     // 绝对化时用 repoId 前缀（与 fileSet 同域后匹配）。
     const repoIdPrefix = repoId.endsWith('/') ? repoId : `${repoId}/`;
+    /** 候选解析：先试原样（模块名已带扩展名——真实项目普遍形态，cycle-131 真机
+     * 发现：`./closureModel.ts` 拼接扩展名变 `.ts.ts` 全落空），再走扩展名枚举。 */
+    const tryCandidates = (joined: string): string | null => {
+      if (fileSet.has(joined)) return joined;
+      for (const ext of EXT_CANDIDATES) {
+        const candidate = `${joined}${ext}`;
+        if (fileSet.has(candidate)) return candidate;
+      }
+      return null;
+    };
     const resolveModuleToFile = (fromFile: string, moduleName: string): string | null => {
       // cycle-130 · T1：别名优先（@/utils/helper → src/utils/helper → 绝对域匹配）。
       if (aliasMapping) {
         const aliasRel = resolveAliasModule(aliasMapping, moduleName);
         if (aliasRel) {
-          for (const ext of EXT_CANDIDATES) {
-            const absCandidate = `${repoIdPrefix}${aliasRel}${ext}`;
-            if (fileSet.has(absCandidate)) return absCandidate;
-          }
-          return null; // 别名命中但文件不在清单内（目录上限截断）——不落 bare（宁缺勿造）
+          const absCandidate = tryCandidates(`${repoIdPrefix}${aliasRel}`);
+          return absCandidate;
+          // 别名命中但文件不在清单内（目录上限截断）——不落 bare（宁缺勿造）。
         }
       }
       if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
@@ -270,17 +278,9 @@ export class FileSystemAdapter implements IDataAdapter {
           }
           joined = `${parts.join('/')}/${rest}`;
         }
-        for (const ext of EXT_CANDIDATES) {
-          const candidate = `${joined}${ext}`;
-          if (fileSet.has(candidate)) return candidate;
-        }
-        return null;
+        return tryCandidates(joined);
       }
-      for (const ext of EXT_CANDIDATES) {
-        const candidate = `${moduleName}${ext}`;
-        if (fileSet.has(candidate)) return candidate;
-      }
-      return null;
+      return tryCandidates(moduleName);
     };
 
     let importEdgeCount = 0;

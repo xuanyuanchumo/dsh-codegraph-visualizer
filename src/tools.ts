@@ -116,9 +116,45 @@ export async function createGraphToolDeps(): Promise<GraphToolDeps> {
     codegraphAdapter: new CGA(),
     lensAdapter: new LA(),
     merger: new GraphDataMerger(),
-    // 默认无文件系统能力：host/index.ts 组装时通过 attachNativeAdapter 注入。
-    nativeAdapter: null,
+    // cycle-131 · P0 第二层修复：原生适配器走**模块级单例**（ensureNativeAdapter），
+    // 不再依赖 createGraphTools 工厂内的 options.nativeWorkspaceRoot 组装——
+    // 生产主路径（watcher / /scan / service / /init）调 fetchMergedGraph 不传 deps，
+    // 缺省 createGraphToolDeps() 此前永远得到 nativeAdapter: null，原生层在宿主面
+    // 零可达（真机取证：registry 37 能力全注册但 scan 0 节点 empty）。Node 运行时
+    // 检测失败（非 Node / fs 不可用）才诚实降级 null。
+    nativeAdapter: await ensureNativeAdapter(),
   };
+}
+
+/**
+ * 原生图适配器的模块级单例（cycle-131 · P0 第二层修复）。
+ *
+ * 组装一次全 host 复用（Node fs + TreeSitterAdapter 各自内部已单例化 wasm）；
+ * 失败结果也缓存（null = 环境不支持，避免每次调用重试）。
+ */
+let nativeAdapterSingleton: NativeGraphAdapter | null | undefined;
+async function ensureNativeAdapter(): Promise<NativeGraphAdapter | null> {
+  if (nativeAdapterSingleton !== undefined) return nativeAdapterSingleton;
+  nativeAdapterSingleton = null; // 失败缺省
+  try {
+    const [{ FileSystemAdapter: FSA }, { TreeSitterAdapter: TSA }, nodeFs] = await Promise.all([
+      import('./adapters/FileSystemAdapter.ts'),
+      import('./adapters/TreeSitterAdapter.ts'),
+      import('node:fs'),
+    ]);
+    const fsAdapter = new FSA();
+    fsAdapter.setFileSystem({
+      readdir: (p) => nodeFs.readdirSync(p, { encoding: 'utf-8' }),
+      readFile: (p) => nodeFs.readFileSync(p, 'utf-8'),
+      stat: (p) => ({ isDirectory: nodeFs.statSync(p).isDirectory() }),
+    });
+    fsAdapter.setTreeSitterAdapter(new TSA());
+    nativeAdapterSingleton = fsAdapter;
+    log.info('native graph layer adapter ready (module singleton)');
+  } catch (e) {
+    log.warn('native graph layer init failed — native fallback disabled', { error: String(e) });
+  }
+  return nativeAdapterSingleton;
 }
 
 function cacheGraph(cache: Map<string, GraphData>, repoId: string, data: GraphData): void {
@@ -158,7 +194,16 @@ export async function fetchMergedGraph(
   // 只在**外部源双双缺席**时启用：上游在场时行为逐字节不变（兼容矩阵见规划 §3）。
   // cycle-128 · T2：第三级升级为「索引库优先」——原生 SQLite 索引（上游 schema
   // 兼容）可读时直接走既有 DB 分页读取（毫秒级），缺席才实时 batchScan 并回写。
-  if (source === 'auto' && merged.nodes.length === 0 && d.nativeAdapter) {
+  // cycle-131 · P0 修复：原生降级链的触发条件从 `source === 'auto'` 扩到
+  // 「外部源双缺席」本身。此前生产主路径（watcher 槽填充 / /scan / service /
+  // /init 共 7 处）硬编码 'both'，而降级链只认 'auto' —— 原生层在真实宿主里
+  // 从未可达（真机取证：上游双缺席工作区 graphLayer='empty' 0 节点，registry
+  // 37 能力全注册但原生四轮交付零消费）。'both' 语义升级为「上游两源 + 缺席
+  // 补位」：上游在场行为逐字节不变；'auto' 保持查询面显式全降级语义（含
+  // graphLayer 评估），两者共用同一条降级链实现。
+  const allowNativeFallback = merged.nodes.length === 0 && d.nativeAdapter !== null
+    && (source === 'auto' || source === 'both');
+  if (allowNativeFallback) {
     try {
       const [{ readGraphFromDbPaged }, { mapRowsToGraphNodes, mapRowsToGraphEdges }, { resolveNativeIndexPath, readNativeIndexMeta, writeNativeIndex }] = await Promise.all([
         import('./adapters/codeGraphDb.ts'),
@@ -201,8 +246,10 @@ export async function fetchMergedGraph(
       } catch (e) {
         log.warn('native index read failed — falling back to live scan', { error: String(e) });
       }
-      // ② 实时扫描（库缺席/空库/读失败）。
-      const nativeResult = await d.nativeAdapter.fetchDataWithSymbols(repoId);
+      // ② 实时扫描（库缺席/空库/读失败）。allowNativeFallback 已保证非 null，
+      // 但 TS 无法跨块追踪——非空断言安全（块内无 await 前的置空路径）。
+      const nativeAdapter = d.nativeAdapter as NativeGraphAdapter;
+      const nativeResult = await nativeAdapter.fetchDataWithSymbols(repoId);
       if (nativeResult.nodes.length > 0) {
         // ③ 回写索引（写失败不阻塞图返回——索引是缓存层）。
         try {
@@ -235,6 +282,8 @@ export async function fetchMergedGraph(
   if (source === 'auto' && merged.nodes.length === 0) {
     log.info('fetchMergedGraph: auto mode — external sources returned empty and no native graph layer available');
   }
+  // cycle-131 · P0 修复的另一半：'both' 双缺席且原生不可用时也标记 empty（诚实空态
+  // 与 auto 一致——graphLayer 已在上方统一标记）。
   // 继承数据增强（cycle-125 下沉）：在此单一合并点注入，watcher（客户端 /data 槽
   // 填充）/ queryRoute / graph_data 工具三路自动受益——此前只接在 executeGraphData
   // （模型工具）里，客户端继承视图永远看不到增强边（cycle-122 贯通家族的客户端断环）。
@@ -385,30 +434,9 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
   const invoke = createInvoke(ctx, options.requestTimeout, options.apiCompat);
   const graphCache = new Map<string, GraphData>();
   const deps = await createGraphToolDeps();
-  // cycle-127 · T2：宿主声明了工作区根 ⇒ 组装原生图适配器（Node fs + TreeSitter
-  // 单例）。wasm 运行时不可用时 batchScan 优雅降级为结构-only（FileSystemAdapter
-  // 既有语义），目录树仍然可用——原生层的下限是结构图，不是空图。
-  if (options.nativeWorkspaceRoot) {
-    try {
-      const [{ FileSystemAdapter: FSA }, { TreeSitterAdapter: TSA }, nodeFs] = await Promise.all([
-        import('./adapters/FileSystemAdapter.ts'),
-        import('./adapters/TreeSitterAdapter.ts'),
-        import('node:fs'),
-      ]);
-      const fsAdapter = new FSA();
-      fsAdapter.setFileSystem({
-        readdir: (p) => nodeFs.readdirSync(p, { encoding: 'utf-8' }),
-        readFile: (p) => nodeFs.readFileSync(p, 'utf-8'),
-        stat: (p) => ({ isDirectory: nodeFs.statSync(p).isDirectory() }),
-      });
-      const tsAdapter = new TSA();
-      fsAdapter.setTreeSitterAdapter(tsAdapter);
-      deps.nativeAdapter = fsAdapter;
-      log.info('native graph layer attached', { workspaceRoot: options.nativeWorkspaceRoot });
-    } catch (e) {
-      log.warn('native graph layer init failed — auto fallback disabled', { error: String(e) });
-    }
-  }
+  // cycle-131：原生适配器已由 createGraphToolDeps 的模块级单例自动挂载
+  // （ensureNativeAdapter）——本工厂不再需要 options.nativeWorkspaceRoot 组装
+  // （保留参数向后兼容，仅记录日志）。
   // XJ-02：按 repoId 缓存璇玑图适配层，让增量引擎有真正的宿主入口；
   // 生命周期挂在返回的 dispose 上（src/index.ts 的 ctx.effect 清理会调用它）。
   const xuanjiPool = new XuanjiAdapterPool();

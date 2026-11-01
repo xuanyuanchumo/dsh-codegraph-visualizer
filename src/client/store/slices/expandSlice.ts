@@ -322,7 +322,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
             data.topLevelNodes,
             data.edges,
             data.metadata.repoId,
-            { totalNodeCount: data.metadata.totalNodeCount, totalEdgeCount: data.metadata.totalEdgeCount, timestamp: data.metadata.timestamp },
+            { totalNodeCount: data.metadata.totalNodeCount, totalEdgeCount: data.metadata.totalEdgeCount, timestamp: data.metadata.timestamp, graphLayer: data.metadata.graphLayer },
           );
           log.info('bootstrap: index building, empty skeleton installed', { repoId: data.metadata.repoId });
           return true;
@@ -336,7 +336,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
           data.topLevelNodes,
           data.edges,
           data.metadata.repoId,
-          { totalNodeCount: data.metadata.totalNodeCount, totalEdgeCount: data.metadata.totalEdgeCount, timestamp: data.metadata.timestamp },
+          { totalNodeCount: data.metadata.totalNodeCount, totalEdgeCount: data.metadata.totalEdgeCount, timestamp: data.metadata.timestamp, graphLayer: data.metadata.graphLayer },
         );
         log.info('bootstrap loaded', {
           rootNodes: data.topLevelNodes.length,
