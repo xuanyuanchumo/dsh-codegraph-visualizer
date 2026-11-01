@@ -48,7 +48,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const repoReady = graphRepo.init();
   if (!repoReady) { log.warn('graph repository init failed, persistence disabled'); }
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphPathPattern, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -63,7 +63,9 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     const d10 = ctx.tools.register(graphCycles);
     const d11 = ctx.tools.register(graphQuery);
     const d12 = ctx.tools.register(graphIntegrity);
-    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); };
+    // cycle-134：路径模式 ρ 读法（序列约束的图谱查询）。
+    const d13 = ctx.tools.register(graphPathPattern);
+    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); d13(); };
   }, 'codegraph: tool registrations');
 
   let lastGraphData: GraphData | null = null;

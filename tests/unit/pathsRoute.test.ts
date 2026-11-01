@@ -313,3 +313,66 @@ describe('etag decision (cycle-124 收口轮显式登记)', () => {
   });
 });
 });
+
+// ── cycle-134：pattern（ρ）分支 ───────────────────────────────────────────
+
+describe('pattern（ρ 路径模式）分支', () => {
+  it('pattern=call 命中 1 跳链，返回 pattern 元信息', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=call&maxHops=1`);
+    expect(code).toBe(200);
+    expect(body.pattern).toBe('call');
+    expect(body.patternEdgeTypes).toEqual(['call']);
+    expect(typeof body.stateCount).toBe('number');
+    const paths = body.paths as Array<{ ids: string[]; labels: string[] }>;
+    expect(paths).toHaveLength(2); // alpha→beta 与 beta→gamma 两条 1 跳 call
+    expect(paths[0]!.labels).toEqual(['alpha', 'beta']);
+  });
+
+  it('pattern=call{2} 只命中 2 跳链（alpha→beta→gamma）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=${encodeURIComponent('call{2}')}&maxHops=4`);
+    expect(code).toBe(200);
+    const paths = body.paths as Array<{ ids: string[] }>;
+    expect(paths).toHaveLength(1);
+    expect(paths[0]!.ids).toEqual(['n-alpha', 'n-beta', 'n-gamma']);
+  });
+
+  it('startNode 缩小起点', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=call&startNode=n-beta&maxHops=1`);
+    const paths = body.paths as Array<{ ids: string[] }>;
+    expect(paths).toHaveLength(1);
+    expect(paths[0]!.ids).toEqual(['n-beta', 'n-gamma']);
+  });
+
+  it('ρ 语法错误 ⇒ 400 + 带 ^ 指位的诊断（不是 200 空数组）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=${encodeURIComponent('call|')}`);
+    expect(code).toBe(400);
+    expect(body.error).toBe('invalid-pattern');
+    expect(String(body.diagnostic)).toContain('^');
+  });
+
+  it('pattern 与 source/target 互斥 ⇒ 400（不含糊合并语义）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=call&source=n-alpha&target=n-beta`);
+    expect(code).toBe(400);
+    expect(String(body.message)).toContain('mutually exclusive');
+  });
+
+  it('反向守卫：不带 pattern 时仍走原 source/target 分支（新分支没有吃掉旧行为）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&source=n-alpha&target=n-beta&maxHops=1`);
+    expect(code).toBe(200);
+    expect(body.total).toBe(1);
+    // 原分支不返回 pattern 字段
+    expect('pattern' in body).toBe(false);
+  });
+});

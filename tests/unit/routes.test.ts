@@ -338,7 +338,9 @@ describe('registerRoutes', () => {
       // registryContract.test.ts 守卫，这里只钉「字段存在且四面计数齐全」。
       registry: expect.objectContaining({
         total: expect.any(Number),
-        byFace: expect.objectContaining({ tools: 12, routes: 21, entries: 4, skill: 1 }),
+        // cycle-134：tools 12 → 13（+graph_path_pattern）。这个数字是「矩阵登记数」，
+        // 与「真实注册数」的一致性由 registryContract.test.ts 的集合相等守卫负责。
+        byFace: expect.objectContaining({ tools: 13, routes: 21, entries: 4, skill: 1 }),
         brokenLinks: [],
       }),
     });

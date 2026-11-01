@@ -332,7 +332,7 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 12 tools with correct names', async () => {
+  it('should create 13 tools with correct names', async () => {
     const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
@@ -348,8 +348,10 @@ describe('createGraphTools', () => {
     expect(tools.graphQuery.name).toBe('graph_query');
     // cycle-132：璇玑图白盒可观测工具（D-06 / D-10 剩余半边清偿）
     expect(tools.graphIntegrity.name).toBe('graph_integrity');
+    // cycle-134：路径模式 ρ 读法（边类型**序列**约束，扁平 edgeTypes 表达不了）
+    expect(tools.graphPathPattern.name).toBe('graph_path_pattern');
     // 数量也要钉住：只断言「每个名字对」时，漏掉一个工具不会有任何断言变红。
-    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(12);
+    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(13);
   });
 
   // ── graph_integrity ──────────────────────────────────────────────────
@@ -372,6 +374,78 @@ describe('createGraphTools', () => {
     expect(result.rules).toEqual([]);
     // 默认只读：drained 恒 null（排水必须显式）。
     expect(result.changeLog.drained).toBeNull();
+  });
+
+  // ── graph_path_pattern（cycle-134：ρ 序列读法） ─────────────────────
+
+  it('graph_path_pattern 用 ρ 命中跨视图链（call . import . dependency）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} },
+        { id: 's', label: 'service', type: 'function', filePath: 'svc.ts', lineNumber: 1, properties: {} },
+        { id: 'c', label: 'dbClient', type: 'class', filePath: 'db.ts', lineNumber: 1, properties: {} },
+        { id: 'd', label: 'driver', type: 'class', filePath: 'db.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'h', target: 's', type: 'call', properties: {} },
+        { id: 'e2', source: 's', target: 'c', type: 'import', properties: {} },
+        { id: 'e3', source: 'c', target: 'd', type: 'dependency', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call . import . dependency', maxHops: 6 },
+      mockExec,
+    )) as { paths: string[][]; pattern: string; patternEdgeTypes: string[]; stateCount: number };
+    expect(result.paths).toEqual([['h', 's', 'c', 'd']]);
+    expect(result.pattern).toBe('call . import . dependency');
+    expect(result.patternEdgeTypes).toEqual(['call', 'dependency', 'import']);
+    expect(result.stateCount).toBeGreaterThan(0);
+    // 顺序约束真的在起作用：把首尾类型对调后必须零结果
+    const reversed = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'dependency . import . call', maxHops: 6 },
+      mockExec,
+    )) as { paths: string[][] };
+    expect(reversed.paths).toEqual([]);
+  });
+
+  it('graph_path_pattern 语法错误返回带诊断的 error，不冒充零结果', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'a', label: 'a', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call|' },
+      mockExec,
+    )) as { paths: string[][]; error?: string; diagnostic?: string };
+    expect(result.paths).toEqual([]);
+    expect(result.error).toContain('Invalid path pattern');
+    expect(result.diagnostic).toContain('call|');
+    // 关键区分：有 error 字段 ≠ 零结果（零结果没有 error）
+    expect(result.diagnostic).toContain('^');
+  });
+
+  it('graph_path_pattern presenter 在 render 里区分「语法错误」与「零结果」', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'a', label: 'a', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const tool = tools.graphPathPattern as unknown as {
+      output: { render: (args: unknown, value: unknown) => Array<{ text: string }> };
+    };
+    const errText = tool.output.render({}, { paths: [], error: 'Invalid path pattern: boom', diagnostic: 'boom\n  call|\n  ^' })[0]!.text;
+    expect(errText).toContain('Invalid path pattern');
+    const emptyText = tool.output.render({}, { paths: [], pattern: 'extend', patternEdgeTypes: ['extend'], stateCount: 3, truncated: false, total: 0 })[0]!.text;
+    expect(emptyText).toContain('pattern "extend"');
+    expect(emptyText).not.toContain('Invalid path pattern');
   });
 
   it('graph_integrity 已装载后报告图规模与休眠态（经 fetchMergedGraph 同链路）', async () => {
@@ -1649,6 +1723,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphFocus: { repoId: 'repo-1', symbolId: 'sym-1' },
   graphQuery: { repoId: 'repo-1', query: 'graphStore' },
   graphIntegrity: { repoId: 'repo-1' },
+  graphPathPattern: { repoId: 'repo-1', pattern: 'call+' },
 };
 
 const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawInput: unknown }> = [

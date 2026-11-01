@@ -43,6 +43,12 @@ export const TOOL_ENTRIES: RegistryEntry[] = [
   { id: 'graph_focus', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '邻域聚焦子图', consumers: ['LLM 会话', 'tests/unit/tools.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
   { id: 'graph_query', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '关键词图检索（璇玑图 top-k）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/keywordQueryApi.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
   { id: 'graph_integrity', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '璇玑图白盒体检（变更日志水位 / 逐规则索引计数 / 休眠态披露）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/xuanjiAdapter.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
+  // cycle-134：路径模式 ρ（边类型**序列**正则）。这一条曾经漏登记——真机 `/status`
+  // 的 registry 摘要在注册了 13 个工具后仍报 `byFace.tools = 12`，而 brokenLinks 为空，
+  // 也就是说「少登记一个」在业务注册矩阵里是**静默的**（不产生断链，只让计数说谎）。
+  // 这正是本仓「注册-生产-消费」三面可观测性要覆盖的形态：注册了但矩阵不知道，
+  // 运维与守卫都会以为它不存在。
+  { id: 'graph_path_pattern', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '路径模式 ρ 枚举（边类型序列正则 → PathRule → enumerate）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/patternEnumerationAdapter.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
 ];
 
 /** HTTP 路由（19 条）——tree-sitter/health 的消费面是测试与 E2E（外部消费）。 */

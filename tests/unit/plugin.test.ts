@@ -191,12 +191,13 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 12 tools and 6 event listeners', async () => {
+  it('should register 13 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     await apply(ctx);
     // cycle-132：+graph_integrity（璇玑图白盒可观测）。
-    expect(ctx.tools.register).toHaveBeenCalledTimes(12);
+    // cycle-134：+graph_path_pattern（路径模式 ρ 读法）。
+    expect(ctx.tools.register).toHaveBeenCalledTimes(13);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/scanned', expect.any(Function));
@@ -238,9 +239,12 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     // cycle-132：graph_integrity 同样两侧都必须出现（白盒可观测工具）。
     expect(registeredNames).toContain('graph_integrity');
     expect(returnedNames).toContain('graph_integrity');
-    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 12」，
+    // cycle-134：graph_path_pattern（ρ 序列读法）同样两侧都必须出现。
+    expect(registeredNames).toContain('graph_path_pattern');
+    expect(returnedNames).toContain('graph_path_pattern');
+    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 13」，
     // 否则「工厂和入口同时漏掉同一个工具」仍然满足集合相等。
-    expect(registeredNames).toHaveLength(12);
+    expect(registeredNames).toHaveLength(13);
   });
 
 

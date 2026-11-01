@@ -41,8 +41,10 @@
  */
 import { resolveWorkspaceFromRequest, getWorkspaceScopedGraphData, withRouteMiddleware, type RouteContext } from './shared.ts';
 import { sendJson, sendError } from '../HttpHelpers.ts';
+import { existsSync } from 'node:fs';
+import type { GraphData } from '../../types/index.ts';
 import { ERROR_CODES } from '../../shared/constants.ts';
-import { XuanjiAdapterPool, type AdapterEdgeType, DEFAULT_PATH_EDGE_TYPES } from '../../shared/analysis/XuanjiAdapter.ts';
+import { XuanjiAdapterPool, formatPatternError, type AdapterEdgeType, DEFAULT_PATH_EDGE_TYPES } from '../../shared/analysis/XuanjiAdapter.ts';
 
 /** 路由面独立池（与工具面 xuanjiPool 隔离——工具面的缓存基线语义不同）。 */
 const routePool = new XuanjiAdapterPool(2);
@@ -65,6 +67,58 @@ function clampInt(v: unknown, min: number, max: number, dflt: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+/**
+ * 索引库直读回落（cycle-134，仅 `slot` 为空时使用）。
+ *
+ * 复用 `/bootstrap` 与四个按需路由的同一条读侧链（`resolveIndexDbPath` →
+ * `readGraphFromDb` → `mapRowsToGraph*`），**不新建第二份图**——这是本仓
+ * 「两个数据路径共享一个实现」纪律的直接应用。
+ *
+ * 与 `CodeGraphAdapter` 的区别只在「要不要聚类/过滤」：路径枚举需要**完整**图
+ * （否则一段合法路径可能因为中间节点被过滤而断裂），因此这里不做噪声路径过滤。
+ * 过滤与否会改变「图上有没有这条路径」这个答案，属语义差异，不是性能优化。
+ *
+ * 失败一律返回 `null`，由调用方走 `no-graph-data` 分支——索引是缓存层，
+ * 读失败不该让路由 500。
+ */
+async function readIndexGraph(workspacePath: string): Promise<GraphData | null> {
+  try {
+    const [{ resolveDbPath }, { readGraphFromDb }, rows, native] = await Promise.all([
+      import('../../adapters/CodeGraphAdapter.ts'),
+      import('../../adapters/codeGraphDb.ts'),
+      import('../../adapters/codeGraphRows.ts'),
+      import('../../adapters/nativeIndex.ts'),
+    ]);
+    let dbPath = resolveDbPath(workspacePath);
+    if (!existsSync(dbPath)) {
+      try {
+        dbPath = native.resolveNativeIndexPath(workspacePath);
+      } catch {
+        return null;
+      }
+    }
+    const raw = readGraphFromDb(dbPath);
+    if (!raw) return null;
+    const nodes = rows.mapRowsToGraphNodes(raw.nodes);
+    // 边映射需要合法节点集（否则会产出悬空边，路径枚举里表现为「一步都走不通」）。
+    const validNodeIds = new Set(nodes.map((n) => String(n.id)));
+    const edges = rows.mapRowsToGraphEdges(raw.edges, validNodeIds);
+    if (nodes.length === 0) return null;
+    return {
+      nodes,
+      edges,
+      metadata: {
+        repoId: workspacePath as GraphData['metadata']['repoId'],
+        timestamp: Date.now(),
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** 解析逗号分隔的边类型（与工具同语义：未知类型丢弃，全未知回缺省）。 */
 function parseEdgeTypes(raw: unknown): AdapterEdgeType[] | null {
   if (typeof raw !== 'string' || raw.trim() === '') return null;
@@ -75,6 +129,75 @@ function parseEdgeTypes(raw: unknown): AdapterEdgeType[] | null {
 
 /** 文档化路径常量（测试按路径定位，不按注册索引）。 */
 export const PATHS_ROUTE_PATH = '/api/v1/codegraph/paths';
+
+/**
+ * `pattern`（ρ）分支的具体求值——cycle-134。
+ *
+ * 抽成独立函数而不是内联进 handler：`registerPathsRoute` 的 handler 复杂度已经很高
+ * （参数解析 + 工作区解析 + 图槽回落 + 分页 + label 映射），把 ρ 分支塞进去会让
+ * 单函数分支数超预算（band-detector 口径 ≤ 100）。这里的分支自成一体，
+ * 也只有它能返回「已经发过响应」这个第三种结果。
+ *
+ * @returns `true` = 已经写过响应（调用方直接 return）；`false` = 未处理（不该发生）
+ */
+function runPatternBranch(
+  // 两套 HTTP 类型（node:http 与 src/types 的 electron 兼容别名）在本仓共存，
+  // 而 sendJson 接受的是 node:http 那一套。辅助函数只转调 sendJson，因此这里用
+  // 结构化最小面 + 一次 cast，而不是把两套类型都引进来（那会污染调用点）。
+  res: Parameters<typeof sendJson>[0],
+  graph: GraphData,
+  workspacePath: string,
+  pattern: string,
+  url: URL,
+  req: Parameters<typeof sendJson>[3],
+  corsConfig: Parameters<typeof sendJson>[4],
+): boolean {
+  const adapter = routePool.get(workspacePath);
+  adapter.syncGraph(graph);
+  try {
+    const result = adapter.pathsByPattern(pattern, {
+      ...(url.searchParams.get('startNode') ? { startNode: url.searchParams.get('startNode')! } : {}),
+      ...(url.searchParams.get('endNode') ? { endNode: url.searchParams.get('endNode')! } : {}),
+      minHops: clampInt(url.searchParams.get('minHops'), 0, 12, 0),
+      maxHops: clampInt(url.searchParams.get('maxHops'), 0, 12, 8),
+      limit: clampInt(url.searchParams.get('limit'), 1, 50, 20),
+      cursor: clampInt(url.searchParams.get('cursor'), 0, Number.MAX_SAFE_INTEGER, 0),
+      pageSize: url.searchParams.get('pageSize') !== null
+        ? clampInt(url.searchParams.get('pageSize'), 1, 50, 20)
+        : undefined,
+      ...(url.searchParams.get('closed') === '1' ? { closed: true } : {}),
+      ...(url.searchParams.get('truncation') === 'top-k-weight' ? { truncation: 'top-k-weight' as const } : {}),
+    });
+    const labelOf = new Map<string, string>(graph.nodes.map((n) => [String(n.id), n.label]));
+    sendJson(res, 200, {
+      pattern: result.pattern,
+      patternEdgeTypes: result.patternEdgeTypes,
+      stateCount: result.stateCount,
+      paths: result.paths.map((p) => ({ ids: p, labels: p.map((id) => labelOf.get(id) ?? id) })),
+      truncated: result.truncated,
+      total: result.total,
+      nextCursor: result.nextCursor ?? null,
+      metadata: { repoId: graph.metadata.repoId, edgeCount: graph.edges.length },
+    }, req, corsConfig);
+    return true;
+  } catch (e) {
+    // ρ 语法错误与「没有匹配」**必须**在返回面上可区分（与工具面同语义）：
+    // 400 + 带 ^ 指位的诊断，而不是 200 + 空数组。
+    // 若不是 PathPatternError（真正的内部故障），照常上抛给统一错误处理。
+    const isPatternError = e instanceof Error && e.name === 'PathPatternError';
+    if (!isPatternError) throw e;
+    sendJson(res, 400, {
+      paths: [],
+      truncated: false,
+      total: 0,
+      nextCursor: null,
+      error: 'invalid-pattern',
+      message: e instanceof Error ? e.message : String(e),
+      diagnostic: formatPatternError(pattern, e),
+    }, req, corsConfig);
+    return true;
+  }
+}
 
 export function registerPathsRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter } = rc;
@@ -89,7 +212,18 @@ export function registerPathsRoute(rc: RouteContext): void {
       const workspacePath = await resolveWorkspaceFromRequest(req, deps.ctx, deps);
 
       // 1) 图源：lastGraphData 槽（身份守卫）优先——所见即所查。
-      const graph = getWorkspaceScopedGraphData(deps, workspacePath);
+      //
+      // cycle-134 真机发现的缺口：宿主 fresh 启动、或用户从未触发过 `/data` 时，
+      // 槽是空的，而 `/bootstrap` 早已从**索引库**读出 2193 个节点、面板上图画得好好的。
+      // 于是「所见即所查」在这条路径上退化成「所见 ≠ 所查」——路径枚举在用户看得见图的
+      // 情况下报 `no-graph-data`。这与本文件的头注设计意图直接矛盾。
+      //
+      // 修法：槽空时回落**索引库直读**（与 `/bootstrap` 同一数据面，不是第二份图）。
+      // 只在槽空时才走，因此槽在场时的行为逐字节不变。
+      let graph = getWorkspaceScopedGraphData(deps, workspacePath);
+      if (!graph || graph.nodes.length === 0) {
+        graph = await readIndexGraph(workspacePath);
+      }
       if (!graph || graph.nodes.length === 0) {
         // 槽空（宿主 fresh 启动 / 索引未建）≠ 工作区不允许：真机冒烟发现 404
         // WORKSPACE_PATH_NOT_ALLOWED 有误导性（会让 API 消费方以为是权限问题）。
@@ -105,6 +239,30 @@ export function registerPathsRoute(rc: RouteContext): void {
       const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
       const sourceSymbol = url.searchParams.get('source') ?? '';
       const targetSymbol = url.searchParams.get('target') ?? '';
+      /**
+       * `pattern`（cycle-134）：路径模式 ρ —— 与 `source`/`target` **互斥**的两条分支。
+       *
+       * 为什么互斥而不是叠加：两者是**不同的查询形态**。
+       * - `source`+`target` ⇒ 「这两点之间的路径」（端点已知，ρ 未定）；
+       * - `pattern` ⇒ 「图上哪些路径符合这个形状」（形状已知，端点未知）。
+       * 同时给出时语义可以定义（「两点之间且符合 ρ」），但会让参数组合爆炸
+       * （`pattern` + `source` + `target` + `endNode` 四种子集各有不同含义），
+       * 而调用方真正需要的那种组合用 `pattern` + `startNode`/`endNode` 已能表达。
+       * 因此这里明确分支，并在同时给出时返回 400 —— 不含糊。
+       */
+      const pattern = url.searchParams.get('pattern') ?? '';
+
+      if (pattern) {
+        if (sourceSymbol || targetSymbol) {
+          sendError(res, 400, ERROR_CODES.INVALID_CONFIG, req, corsConfig,
+            'pattern is mutually exclusive with source/target — use pattern with optional startNode/endNode');
+          return;
+        }
+        const patternResult = runPatternBranch(res, graph, workspacePath, pattern, url, req, corsConfig);
+        if (patternResult) return;
+        return;
+      }
+
       if (!sourceSymbol || !targetSymbol) {
         sendError(res, 400, ERROR_CODES.INVALID_CONFIG, req, corsConfig, 'source and target query params are required');
         return;

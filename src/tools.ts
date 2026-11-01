@@ -12,7 +12,10 @@ import { RepoId as makeRepoId, NodeId } from './types/index.ts';
 import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
-import { XuanjiAdapterPool, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
+import { XuanjiAdapterPool, formatPatternError, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
+// ρ 语法错误的**类型判定**用 instanceof，不用 `e.name === 'PathPatternError'`：
+// name 是运行期字符串，重命名/minify/子类化都会让它静默失效；class 身份是编译期绑定的。
+import { PathPatternError } from './xuanji/core/path-pattern.ts';
 import { renderSubgraphText, selectSeeds, tokenizeQuery } from './xuanji/query/keyword-query.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
@@ -675,6 +678,140 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
   });
 
 
+  /**
+   * 路径模式 ρ（cycle-134）：`graph_path_enumerate` 的**序列约束**版本。
+   *
+   * 与 `graph_path_enumerate` 的差别只在表达能力：
+   * - 后者 `edgeTypes` 是扁平集合（「每步走这些之一」）；
+   * - 本工具 `pattern` 是边类型**序列正则**，能表达「先 call 再 import 再 dependency」
+   *   这类跨视图路径（研究方案 §4 的 `P = (v_s, ρ, v_t)`）。
+   *
+   * 为什么仍是独立工具而不合并进 `graph_path_enumerate`：两者的**参数语义不同**
+   * （`edgeTypes` 是集合语义、`pattern` 是序列语义），合并成一个可选参数会让模型
+   * 无法从参数名判断该传哪个，且两者同时给出时的优先级无自然定义。模型侧的选择表
+   * 写在 `src/host/skills.ts` 的 SKILL_CONTENT 第 8 条。
+   */
+  const graphPathPattern = defineTool({
+    name: 'graph_path_pattern',
+    description:
+      'Enumerate code paths matching a SEQUENCE pattern of edge types (Xuanji 璇玑图 path-pattern reader). Use this when the ORDER of relations matters — "call then import then dependency" — which graph_path_enumerate\'s flat edgeTypes cannot express. Pattern syntax: edge type names (call/import/extend/implement/dependency/contains/association/aggregation/composition), concatenation by space or ".", alternation "|", grouping "(...)", quantifiers "?" "*" "+" and "{n,m}". Examples: "call+" (transitive call closure), "call* . import" (any calls then a cross-file import), "(import|dependency)+" (any dependency closure), "call{2,4}" (2-4 hop call chains).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      pattern: {
+        type: 'string',
+        required: true,
+        description: 'Edge-type sequence pattern (ρ). e.g. "call+ . import? . dependency".',
+      },
+      startNode: { type: 'string', description: 'Restrict the START to this node id (narrows the search, does not filter results).' },
+      endNode: { type: 'string', description: 'Require the last node to be this node id.' },
+      minHops: { type: 'number', description: 'Minimum edges; intersected with the pattern\'s own lower bound. Default: 0.' },
+      maxHops: { type: 'number', description: 'Maximum edges; intersected with the pattern\'s own upper bound. Default: 8, capped at 12.' },
+      limit: { type: 'number', description: 'Maximum paths returned. Default: 20, capped at 50.' },
+      cursor: {
+        type: 'number',
+        description: 'Pagination cursor: number of paths already returned. Use the previous call\'s nextCursor.',
+      },
+      pageSize: { type: 'number', description: 'Paths per page. Defaults to limit, capped at 50.' },
+      truncation: {
+        type: 'string',
+        description: "'dfs-order' (default) stops at the cap in deterministic DFS order; 'top-k-weight' enumerates ALL candidates first and keeps the highest total edge weight — slower on large graphs.",
+      },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as {
+          paths?: string[][];
+          truncated?: boolean;
+          total?: number;
+          nextCursor?: number | null;
+          pattern?: string;
+          patternEdgeTypes?: readonly string[];
+          stateCount?: number;
+          error?: string;
+          diagnostic?: string;
+        } | null;
+        // ρ 语法错误必须与「零条路径」在返回面上可区分：把编译错误渲染成
+        // 带 ^ 指示的诊断，而不是伪装成「这个模式在该仓库没有匹配」。
+        if (v?.error) {
+          return [{ type: 'text' as const, text: `${v.error}${v.diagnostic ? `\n${v.diagnostic}` : ''}` }];
+        }
+        if (!v || !v.paths) {
+          return [{ type: 'text' as const, text: TOOL_MESSAGES.PATH_PATTERN_FAILED?.en ?? 'Path pattern evaluation failed' }];
+        }
+        const head = `pattern "${v.pattern ?? ''}" (types: ${(v.patternEdgeTypes ?? []).join('|') || 'none'}, ${v.stateCount ?? 0} NFA states)`;
+        if (v.paths.length === 0) {
+          return [{ type: 'text' as const, text: `${head}\n${TOOL_MESSAGES.NO_PATH_FOUND?.en ?? 'No path found'}` }];
+        }
+        const lines = v.paths.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.join(' → ')} (${p.length - 1} hops)`);
+        const suffix = v.truncated ? ' (truncated)' : '';
+        const next = v.nextCursor === null || v.nextCursor === undefined ? '' : ` (nextCursor=${String(v.nextCursor)})`;
+        return [{ type: 'text' as const, text: `${head}\n${v.total ?? v.paths.length} path(s)${suffix}${next}\n${lines.join('\n')}` }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { pattern: string; startNode?: string; endNode?: string };
+      return {
+        card: 'generic' as const,
+        title: 'Enumerate paths by pattern',
+        kind: 'search' as const,
+        rawInput: { pattern: a.pattern, ...(a.startNode === undefined ? {} : { from: a.startNode }), ...(a.endNode === undefined ? {} : { to: a.endNode }) },
+      };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Path pattern failed' : 'Pattern paths',
+    }),
+    execute: async (args) => {
+      const a = args as {
+        repoId: string;
+        pattern: string;
+        startNode?: string;
+        endNode?: string;
+        minHops?: number;
+        maxHops?: number;
+        limit?: number;
+        cursor?: number;
+        pageSize?: number;
+        truncation?: string;
+      };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      if (data.nodes.length === 0) return null;
+
+      const adapter = xuanjiPool.get(a.repoId);
+      adapter.syncGraph(data);
+
+      const limit = clampInt(a.limit, 1, 50, 20);
+      try {
+        const result = adapter.pathsByPattern(a.pattern, {
+          ...(a.startNode === undefined ? {} : { startNode: a.startNode }),
+          ...(a.endNode === undefined ? {} : { endNode: a.endNode }),
+          minHops: clampInt(a.minHops, 0, 12, 0),
+          maxHops: clampInt(a.maxHops, 0, 12, 8),
+          limit,
+          ...(a.cursor === undefined ? {} : { cursor: clampInt(a.cursor, 0, Number.MAX_SAFE_INTEGER, 0) }),
+          ...(a.pageSize === undefined ? {} : { pageSize: clampInt(a.pageSize, 1, 50, limit) }),
+          ...(a.truncation === 'top-k-weight' || a.truncation === 'dfs-order'
+            ? { truncation: a.truncation }
+            : {}),
+        });
+        return toJsonValue(result);
+      } catch (e) {
+        // 只有 ρ 语法错误走这里（其余异常照常上抛，保持响亮失败）。
+        const diagnostic = formatPatternError(a.pattern, e);
+        if (!(e instanceof PathPatternError)) throw e;
+        return toJsonValue({
+          pattern: a.pattern,
+          paths: [] as string[][],
+          truncated: false,
+          total: 0,
+          error: `Invalid path pattern: ${e instanceof Error ? e.message : String(e)}`,
+          diagnostic,
+        });
+      }
+    },
+  });
+
   const graphCycles = defineTool({
     name: 'graph_cycles',
     description: 'Enumerate simple dependency cycles (closed paths) in the code graph with a length bound. Each cycle is canonicalised (Booth minimal rotation) so it is reported once regardless of its starting symbol (Xuanji closed-path reader).',
@@ -1044,6 +1181,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     graphImpact,
     graphPathFind,
     graphPathEnumerate,
+    graphPathPattern,
     graphCycles,
     graphHealth,
     graphRulesCheck,

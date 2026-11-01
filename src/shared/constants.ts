@@ -470,6 +470,7 @@ export const COLORS = {
 } as const;
 export const TOOL_MESSAGES: Record<string, { en: string; zh: string }> = {
   NO_PATH_FOUND: { en: 'No path found between the specified symbols.', zh: '未找到指定符号之间的路径。' },
+  PATH_PATTERN_FAILED: { en: 'Path pattern evaluation failed.', zh: '路径模式求值失败。' },
   GRAPH_TOO_LARGE_FOR_PATH: { en: 'Graph too large (>50000 nodes) for path finding. Try filtering first.', zh: '图谱过大（>50000 节点），无法进行路径查找。请先尝试筛选。' },
   PATH_FOUND: { en: 'Path found', zh: '路径已找到' },
   HOPS: { en: 'hops', zh: '跳' },
