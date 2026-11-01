@@ -290,6 +290,10 @@ export const en: Record<string, string> = {
   'shortcut.contextMenuKey': 'Open the selected node menu (menu key)',
 
   'state.complete': 'Graph is complete ({total} nodes)',
+  // cycle-130 · T2: data source badge (StatusBar)
+  'state.graphLayer.upstream': 'Source: index',
+  'state.graphLayer.native': 'Source: native scan',
+  'state.graphLayer.empty': 'Source: empty',
   'state.functionBudget': 'Expanded {expanded}/{total} function bodies',
 
   // Path finding

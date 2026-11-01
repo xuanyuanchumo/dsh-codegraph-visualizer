@@ -139,6 +139,12 @@ export interface GraphState {
   initMessage: string | null;
   /** Server-reported index status for the active workspace (from the bootstrap payload). */
   indexStatus: 'ready' | 'building' | 'empty';
+  /**
+   * 图层来源声明（cycle-130 · T2）：当前图来自上游索引（'upstream'）、原生通道
+   * （'native'）还是空态（'empty'）。undefined = host 未提供（旧版 host /
+   * 未走原生链路）——StatusBar 来源徽章据此缺席渲染（宁缺勿造）。
+   */
+  graphLayer?: 'upstream' | 'native' | 'empty';
   watchEnabled: boolean;
 
   expandedNodeIds: Set<string>;
@@ -250,7 +256,7 @@ export interface GraphState {
   lodEnabled: boolean;
 
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null; xuanji?: { applied: boolean; addedPaths?: number; degradedRules?: readonly string[]; invariantViolations?: readonly string[] } }) => void;
-  setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number }) => void;
+  setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number; graphLayer?: 'upstream' | 'native' | 'empty' }) => void;
   setLayout: (layout: LayoutType) => void;
   setDagreRankDir: (dir: RankDir) => void;
   setTheme: (theme: ThemeType) => void;

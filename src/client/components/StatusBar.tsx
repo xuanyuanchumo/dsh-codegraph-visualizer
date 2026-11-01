@@ -18,6 +18,11 @@ interface StatusBarProps {
   displayedNodeCount?: number;
   performanceDegradations?: string[];
   /**
+   * 图层来源声明（cycle-130 · T2）：'upstream' = 上游索引、'native' = 原生通道、
+   * 'empty' = 空态。undefined = host 未提供——徽章缺席渲染（宁缺勿造）。
+   */
+  graphLayer?: 'upstream' | 'native' | 'empty';
+  /**
    * 璇玑图增量引擎健康信号（cycle-122）：null/缺省 = 本轮非增量路径 ⇒ 不显示。
    * 显示规则（量化 + 白盒）：增量命中 ⇒「⚡ 增量 +N」；有规则被降级 ⇒ 追加「· R 降级」
    * 并染警示色。信号只在引擎真实跑过时出现（skipped/全量重建都不显示——
@@ -37,7 +42,7 @@ const DEGRADATION_KEYS: Record<string, string> = {
   'large-graph-mode': 'degradation.largeGraphMode',
 };
 
-export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations, xuanjiSignal }: StatusBarProps) {
+export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations, xuanjiSignal, graphLayer }: StatusBarProps) {
   const t = useT();
   const statusDotClass = error ? 'cg-status-dot cg-error' : isLoading ? 'cg-status-dot cg-loading' : 'cg-status-dot';
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
@@ -61,6 +66,13 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
         <span className={statusDotClass} /><span>{statusText}</span>
       </div>
       {wsName && <span className="cg-status-workspace" title={workspaceName}>{wsName}</span>}
+      {/* cycle-130 · T2：数据来源徽章——「数据来自上游索引还是原生通道」白盒透出。
+          undefined = host 未提供（旧版 host / 未走原生链路），缺席渲染（宁缺勿造）。 */}
+      {graphLayer && (
+        <span className={`cg-status-graph-layer cg-status-graph-layer--${graphLayer}`} title={t(`state.graphLayer.${graphLayer}`)}>
+          {t(`state.graphLayer.${graphLayer}`)}
+        </span>
+      )}
       {truncated ? (
         <span className="cg-status-truncated" title={t('state.truncatedHint')}>
           ⚠ {t('state.truncated', { shown: displayedNodeCount ?? 0, total: totalNodeCount ?? 0 })}

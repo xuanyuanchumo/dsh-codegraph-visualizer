@@ -41,6 +41,8 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
           totalNodeCount: bootstrap.metadata.totalNodeCount,
           totalEdgeCount: bootstrap.metadata.totalEdgeCount,
           timestamp: bootstrap.metadata.timestamp,
+          // cycle-130 · T2：图层来源透传（缺席 = host 未提供，徽章不渲染）。
+          graphLayer: bootstrap.metadata.graphLayer,
         });
         log.info('bootstrap data loaded', { rootNodes: bootstrap.topLevelNodes.length, totalNodeCount: bootstrap.metadata.totalNodeCount });
         useGraphStore.getState().setLoading(false);

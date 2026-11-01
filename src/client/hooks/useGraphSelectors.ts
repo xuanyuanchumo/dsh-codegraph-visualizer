@@ -33,6 +33,8 @@ export function useGraphStatus() {
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     initStatus: s.initStatus, urlRestored: s.urlRestored, panelVisible: s.panelVisible,
     indexStatus: s.indexStatus,
+    // cycle-130 · T2：图层来源（StatusBar 来源徽章数据面）。
+    graphLayer: s.graphLayer,
   })));
 }
 

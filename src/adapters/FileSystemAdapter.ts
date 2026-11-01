@@ -3,6 +3,7 @@ import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 import type { TreeSitterAdapter } from './TreeSitterAdapter.ts';
+import { parseTsconfigPaths, resolveAliasModule, type TsconfigPathsMapping } from './treeSitterExtractors.ts';
 import { FILE_SYSTEM } from '../shared/constants.ts';
 
 const log = scoped('fs-adapter');
@@ -222,11 +223,39 @@ export class FileSystemAdapter implements IDataAdapter {
     // 2. bare specifier：模块名 + 扩展名直接匹配 workspace 内路径；
     // 3. `lodash`/`react` 等包名自然落空——解析不到即跳过，绝不编造目标
     //    （缺口：tsconfig paths / node_modules 内部图——登记规划 §2 边界）。
+    // ── tsconfig paths 别名表（cycle-130 · T1）────────────────────────────
+    // 读 workspace 根的 tsconfig.json（缺席/解析失败 = 无别名表，alias 解析跳过，
+    // 相对/bare 逻辑不受影响）。一次扫描读一次即可（不缓存——batchScan 频率低）。
+    let aliasMapping: TsconfigPathsMapping | null = null;
+    try {
+      const tsconfigText = this.fs!.readFile(`${repoId}/tsconfig.json`);
+      aliasMapping = parseTsconfigPaths(tsconfigText);
+      if (aliasMapping) {
+        log.info(`tsconfig paths loaded: ${aliasMapping.entries.length} alias patterns`);
+      }
+    } catch {
+      // 无 tsconfig / 读取失败：诚实降级（别名解析跳过）。
+    }
+
     const fileSet = new Set(
       structureResult.nodes.filter((n) => String(n.id).startsWith('file:')).map((n) => String(n.filePath)),
     );
     const EXT_CANDIDATES = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.py', '.rs', '.go', '.java', '/index.ts', '/index.js'];
+    // fileSet 是绝对域（`D:/proj/src/a.ts`）；别名解析产出 repo 相对路径——
+    // 绝对化时用 repoId 前缀（与 fileSet 同域后匹配）。
+    const repoIdPrefix = repoId.endsWith('/') ? repoId : `${repoId}/`;
     const resolveModuleToFile = (fromFile: string, moduleName: string): string | null => {
+      // cycle-130 · T1：别名优先（@/utils/helper → src/utils/helper → 绝对域匹配）。
+      if (aliasMapping) {
+        const aliasRel = resolveAliasModule(aliasMapping, moduleName);
+        if (aliasRel) {
+          for (const ext of EXT_CANDIDATES) {
+            const absCandidate = `${repoIdPrefix}${aliasRel}${ext}`;
+            if (fileSet.has(absCandidate)) return absCandidate;
+          }
+          return null; // 别名命中但文件不在清单内（目录上限截断）——不落 bare（宁缺勿造）
+        }
+      }
       if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
         const base = fromFile.split('/').slice(0, -1).join('/');
         let joined: string;

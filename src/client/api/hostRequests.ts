@@ -34,6 +34,12 @@ export interface BootstrapData {
     timestamp: number;
     totalNodeCount: number;
     totalEdgeCount: number;
+    /**
+     * 图层来源声明（cycle-130 · T2）：数据来自上游索引（'upstream'）、原生
+     * 通道（'native'）还是空态（'empty'）。host /bootstrap 响应可能缺席
+     * （旧版 host / 未走原生链路）——缺席时不显示来源徽章（宁缺勿造）。
+     */
+    graphLayer?: 'upstream' | 'native' | 'empty';
   };
 }
 

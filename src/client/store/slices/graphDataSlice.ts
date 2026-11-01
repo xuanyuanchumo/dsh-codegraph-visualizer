@@ -140,7 +140,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
         _set({ error: err instanceof Error ? err.message : String(err), isLoading: false });
       }
     },
-    setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number }) => {
+    setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number; graphLayer?: 'upstream' | 'native' | 'empty' }) => {
       try {
         clearLoadingFailsafe();
         // 与 setGraphData 同理：首屏 bootstrap 会重置 rawNodes 与派生容器，
@@ -202,6 +202,9 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           healthScore: null,
           ruleViolations: [],
           performanceDegradations: [],
+          // cycle-130 · T2：图层来源入 store（StatusBar 来源徽章数据面）。
+          // 显式写入 undefined 也是合法状态（缺席 = 不显示徽章）。
+          graphLayer: metadata.graphLayer,
           expandedNodeIds: new Set(),
           expandedNodeIdsByViewMode: {},
           loadedChildrenByNodeId: new Set(),

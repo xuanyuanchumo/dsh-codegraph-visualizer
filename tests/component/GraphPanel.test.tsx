@@ -1759,6 +1759,7 @@ describe('GraphPanel uncovered handler tests', () => {
       totalNodeCount: 0, prerequisites: makePrerequisiteStatus({ codegraph: true, graphSource: true }),
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
       indexStatus: 'ready',
+      graphLayer: undefined,
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
       currentWorkspace: '/test/workspace', workspaceList: [], sessionWorkspace: null, pinnedWorkspace: null,
@@ -1779,6 +1780,7 @@ describe('GraphPanel uncovered handler tests', () => {
       totalNodeCount: 0, prerequisites: makePrerequisiteStatus({ graphSource: true }),
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
       indexStatus: 'ready',
+      graphLayer: undefined,
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
       currentWorkspace: '/test/workspace', workspaceList: [], sessionWorkspace: null, pinnedWorkspace: null,
@@ -1801,6 +1803,7 @@ describe('GraphPanel uncovered handler tests', () => {
       totalNodeCount: 1, prerequisites: makePrerequisiteStatus({ codegraph: true, graphSource: true }),
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
       indexStatus: 'ready',
+      graphLayer: undefined,
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
       currentWorkspace: '/test/workspace', workspaceList: [], sessionWorkspace: null, pinnedWorkspace: null,
@@ -3003,6 +3006,7 @@ describe('GraphPanel panel callback tests', () => {
       totalNodeCount: 0, prerequisites: makePrerequisiteStatus({ graphSource: true }),
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
       indexStatus: 'ready',
+      graphLayer: undefined,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3535,6 +3539,7 @@ describe('GraphPanel onClose callback tests', () => {
       totalNodeCount: 0, prerequisites: makePrerequisiteStatus({ graphSource: true }),
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
       indexStatus: 'ready',
+      graphLayer: undefined,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3821,6 +3826,7 @@ describe('GraphPanel remaining handler coverage tests', () => {
       totalNodeCount: 0, prerequisites: makePrerequisiteStatus({ graphSource: true }),
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
       indexStatus: 'ready',
+      graphLayer: undefined,
     });
 
     const { container } = render(React.createElement(GraphPanel));

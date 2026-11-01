@@ -164,6 +164,8 @@ export function registerBootstrapRoute(rc: RouteContext): void {
             timestamp: lastGraphData.metadata.timestamp,
             totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
             totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length,
+            // cycle-130 · T2：图层来源透传（客户端 StatusBar 来源徽章的数据面）。
+            ...(lastGraphData.metadata.graphLayer ? { graphLayer: lastGraphData.metadata.graphLayer } : {}),
           },
         }, req, corsConfig, etagHeader);
         return;

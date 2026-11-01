@@ -287,6 +287,10 @@ export const zh: Record<string, string> = {
   'shortcut.contextMenuKey': '打开选中节点的菜单（菜单键）',
 
   'state.complete': '图谱完整 ({total} 节点)',
+  // cycle-130 · T2：数据来源徽章（StatusBar）
+  'state.graphLayer.upstream': '来源: 索引',
+  'state.graphLayer.native': '来源: 原生扫描',
+  'state.graphLayer.empty': '来源: 空',
   'state.functionBudget': '已展开 {expanded}/{total} 个函数体',
 
   // 路径查找

@@ -1027,6 +1027,20 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   font-size: 10px;
 }
 
+/* cycle-130 · T2：数据来源徽章——上游索引 / 原生扫描 白盒透出。 */
+.cg-status-bar .cg-status-graph-layer {
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+  padding: 0 6px;
+  border-left: 1px solid var(--cg-border);
+  color: var(--cg-text-tertiary);
+  white-space: nowrap;
+}
+
+.cg-status-bar .cg-status-graph-layer--native {
+  color: var(--cg-warning);
+}
+
 .cg-status-bar .cg-status-truncated {
   color: var(--cg-warning);
   font-size: 11px;

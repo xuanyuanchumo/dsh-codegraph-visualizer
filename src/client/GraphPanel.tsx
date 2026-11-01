@@ -107,7 +107,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
   const { nodes, edges, rawNodes, rawEdges } = useGraphData();
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData, hierarchyLevel } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
-  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible, indexStatus } = useGraphStatus();
+  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible, indexStatus, graphLayer } = useGraphStatus();
   const { currentWorkspace, workspaceList, sessionWorkspace, pinnedWorkspace } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled, xuanjiSignal } = useGraphPerformance();
@@ -687,7 +687,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}
         watchEnabled={watchEnabled} workspaceName={currentWorkspace}
         truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length}
-        performanceDegradations={performanceDegradations} xuanjiSignal={xuanjiSignal} />
+        performanceDegradations={performanceDegradations} xuanjiSignal={xuanjiSignal} graphLayer={graphLayer} />
       <div className="cg-resize-handle" title={t('panel.resetSize')} />
     </div>
   );
