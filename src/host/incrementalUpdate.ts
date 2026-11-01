@@ -78,7 +78,7 @@ function withCounts(nodes: GraphNode[], edges: GraphEdge[], previous: GraphData[
  * whole-graph fetch. A non-null result with an empty `delta` means the read succeeded and the graph
  * genuinely did not change.
  */
-export function buildIncrementalUpdate(input: IncrementalUpdateInput): IncrementalUpdateResult | null {
+export async function buildIncrementalUpdate(input: IncrementalUpdateInput): Promise<IncrementalUpdateResult | null> {
   const { workspacePath, changedFiles, current } = input;
   if (changedFiles.length === 0) return null;
   // 跨工作区防护（P0）：`current` 是 host 持有的"最后一个图"，它可能属于另一个工作区——浏览器先给
@@ -106,7 +106,24 @@ export function buildIncrementalUpdate(input: IncrementalUpdateInput): Increment
     return null;
   }
 
-  const rows = readFilesFromDb(dbPath, changedFiles);
+  // cycle-129 · T4：索引域抽象——上游库不可读（缺席/半写）时改用**原生索引**
+  // （cycle-128 落库，schema 逐列兼容，readFilesFromDb 零改动可读）。此前该场景
+  // 直接 return null → 全量实时扫描（TreeSitter wasm 全仓解析，秒级）；原生索引
+  // 在场时增量只读改动文件（毫秒级）。读出的行统一走既有 mapRowsToGraph* 转换
+  // ——增量语义与上游路径完全一致（同一行契约），只是数据来源不同。
+  let rows = readFilesFromDb(dbPath, changedFiles);
+  if (!rows) {
+    try {
+      const { resolveNativeIndexPath } = await import('../adapters/nativeIndex.ts');
+      const nativePath = resolveNativeIndexPath(workspacePath);
+      rows = readFilesFromDb(nativePath, changedFiles);
+      if (rows) {
+        log.info('incremental update using native index', { changedFiles: changedFiles.length });
+      }
+    } catch (e) {
+      log.warn('native index incremental read failed', { error: String(e) });
+    }
+  }
   if (!rows) {
     log.info('incremental update skipped: index unreadable', { dbPath });
     return null;

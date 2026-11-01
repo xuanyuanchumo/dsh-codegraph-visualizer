@@ -119,33 +119,33 @@ describe('buildIncrementalUpdate', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('returns null when no file changed', () => {
+  it('returns null when no file changed', async () => {
     createWorkspace(tempDir, [A1]);
     const current = graphFrom([A1]);
-    expect(buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: [], current })).toBeNull();
+    expect(await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: [], current })).toBeNull();
   });
 
-  it('returns null when too many files changed to make a targeted read worthwhile', () => {
+  it('returns null when too many files changed to make a targeted read worthwhile', async () => {
     createWorkspace(tempDir, [A1]);
     const current = graphFrom([A1]);
     const changedFiles = Array.from({ length: 51 }, (_, i) => `src/f${i}.ts`);
-    expect(buildIncrementalUpdate({ workspacePath: tempDir, changedFiles, current })).toBeNull();
+    expect(await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles, current })).toBeNull();
   });
 
-  it('returns null when the index cannot be read', () => {
+  it('returns null when the index cannot be read', async () => {
     const empty = mkdtempSync(join(tmpdir(), 'cg-incr-none-'));
     try {
       const current = graphFrom([A1]);
-      expect(buildIncrementalUpdate({ workspacePath: empty, changedFiles: ['src/a.ts'], current })).toBeNull();
+      expect(await buildIncrementalUpdate({ workspacePath: empty, changedFiles: ['src/a.ts'], current })).toBeNull();
     } finally {
       rmSync(empty, { recursive: true, force: true });
     }
   });
 
-  it('reports an added symbol as an added node', () => {
+  it('reports an added symbol as an added node', async () => {
     createWorkspace(tempDir, [A1, A2]);
     const current = graphFrom([A1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result).not.toBeNull();
     expect(result!.delta.addedNodes.map((n) => n.id)).toEqual(['a2']);
     expect(result!.delta.removedNodes).toEqual([]);
@@ -153,19 +153,19 @@ describe('buildIncrementalUpdate', () => {
     expect(result!.next.nodes.map((n) => n.id).sort()).toEqual(['a1', 'a2']);
   });
 
-  it('reports a symbol that left the index as a removed node', () => {
+  it('reports a symbol that left the index as a removed node', async () => {
     createWorkspace(tempDir, [A1]);
     const current = graphFrom([A1, A2]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result).not.toBeNull();
     expect(result!.delta.removedNodes.map((n) => n.id)).toEqual(['a2']);
     expect(result!.next.nodes.map((n) => n.id)).toEqual(['a1']);
   });
 
-  it('reports a changed signature line as a modified node', () => {
+  it('reports a changed signature line as a modified node', async () => {
     createWorkspace(tempDir, [{ ...A1, line: 42, name: 'alphaRenamed' }]);
     const current = graphFrom([A1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result!.delta.modifiedNodes.map((n) => n.id)).toEqual(['a1']);
     expect(result!.next.nodes[0]!.label).toBe('alphaRenamed');
     expect(result!.next.nodes[0]!.lineNumber).toBe(42);
@@ -173,50 +173,50 @@ describe('buildIncrementalUpdate', () => {
 
   // The diff is scoped to the changed files, so a node in an untouched file can never be reported
   // as removed just because the targeted read did not return it.
-  it('never reports a node from an untouched file as removed', () => {
+  it('never reports a node from an untouched file as removed', async () => {
     createWorkspace(tempDir, [A1]);
     const current = graphFrom([A1, B1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result!.delta.removedNodes).toEqual([]);
     expect(result!.next.nodes.map((n) => n.id).sort()).toEqual(['a1', 'b1']);
   });
 
-  it('yields an empty delta when the changed file produced no structural change', () => {
+  it('yields an empty delta when the changed file produced no structural change', async () => {
     createWorkspace(tempDir, [A1]);
     const current = graphFrom([A1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result).not.toBeNull();
     expect(result!.delta).toEqual(EMPTY_DELTA);
   });
 
-  it('carries added edges and drops edges the index no longer reports', () => {
+  it('carries added edges and drops edges the index no longer reports', async () => {
     createWorkspace(tempDir, [A1, A2], [{ id: 1, source: 'a1', target: 'a2', kind: 'call', line: 3 }]);
     const current = graphFrom([A1, A2], [{ id: 9, source: 'a1', target: 'a2', kind: 'dependency', line: 1 }]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result!.delta.addedEdges.map((e) => e.id)).toEqual(['1']);
     expect(result!.delta.removedEdges.map((e) => e.id)).toEqual(['9']);
     expect(result!.next.edges.map((e) => e.id)).toEqual(['1']);
     expect(result!.next.edges[0]!.type).toBe('call');
   });
 
-  it('accepts a backslash-separated watcher path', () => {
+  it('accepts a backslash-separated watcher path', async () => {
     createWorkspace(tempDir, [A1, A2]);
     const current = graphFrom([A1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src\\a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src\\a.ts'], current });
     expect(result!.delta.addedNodes.map((n) => n.id)).toEqual(['a2']);
   });
 
-  it('targets every file below a changed directory', () => {
+  it('targets every file below a changed directory', async () => {
     createWorkspace(tempDir, [A1, B1]);
     const current = graphFrom([A1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src'], current });
     expect(result!.delta.addedNodes.map((n) => n.id)).toEqual(['b1']);
   });
 
-  it('recomputes the revision metadata from the folded arrays', () => {
+  it('recomputes the revision metadata from the folded arrays', async () => {
     createWorkspace(tempDir, [A1, A2]);
     const current = graphFrom([A1], [], tempDir, 111);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current, timestamp: 999 });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current, timestamp: 999 });
     expect(result!.next.metadata.timestamp).toBe(999);
     expect(result!.next.metadata.nodeCount).toBe(2);
     expect(result!.next.metadata.edgeCount).toBe(0);
@@ -225,17 +225,17 @@ describe('buildIncrementalUpdate', () => {
     expect(result!.next.metadata.repoId).toBe(tempDir);
   });
 
-  it('reports how many index rows the targeted read pulled back', () => {
+  it('reports how many index rows the targeted read pulled back', async () => {
     createWorkspace(tempDir, [A1, A2], [{ id: 1, source: 'a1', target: 'a2', kind: 'call', line: 3 }]);
     const current = graphFrom([A1]);
-    const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(result!.scanned).toEqual({ nodes: 2, edges: 1 });
   });
 
-  it('leaves the caller-supplied graph untouched', () => {
+  it('leaves the caller-supplied graph untouched', async () => {
     createWorkspace(tempDir, [A1, A2]);
     const current = graphFrom([A1]);
-    buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+    await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
     expect(current.nodes).toHaveLength(1);
   });
 
@@ -246,28 +246,28 @@ describe('buildIncrementalUpdate', () => {
   describe('parity with the full fetch path', () => {
     const FILE_A: NodeRow = { id: 'f_a', kind: 'file', name: 'a.ts', filePath: 'src/a.ts', line: 1 };
 
-    it('stamps properties.__source so an unchanged file is not reported as modified', () => {
+    it('stamps properties.__source so an unchanged file is not reported as modified', async () => {
       createWorkspace(tempDir, [A1]);
       const current = graphFrom([A1]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result).not.toBeNull();
       expect(result!.delta).toEqual(EMPTY_DELTA);
     });
 
-    it('carries properties.__source on nodes the incremental read introduces', () => {
+    it('carries properties.__source on nodes the incremental read introduces', async () => {
       createWorkspace(tempDir, [A1]);
       const current = graphFrom([]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result!.delta.addedNodes.map((n) => n.id)).toEqual(['a1']);
       expect(result!.delta.addedNodes[0]!.properties.__source).toBe('codegraph');
     });
 
     // Same marker on edges: `keptImportIds` is rebuilt from `properties.__source`, so an edge published
     // without it stops counting towards the import cap on the following tick.
-    it('carries properties.__source on edges the incremental read introduces', () => {
+    it('carries properties.__source on edges the incremental read introduces', async () => {
       createWorkspace(tempDir, [A1, B1], [{ id: 1, source: 'a1', target: 'b1', kind: 'calls', line: 3 }]);
       const current = graphFrom([A1, B1]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result!.delta.addedEdges.map((e) => e.id)).toEqual(['1']);
       expect(result!.delta.addedEdges[0]!.properties.__source).toBe('codegraph');
     });
@@ -275,14 +275,14 @@ describe('buildIncrementalUpdate', () => {
     // A targeted read returns nodes from several files at once, so the parent must come from each
     // node's own file_path. A single "parent for the whole batch" would hang every node under whichever
     // file row happened to be first, which the full path never does.
-    it('resolves parentId per file_path rather than assigning one parent to the whole batch', () => {
+    it('resolves parentId per file_path rather than assigning one parent to the whole batch', async () => {
       const FILE_B: NodeRow = { id: 'f_b', kind: 'file', name: 'b.ts', filePath: 'src/b.ts', line: 1 };
       createWorkspace(tempDir, [FILE_A, FILE_B, A1, B1]);
       const current = graphFrom([FILE_A, FILE_B, A1, B1]);
       expect(current.nodes.find((n) => n.id === 'a1')?.parentId).toBe('f_a');
       expect(current.nodes.find((n) => n.id === 'b1')?.parentId).toBe('f_b');
 
-      const result = buildIncrementalUpdate({
+      const result = await buildIncrementalUpdate({
         workspacePath: tempDir, changedFiles: ['src/a.ts', 'src/b.ts'], current,
       });
       expect(result!.delta).toEqual(EMPTY_DELTA);
@@ -290,7 +290,7 @@ describe('buildIncrementalUpdate', () => {
       expect(current.nodes.find((n) => n.id === 'f_b')?.parentId).toBeUndefined();
     });
 
-    it('caps import edges per source exactly like the full fetch', () => {
+    it('caps import edges per source exactly like the full fetch', async () => {
       const deps: NodeRow[] = Array.from({ length: 25 }, (_, i) => ({
         id: `t${i + 1}`, kind: 'function', name: `dep${i + 1}`, filePath: `src/dep${i + 1}.ts`, line: 1,
       }));
@@ -301,46 +301,46 @@ describe('buildIncrementalUpdate', () => {
       const current = graphFrom([A1, ...deps], importEdges);
       // The full path already truncated this source to the cap, so a re-read must agree with it.
       expect(current.edges.filter((e) => e.type === 'import')).toHaveLength(20);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result!.delta).toEqual(EMPTY_DELTA);
     });
 
-    it('drops self-loop edges exactly like the full fetch', () => {
+    it('drops self-loop edges exactly like the full fetch', async () => {
       createWorkspace(tempDir, [A1, A2], [
         { id: 1, source: 'a1', target: 'a1', kind: 'call', line: 1 },
         { id: 2, source: 'a1', target: 'a2', kind: 'call', line: 3 },
       ]);
       const current = graphFrom([A1, A2], [{ id: 2, source: 'a1', target: 'a2', kind: 'call', line: 3 }]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result!.delta).toEqual(EMPTY_DELTA);
     });
 
-    it('drops FILTERED_EDGE_KINDS exactly like the full fetch', () => {
+    it('drops FILTERED_EDGE_KINDS exactly like the full fetch', async () => {
       createWorkspace(tempDir, [A1, A2], [
         { id: 1, source: 'a1', target: 'a2', kind: 'uses_var', line: 1 },
         { id: 2, source: 'a1', target: 'a2', kind: 'call', line: 3 },
       ]);
       const current = graphFrom([A1, A2], [{ id: 2, source: 'a1', target: 'a2', kind: 'call', line: 3 }]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result!.delta).toEqual(EMPTY_DELTA);
     });
 
     // A targeted read returns edges whose *far* endpoint sits in an untouched file. Treating only the
     // touched nodes as the valid universe would report that still-live edge as removed.
-    it('keeps an edge that crosses into an untouched file', () => {
+    it('keeps an edge that crosses into an untouched file', async () => {
       createWorkspace(tempDir, [A1, B1], [{ id: 1, source: 'a1', target: 'b1', kind: 'call', line: 3 }]);
       const current = graphFrom([A1, B1], [{ id: 1, source: 'a1', target: 'b1', kind: 'call', line: 3 }]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result!.delta.removedEdges).toEqual([]);
       expect(result!.delta).toEqual(EMPTY_DELTA);
     });
 
     // The full path drops edges whose endpoint is absent from the node set. Without the same filter
     // the delta would fail `canApplyGraphDelta` and force a whole-graph refetch on every tick.
-    it('drops an edge whose endpoint is missing from the index instead of falling back to a full fetch', () => {
+    it('drops an edge whose endpoint is missing from the index instead of falling back to a full fetch', async () => {
       createWorkspace(tempDir, [A1], [{ id: 5, source: 'a1', target: 'ghost', kind: 'call', line: 1 }]);
       const current = graphFrom([A1]);
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result).not.toBeNull();
       expect(result!.delta).toEqual(EMPTY_DELTA);
     });
@@ -349,7 +349,7 @@ describe('buildIncrementalUpdate', () => {
     // the single edge `a1 -> b1` (its target is in the changed file), so a local counter sees one import
     // for `a1` and admits it — but `a1` already has 20 imports in the graph, all with smaller ids, so the
     // full path drops this one. Counting locally re-adds it on every tick.
-    it('ranks a cross-file import edge against the imports the current graph already keeps', () => {
+    it('ranks a cross-file import edge against the imports the current graph already keeps', async () => {
       const deps: NodeRow[] = Array.from({ length: 25 }, (_, i) => ({
         id: `t${i + 1}`, kind: 'function', name: `dep${i + 1}`, filePath: `src/dep${i + 1}.ts`, line: 1,
       }));
@@ -364,7 +364,7 @@ describe('buildIncrementalUpdate', () => {
       expect(current.edges.filter((e) => e.type === 'import')).toHaveLength(20);
       expect(current.edges.some((e) => e.id === '30')).toBe(false);
 
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/b.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/b.ts'], current });
       expect(result).not.toBeNull();
       expect(result!.delta.addedEdges).toEqual([]);
       expect(result!.delta).toEqual(EMPTY_DELTA);
@@ -373,7 +373,7 @@ describe('buildIncrementalUpdate', () => {
     // `keptImportIds` is rebuilt from the held graph on every tick, so the import marker has to survive
     // the fold. If the incremental path published edges without `properties.__source`, the second tick
     // would stop recognising the kept imports and start admitting the capped-out ones again.
-    it('keeps the import cap stable across consecutive ticks', () => {
+    it('keeps the import cap stable across consecutive ticks', async () => {
       const deps: NodeRow[] = Array.from({ length: 25 }, (_, i) => ({
         id: `t${i + 1}`, kind: 'function', name: `dep${i + 1}`, filePath: `src/dep${i + 1}.ts`, line: 1,
       }));
@@ -383,13 +383,13 @@ describe('buildIncrementalUpdate', () => {
       const crossFile: EdgeRow = { id: 30, source: 'a1', target: 'b1', kind: 'imports', line: 1 };
       createWorkspace(tempDir, [A1, ...deps, B1], [...importEdges, crossFile]);
 
-      const first = buildIncrementalUpdate({
+      const first = await buildIncrementalUpdate({
         workspacePath: tempDir, changedFiles: ['src/b.ts'], current: graphFrom([A1, ...deps, B1], [...importEdges, crossFile]),
       });
       expect(first!.delta).toEqual(EMPTY_DELTA);
       expect(first!.next.edges.filter((e) => e.type === 'import')).toHaveLength(20);
 
-      const second = buildIncrementalUpdate({
+      const second = await buildIncrementalUpdate({
         workspacePath: tempDir, changedFiles: ['src/b.ts'], current: first!.next,
       });
       expect(second!.delta).toEqual(EMPTY_DELTA);
@@ -404,29 +404,29 @@ describe('buildIncrementalUpdate', () => {
   // 对应项，全部被判为 added，折叠后的 `next` 还带着旧工作区的 repoId 写回 host 权威图 —— 4790 节点的
   // 全量图被替换成 2 个节点。这里锁住"不同源直接拒绝、让调用方落回全量拉取"的行为。
   describe('cross-workspace guard', () => {
-    it('refuses to diff a graph that belongs to another workspace', () => {
+    it('refuses to diff a graph that belongs to another workspace', async () => {
       createWorkspace(tempDir, [A1, A2]);
       const current = graphFrom([A1], [], 'D:\\Projects\\TraeProjects\\Studying');
-      expect(buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current })).toBeNull();
+      expect(await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current })).toBeNull();
     });
 
-    it('treats a path with different separators as the same workspace', () => {
+    it('treats a path with different separators as the same workspace', async () => {
       createWorkspace(tempDir, [A1, A2]);
       // The watcher reports a native Windows path while the client may hold the same root with
       // forward slashes; both name the same directory and must not be mistaken for two workspaces.
       const current = graphFrom([A1], [], tempDir.replace(/\\/g, '/'));
-      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      const result = await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
       expect(result).not.toBeNull();
       expect(result!.delta.addedNodes.map((n) => n.id)).toEqual(['a2']);
     });
 
-    it('refuses a graph with no workspace identity rather than guessing', () => {
+    it('refuses a graph with no workspace identity rather than guessing', async () => {
       createWorkspace(tempDir, [A1, A2]);
       const graph = graphFrom([A1]);
       // `RepoId` refuses to build an empty id, so an identity-less graph can only be fabricated —
       // which is exactly what a partially-initialised host slot looks like.
       const current: GraphData = { ...graph, metadata: { ...graph.metadata, repoId: '' as RepoId } };
-      expect(buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current })).toBeNull();
+      expect(await buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current })).toBeNull();
     });
   });
 });

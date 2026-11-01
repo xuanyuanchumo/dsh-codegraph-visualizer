@@ -48,7 +48,9 @@ async function scanAndPush(
       // path when the held graph really belongs to the watched repo; otherwise fall through to the
       // full fetch below, which also repairs the slot.
       if (current && sameRepoId(current.metadata.repoId, repoId)) {
-        const update = buildIncrementalUpdate({ workspacePath: repoId, changedFiles, current });
+        // cycle-129 · T4：buildIncrementalUpdate 转异步（原生索引读侧动态 import）——
+        // await 语义不变（watcher 扫描本身就在异步流程里）。
+        const update = await buildIncrementalUpdate({ workspacePath: repoId, changedFiles, current });
         if (update) {
           state.setLastGraphData(update.next);
           const fingerprint = computeGraphFingerprint(update.next);

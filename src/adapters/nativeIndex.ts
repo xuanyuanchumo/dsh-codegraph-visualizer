@@ -230,3 +230,118 @@ export function readNativeIndexMeta(workspacePath: string): { fingerprint: strin
     return null;
   }
 }
+
+/**
+ * 定向更新（cycle-129 · T3）：把改动文件的旧行删除、新行写入——watcher 增量
+ * 路径的索引侧。与 writeNativeIndex 的「全量 DELETE+INSERT」相对，这里只触碰
+ * 改动文件的 nodes 行与**端点涉及这些节点**的 edges 行（增量读侧 readFilesFromDb
+ * 的对称操作）。
+ *
+ * @param changedFiles repo 相对路径（与 watcher 的 changedFiles 同域）。
+ * @returns 是否真的更新（false = 未索引过 / 无变化 / 失败）。
+ *
+ * 匹配语义与读侧 readFilesFromDb 一致：`file_path IN (改动文件)` 或
+ * `file_path LIKE '改动目录/%'`（目录级变更）。注意 file_path 列存的是
+ * GraphNode.filePath 原样（TreeSitter 产出为 repo 相对 posix 路径）。
+ */
+export function updateFilesForNativeIndex(
+  workspacePath: string,
+  changedFiles: readonly string[],
+  newNodes: readonly GraphNode[],
+  newEdges: readonly GraphEdge[],
+  newFingerprint: string,
+): boolean {
+  if (changedFiles.length === 0) return false;
+  let indexPath: string;
+  try {
+    indexPath = resolveNativeIndexPath(workspacePath);
+  } catch (e) {
+    log.warn('native index path rejected', { error: String(e) });
+    return false;
+  }
+  if (!existsSync(indexPath)) return false; // 未索引过：让调用方走全量回写
+  const db = getWriteDb(indexPath);
+  if (!db) return false;
+
+  try {
+    // 改动文件的规整集合（与 readFilesFromDb 同域：posix 保留 + 反斜杠变体）。
+    const wanted = new Set<string>();
+    for (const raw of changedFiles) {
+      const normalized = raw.replace(/\\/g, '/');
+      if (!normalized) continue;
+      wanted.add(normalized);
+    }
+    if (wanted.size === 0) return false;
+
+    // ① 找出改动文件涉及的**旧节点 id**（含目录前缀命中——目录变更时其下文件
+    //    的符号节点 file_path 以目录为前缀，但节点自身的 file_path 是文件路径；
+    //    这里按节点 file_path 精确匹配 + 目录前缀两层都要删）。
+    const placeholders = [...wanted].map(() => '?').join(',');
+    const prefixConds = [...wanted].map(() => "file_path LIKE ? ESCAPE '\\'").join(' OR ');
+    const prefixArgs = [...wanted].map((p) => `${p.replace(/[%_\\]/g, '\\$&')}/%`);
+    const staleNodes = db.prepare(
+      `SELECT id FROM nodes WHERE file_path IN (${placeholders}) OR ${prefixConds}`,
+    ).all(...wanted, ...prefixArgs) as Array<{ id: string }>;
+    if (staleNodes.length === 0) return false;
+
+    db.exec('BEGIN');
+    try {
+      // ② 删除旧边（端点涉及任一旧节点 id）。
+      const staleIds = staleNodes.map((r) => r.id);
+      for (let i = 0; i < staleIds.length; i += 500) {
+        const batch = staleIds.slice(i, i + 500);
+        const ph = batch.map(() => '?').join(',');
+        db.prepare(`DELETE FROM edges WHERE source IN (${ph}) OR target IN (${ph})`).run(...batch, ...batch);
+      }
+      // ③ 删除旧节点。
+      for (let i = 0; i < staleIds.length; i += 500) {
+        const batch = staleIds.slice(i, i + 500);
+        const ph = batch.map(() => '?').join(',');
+        db.prepare(`DELETE FROM nodes WHERE id IN (${ph})`).run(...batch);
+      }
+      // ④ 写入新节点/新边（与 writeNativeIndex 同映射）。
+      const insertNode = db.prepare(
+        'INSERT OR REPLACE INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      for (const n of newNodes) {
+        const props = (n.properties ?? {}) as Record<string, unknown>;
+        const exported = props.isExported === true || props.is_exported === 1 || props.is_exported === true;
+        insertNode.run(
+          String(n.id), n.type, n.label, n.filePath ?? '', n.lineNumber ?? 0,
+          typeof props.signature === 'string' ? props.signature : null,
+          typeof props.docstring === 'string' ? props.docstring : null,
+          exported ? 1 : 0,
+        );
+      }
+      const insertEdge = db.prepare(
+        'INSERT INTO edges (source, target, kind, metadata, line) VALUES (?, ?, ?, NULL, ?)',
+      );
+      for (const e of newEdges) {
+        const props = (e.properties ?? {}) as Record<string, unknown>;
+        const line = typeof props.line === 'number' && Number.isFinite(props.line) ? Math.round(props.line) : null;
+        insertEdge.run(String(e.source), String(e.target), e.type, line);
+      }
+      // ⑤ meta 前移（规模重算：旧规模 − 旧节点数 + 新节点数；指纹由调用方给）。
+      const prev = db.prepare('SELECT node_count, edge_count FROM index_meta WHERE workspace = ?').get(workspacePath) as
+        | { node_count: number; edge_count: number } | undefined;
+      const removedEdges = db.prepare(
+        'SELECT changes() as c',
+      ).get() as { c: number } | undefined;
+      void removedEdges;
+      const counts = db.prepare('SELECT (SELECT COUNT(*) FROM nodes) as n, (SELECT COUNT(*) FROM edges) as e').get() as { n: number; e: number };
+      db.prepare(
+        'INSERT OR REPLACE INTO index_meta (workspace, fingerprint, node_count, edge_count, indexed_at) VALUES (?, ?, ?, ?, ?)',
+      ).run(workspacePath, newFingerprint, counts.n, counts.e, Date.now());
+      void prev;
+      db.exec('COMMIT');
+      log.info('native index updated (targeted)', { workspacePath, changedFiles: changedFiles.length, staleNodes: staleIds.length, newNodes: newNodes.length, newEdges: newEdges.length });
+      return true;
+    } catch (inner) {
+      db.exec('ROLLBACK');
+      throw inner;
+    }
+  } catch (e) {
+    log.warn('native index targeted update failed', { error: String(e) });
+    return false;
+  }
+}

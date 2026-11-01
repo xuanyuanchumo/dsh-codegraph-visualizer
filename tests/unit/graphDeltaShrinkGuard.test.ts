@@ -56,41 +56,41 @@ function removeEdges(current: GraphSkeleton, count: number): GraphDelta {
 const RATIO = GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO;
 
 describe('canApplyGraphDelta — shrink guard (pure function)', () => {
-  it('is OFF when the caller passes no options: a 90% removal is still accepted (backward compatible)', () => {
+  it('is OFF when the caller passes no options: a 90% removal is still accepted (backward compatible)', async () => {
     const current = skeleton(100);
     expect(canApplyGraphDelta(current, removeNodes(current, 90))).toBe(true);
   });
 
-  it('treats an explicit minRetainRatio of 0 as off, identical to omitting it', () => {
+  it('treats an explicit minRetainRatio of 0 as off, identical to omitting it', async () => {
     const current = skeleton(100);
     const delta = removeNodes(current, 90);
     expect(canApplyGraphDelta(current, delta, { minRetainRatio: 0 })).toBe(canApplyGraphDelta(current, delta));
     expect(canApplyGraphDelta(current, delta, {})).toBe(true);
   });
 
-  it('rejects a delta that would retain only 20% of the nodes once the guard is enabled', () => {
+  it('rejects a delta that would retain only 20% of the nodes once the guard is enabled', async () => {
     const current = skeleton(100);
     expect(canApplyGraphDelta(current, removeNodes(current, 80), { minRetainRatio: RATIO })).toBe(false);
   });
 
-  it('accepts a normal small deletion (5% of the nodes)', () => {
+  it('accepts a normal small deletion (5% of the nodes)', async () => {
     const current = skeleton(100);
     expect(canApplyGraphDelta(current, removeNodes(current, 5), { minRetainRatio: RATIO })).toBe(true);
   });
 
   // 阈值语义被钉死在「严格小于才拒绝」：恰好等于阈值时通过。`<` 与 `<=` 都"看起来合理"，
   // 所以必须有一条用例把这一侧钉死（否则改一个字符也没人发现）。
-  it('accepts a delta that retains EXACTLY the threshold ratio', () => {
+  it('accepts a delta that retains EXACTLY the threshold ratio', async () => {
     const current = skeleton(100);
     expect(canApplyGraphDelta(current, removeNodes(current, 50), { minRetainRatio: 0.5 })).toBe(true);
   });
 
-  it('rejects a delta one node below the threshold ratio', () => {
+  it('rejects a delta one node below the threshold ratio', async () => {
     const current = skeleton(100);
     expect(canApplyGraphDelta(current, removeNodes(current, 51), { minRetainRatio: 0.5 })).toBe(false);
   });
 
-  it('applies the same retention rule to the edge dimension', () => {
+  it('applies the same retention rule to the edge dimension', async () => {
     const current = skeleton(100, 100);
     expect(canApplyGraphDelta(current, removeEdges(current, 60), { minRetainRatio: RATIO })).toBe(false);
     expect(canApplyGraphDelta(current, removeEdges(current, 5), { minRetainRatio: RATIO })).toBe(true);
@@ -98,19 +98,19 @@ describe('canApplyGraphDelta — shrink guard (pure function)', () => {
 
   // 规模下限：比例在极小图上没有意义（3 个节点删 2 个就是 0.33）。既有测试里大量 1~3 节点的
   // fixture 正是靠这条不被误伤 —— 阈值只在图还有一定规模时生效。
-  it('does not judge the ratio below the node size floor', () => {
+  it('does not judge the ratio below the node size floor', async () => {
     const current = skeleton(10);
     expect(current.nodes.length).toBeLessThan(GRAPH_DELTA_SHRINK.MIN_GUARDED_NODES);
     expect(canApplyGraphDelta(current, removeNodes(current, 9), { minRetainRatio: RATIO })).toBe(true);
   });
 
-  it('does not judge the edge ratio below the edge size floor', () => {
+  it('does not judge the edge ratio below the edge size floor', async () => {
     const current = skeleton(100, 10);
     expect(current.edges.length).toBeLessThan(GRAPH_DELTA_SHRINK.MIN_GUARDED_EDGES);
     expect(canApplyGraphDelta(current, removeEdges(current, 9), { minRetainRatio: RATIO })).toBe(true);
   });
 
-  it('never refuses because the graph grew or was merely modified', () => {
+  it('never refuses because the graph grew or was merely modified', async () => {
     const current = skeleton(100);
     const grown = emptyDelta({
       addedNodes: [makeNode('extra', 'X', 'function', 'x.ts', 1)],
@@ -119,7 +119,7 @@ describe('canApplyGraphDelta — shrink guard (pure function)', () => {
     expect(canApplyGraphDelta(current, grown, { minRetainRatio: RATIO })).toBe(true);
   });
 
-  it('keeps the pre-existing structural verdicts intact when the guard is enabled', () => {
+  it('keeps the pre-existing structural verdicts intact when the guard is enabled', async () => {
     const current = skeleton(100);
     // 不存在的节点：旧判定（描述了一个我们没有的版本）优先于规模判定
     const ghost = emptyDelta({ removedNodes: [makeNode('ghost', 'G', 'function', 'g.ts', 1)] });
@@ -129,11 +129,11 @@ describe('canApplyGraphDelta — shrink guard (pure function)', () => {
     expect(canApplyGraphDelta(current, dangling, { minRetainRatio: RATIO })).toBe(false);
   });
 
-  it('treats an empty current graph as fully retained', () => {
+  it('treats an empty current graph as fully retained', async () => {
     expect(canApplyGraphDelta({ nodes: [], edges: [] }, emptyDelta(), { minRetainRatio: RATIO })).toBe(true);
   });
 
-  it('is a pure decision: the same inputs always give the same verdict', () => {
+  it('is a pure decision: the same inputs always give the same verdict', async () => {
     const current = skeleton(40);
     const delta = removeNodes(current, 30);
     expect(canApplyGraphDelta(current, delta, { minRetainRatio: RATIO }))
@@ -162,11 +162,11 @@ describe('wiring — client store applyGraphDelta', () => {
     disposeStore();
   });
 
-  it('has a non-zero shared threshold (a zero constant would make the wiring untestable)', () => {
+  it('has a non-zero shared threshold (a zero constant would make the wiring untestable)', async () => {
     expect(GRAPH_DELTA_SHRINK.MIN_RETAIN_RATIO).toBeGreaterThan(0);
   });
 
-  it('refuses a 75% node loss, which the old checks alone would have accepted', () => {
+  it('refuses a 75% node loss, which the old checks alone would have accepted', async () => {
     const { nodes, edges } = clientGraph(40);
     useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
@@ -178,7 +178,7 @@ describe('wiring — client store applyGraphDelta', () => {
     expect(useGraphStore.getState().rawNodes).toHaveLength(40);
   });
 
-  it('still applies a normal small delta through the same call site', () => {
+  it('still applies a normal small delta through the same call site', async () => {
     const { nodes, edges } = clientGraph(40);
     useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
@@ -254,7 +254,7 @@ describe('wiring — host buildIncrementalUpdate', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('returns null (falls back to a full fetch) when the targeted read would drop 80% of the nodes', () => {
+  it('returns null (falls back to a full fetch) when the targeted read would drop 80% of the nodes', async () => {
     const all = repoRows(30);
     writeIndex(tempDir, all);
     const current = graphFrom(all, tempDir);
@@ -263,20 +263,20 @@ describe('wiring — host buildIncrementalUpdate', () => {
     // 索引现在只报回 6 个符号 —— 对同一文件来说，这只能是索引不完整，而不是一次正常改动
     replaceIndex(tempDir, all.slice(0, 6));
 
-    const result = buildIncrementalUpdate({
+    const result = await buildIncrementalUpdate({
       workspacePath: tempDir, changedFiles: ['src/a.ts'], current,
     });
     expect(result).toBeNull();
   });
 
-  it('still produces a delta for a normal one-symbol deletion through the same call site', () => {
+  it('still produces a delta for a normal one-symbol deletion through the same call site', async () => {
     const all = repoRows(30);
     writeIndex(tempDir, all);
     const current = graphFrom(all, tempDir);
 
     replaceIndex(tempDir, all.slice(0, 29));
 
-    const result = buildIncrementalUpdate({
+    const result = await buildIncrementalUpdate({
       workspacePath: tempDir, changedFiles: ['src/a.ts'], current,
     });
     expect(result).not.toBeNull();

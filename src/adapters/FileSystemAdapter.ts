@@ -206,7 +206,74 @@ export class FileSystemAdapter implements IDataAdapter {
       });
     }
 
-    log.info(`fetchDataWithSymbols: ${allNodes.length} nodes (${structureResult.nodes.length} structure + ${symbolResult.nodes.length} symbols), ${allEdges.length} edges`);
+    // ── import 边推断（cycle-129 · T2：原生依赖图缺口）────────────────────
+    //
+    // TreeSitter 只产出「文件 → 模块名」（语法事实，batchScan.importsByFile）；
+    // 把模块名解析到 workspace 内真实文件节点是**语义裁决**，需要目录清单——
+    // 这正是本适配器已有的 structureResult.nodes（file: 前缀节点）。
+    //
+    // 路径域（调试实证）：filesToParse 用**绝对路径**（fetchData 从 repoId 起
+    // 遍历、readFile 按绝对键），因此 TreeSitter 的 importsByFile 键域与
+    // fileSet 同为绝对路径——import 解析统一在绝对域进行，无需前缀换算
+    // （曾误判为「结构绝对/符号相对」两域而做前缀剥离，解析永远落空）。
+    //
+    // 解析策略（保守，宁缺勿造）：
+    // 1. 相对路径（./ / ../）按 import 所在文件目录 + 扩展名/index 枚举解析；
+    // 2. bare specifier：模块名 + 扩展名直接匹配 workspace 内路径；
+    // 3. `lodash`/`react` 等包名自然落空——解析不到即跳过，绝不编造目标
+    //    （缺口：tsconfig paths / node_modules 内部图——登记规划 §2 边界）。
+    const fileSet = new Set(
+      structureResult.nodes.filter((n) => String(n.id).startsWith('file:')).map((n) => String(n.filePath)),
+    );
+    const EXT_CANDIDATES = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.py', '.rs', '.go', '.java', '/index.ts', '/index.js'];
+    const resolveModuleToFile = (fromFile: string, moduleName: string): string | null => {
+      if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
+        const base = fromFile.split('/').slice(0, -1).join('/');
+        let joined: string;
+        if (moduleName.startsWith('./')) {
+          joined = `${base}/${moduleName.slice(2)}`;
+        } else {
+          let parts = base.split('/');
+          let rest = moduleName;
+          while (rest.startsWith('../')) {
+            parts = parts.slice(0, -1);
+            rest = rest.slice(3);
+          }
+          joined = `${parts.join('/')}/${rest}`;
+        }
+        for (const ext of EXT_CANDIDATES) {
+          const candidate = `${joined}${ext}`;
+          if (fileSet.has(candidate)) return candidate;
+        }
+        return null;
+      }
+      for (const ext of EXT_CANDIDATES) {
+        const candidate = `${moduleName}${ext}`;
+        if (fileSet.has(candidate)) return candidate;
+      }
+      return null;
+    };
+
+    let importEdgeCount = 0;
+    for (const [fromFile, modules] of symbolResult.importsByFile ?? []) {
+      const fromFileId = `file:${fromFile}`;
+      for (const moduleName of modules) {
+        const resolved = resolveModuleToFile(fromFile, moduleName);
+        if (!resolved) continue;
+        const targetId = `file:${resolved}`;
+        if (targetId === fromFileId) continue; // 自引用跳过
+        allEdges.push({
+          id: EdgeId(`tsimport:${fromFileId}:${targetId}`),
+          source: NodeId(fromFileId),
+          target: NodeId(targetId),
+          type: 'import',
+          properties: { edgeOrigin: 'ast', module: moduleName },
+        });
+        importEdgeCount++;
+      }
+    }
+
+    log.info(`fetchDataWithSymbols: ${allNodes.length} nodes (${structureResult.nodes.length} structure + ${symbolResult.nodes.length} symbols), ${allEdges.length} edges (imports ${importEdgeCount})`);
 
     return {
       nodes: allNodes,

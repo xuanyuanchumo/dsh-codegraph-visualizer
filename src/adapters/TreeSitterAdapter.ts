@@ -8,6 +8,7 @@ import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import { TREE_SITTER } from '../shared/constants.ts';
 
 const log = scoped('tree-sitter-adapter');
+import { collectHeritageTargets, extractImportSources, IMPORT_STATEMENT_TYPES } from './treeSitterExtractors.ts';
 
 /**
  * 同步探测「本宿主上是否**存在** AST 分析通道」——给能力位 `astSource` 用
@@ -90,7 +91,7 @@ const GRAMMAR_BY_EXTENSION: Record<string, SupportedGrammar> = {
   '.go': 'go',
 };
 
-interface TreeSitterNode {
+export interface TreeSitterNode {
   type: string;
   text: string;
   startPosition: { row: number; column: number };
@@ -341,6 +342,8 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     const allNodes: GraphNode[] = [];
     const allEdges: GraphEdge[] = [];
     const errors: string[] = [];
+    /** 文件 → 该文件 import 的模块名（cycle-129 · T1；消费方 FileSystemAdapter 解析成边）。 */
+    const importsByFile = new Map<string, string[]>();
 
     for (let i = 0; i < files.length; i += TREE_SITTER.BATCH_SIZE) {
       const batch = files.slice(i, i + TREE_SITTER.BATCH_SIZE);
@@ -352,9 +355,9 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
           if (!parser) return null;
           try {
             const tree = parser.parse(file.content);
-            const { nodes, edges } = this.extractSymbols(tree.rootNode, file.filePath, grammar);
+            const { nodes, edges, importSources } = this.extractSymbols(tree.rootNode, file.filePath, grammar);
             tree.delete();
-            return { nodes, edges };
+            return { nodes, edges, filePath: file.filePath, importSources };
           } catch (e) {
             errors.push(`${file.filePath}: ${String(e)}`);
             return null;
@@ -366,17 +369,21 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
         if (result) {
           allNodes.push(...result.nodes);
           allEdges.push(...result.edges);
+          if (result.importSources.length > 0) {
+            importsByFile.set(result.filePath, result.importSources);
+          }
         }
       }
     }
 
-    log.info(`batchScan: ${files.length} files, ${allNodes.length} nodes, ${allEdges.length} edges, ${errors.length} errors`);
+    log.info(`batchScan: ${files.length} files, ${allNodes.length} nodes, ${allEdges.length} edges, ${errors.length} errors, import-modules ${importsByFile.size} files`);
 
     return {
       nodes: allNodes,
       edges: allEdges,
       source: 'tree-sitter',
       timestamp: Date.now(),
+      importsByFile,
       ...(errors.length > 0 ? { error: errors.join('; ') } : {}),
     };
   }
@@ -410,11 +417,13 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     throw new Error(`Cannot load ${wasmFile} from any candidate path`);
   }
 
-  private extractSymbols(rootNode: TreeSitterNode, filePath: string, grammar: SupportedGrammar): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  private extractSymbols(rootNode: TreeSitterNode, filePath: string, grammar: SupportedGrammar): { nodes: GraphNode[]; edges: GraphEdge[]; importSources: string[] } {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
     const visited = new Set<string>();
     const nodeMap = new Map<string, GraphNode>();
+    // import 模块源（cycle-129 · T1）：本文件 import 的模块名去重收集。
+    const importSources: string[] = [];
 
     /**
      * `name` first, then the `type` field (Rust `impl_item` has no `name`; its `type` field is the
@@ -451,55 +460,45 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
      * 目标统一返回占位 id 策略（消费方造 `${filePath}:<type>:<name>`），由
      * merger 按 label 归并——避免遍历时序依赖（子符号可能尚未入 nodeMap）。
      */
-    const collectHeritageTargets = (
-      declaration: TreeSitterNode,
-    ): Array<{ clauseKind: 'extends' | 'implements'; targetName: string }> => {
-      const out: Array<{ clauseKind: 'extends' | 'implements'; targetName: string }> = [];
-      const childByType = (t: string) => declaration.children?.find((c: TreeSitterNode) => c.type === t);
-
-      // 形态一：interface 的 extends_type_clause
-      const extendsClause = childByType('extends_type_clause');
-      if (extendsClause) {
-        for (const c of extendsClause.children ?? []) {
-          if (c.type === 'type_identifier' && c.text) {
-            out.push({ clauseKind: 'extends', targetName: c.text });
-          }
-        }
-      }
-
-      // 形态二：class 的 class_heritage（extends_clause + implements_clause）
-      const heritage = childByType('class_heritage');
-      if (heritage) {
-        for (const clause of heritage.children ?? []) {
-          const kind = clause.type === 'extends_clause' ? 'extends'
-            : clause.type === 'implements_clause' ? 'implements' : null;
-          if (!kind) continue;
-          for (const c of clause.children ?? []) {
-            if ((c.type === 'type_identifier' || c.type === 'identifier') && c.text) {
-              out.push({ clauseKind: kind, targetName: c.text });
-            }
-          }
-        }
-      }
-
-      // 形态三：Python 的 class_definition（superclasses 字段）
-      const superclasses = declaration.childForFieldName?.('superclasses');
-      if (superclasses) {
-        for (const c of superclasses.children ?? []) {
-          if ((c.type === 'identifier' || c.type === 'attribute') && c.text) {
-            out.push({ clauseKind: 'extends', targetName: c.text });
-          }
-        }
-      }
-      return out;
-    };
-
+    /**
+     * import 模块源提取（cycle-129 · T1：原生依赖图的缺口）。
+     *
+     * import_statement（TS/JS）与 import_declaration（Python/Java/Rust use）的
+     * `source` 字段持有模块名字符串。此前 walk 只把 import 节点收成 module 节点
+     * （symbolKindFor 命中 `import_statement: 'module'`），模块字符串被丢弃——
+     * 原生图永远没有 `import` 边，依赖视图（dependencies view）在原生通道上是
+     * 空的。本函数返回去重后的模块名列表（同一模块多次 import 只记一条的输入）。
+     *
+     * 语法形态（各 grammar 实测）：
+     * - TS/JS `import_statement`：`source` 字段是 string 节点（含引号，剥掉）；
+     * - Python `import_statement` / `import_from_statement`：module_name /
+     *   `dotted_name`（无引号）；`relative_import`（from . import x）跳过——
+     *   相对层级语义留待后续（登记为缺口）；
+     * - Rust `use_declaration`：`argument` 字段（scoped_identifier 树），取
+     *   整段文本按 `::` 保留（Rust 路径语义与文件路径不直接对应，消费方
+     *   解析不到就跳过——与「解析不到就跳过」的总策略一致）。
+     * - Java `import_declaration`：`scoped_identifier`/`package` 文本（点分名）。
+     *
+     * 刻意**不在这里解析成文件路径**：模块名 → 文件的映射需要 workspace 上下文
+     * （扩展名歧义、index 解析、tsconfig paths），由 FileSystemAdapter（T2）
+     * 统一裁决——适配器保持「语法事实收集者」，不做语义猜测。
+     */
     const walk = (rootNode: TreeSitterNode): void => {
       const stack: Array<{ node: TreeSitterNode; parentId: string | undefined }> = [{ node: rootNode, parentId: undefined }];
       while (stack.length > 0) {
         const { node, parentId } = stack.pop()!;
         if (!node) continue;
         const nodeType = node.type;
+
+        // import 模块源提取（cycle-129 · T1）：在符号判定之前拦截——import 节点
+        // 仍会被下方 symbolKindFor 收成 module 节点（既有行为不变），但它的
+        // 模块字符串同时被记入 importSources，供 FileSystemAdapter 解析成边。
+        // 提取函数在模块级（extractImportSources，复杂度独立记账——本文件
+        // 复杂度曾在 cycle-129 超预算 117/100，抽离后回落）。
+        if (IMPORT_STATEMENT_TYPES.has(nodeType)) {
+          const sources = extractImportSources(node);
+          if (sources.length > 0) importSources.push(...sources);
+        }
 
         let graphType: GraphNode['type'] | null = null;
         const symbolKind = symbolKindFor(grammar, nodeType);
@@ -632,7 +631,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     };
 
     walk(rootNode);
-    return { nodes, edges };
+    return { nodes, edges, importSources: [...new Set(importSources)] };
   }
 
   async parseToAst(filePath: string, content: string): Promise<ASTNode | null> {

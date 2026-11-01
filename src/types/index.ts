@@ -192,6 +192,15 @@ export interface AdapterResult {
   source: DataSourceType;
   timestamp: number;
   error?: string;
+  /**
+   * 文件 → 该文件 import 的模块名（cycle-129 · T1，仅 tree-sitter 源产出）。
+   *
+   * 语法事实（import 语句的 `source` 字符串）与语义裁决（模块名 → workspace
+   * 内文件节点）刻意分离：TreeSitter 适配器保持「语法事实收集者」，路径解析
+   * 由 FileSystemAdapter 统一裁决（需要目录清单上下文）。消费方按需取用；
+   * 其它来源此字段缺席（不编造空对象）。
+   */
+  importsByFile?: Map<string, string[]>;
 }
 
 // ---- Graph heat-update event payloads -------------------------------------
