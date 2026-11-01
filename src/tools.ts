@@ -156,12 +156,64 @@ export async function fetchMergedGraph(
   // （目录结构 + TreeSitter 符号 + AST 边）。此前该场景 merge 结果为空图，而
   // :134 的日志宣称「built-in analysis always available」——假承诺。原生通道
   // 只在**外部源双双缺席**时启用：上游在场时行为逐字节不变（兼容矩阵见规划 §3）。
+  // cycle-128 · T2：第三级升级为「索引库优先」——原生 SQLite 索引（上游 schema
+  // 兼容）可读时直接走既有 DB 分页读取（毫秒级），缺席才实时 batchScan 并回写。
   if (source === 'auto' && merged.nodes.length === 0 && d.nativeAdapter) {
     try {
+      const [{ readGraphFromDbPaged }, { mapRowsToGraphNodes, mapRowsToGraphEdges }, { resolveNativeIndexPath, readNativeIndexMeta, writeNativeIndex }] = await Promise.all([
+        import('./adapters/codeGraphDb.ts'),
+        import('./adapters/codeGraphRows.ts'),
+        import('./adapters/nativeIndex.ts'),
+      ]);
+      // ① 索引库优先：库在场且有 meta ⇒ 既有读侧函数分页读取（零改动兼容）。
+      try {
+        const indexPath = resolveNativeIndexPath(repoId);
+        const meta = readNativeIndexMeta(repoId);
+        if (meta) {
+          const dbNodes: unknown[] = [];
+          const dbEdges: unknown[] = [];
+          let cursor: import('./adapters/codeGraphDb.ts').GraphPageCursor | null = null;
+          for (;;) {
+            const page = readGraphFromDbPaged(indexPath, cursor, 500);
+            if (!page) break;
+            dbNodes.push(...page.nodes);
+            dbEdges.push(...page.edges);
+            if (!page.nextCursor) break;
+            cursor = page.nextCursor;
+          }
+          if (dbNodes.length > 0) {
+            const validIds = new Set(dbNodes.map((n) => String((n as { id: unknown }).id)));
+            const nodes = mapRowsToGraphNodes(dbNodes as Parameters<typeof mapRowsToGraphNodes>[0]);
+            const edges = mapRowsToGraphEdges(dbEdges as Parameters<typeof mapRowsToGraphEdges>[0], validIds);
+            const fromIndex = d.merger.merge([{ nodes, edges, source: 'tree-sitter', timestamp: meta.indexedAt }], makeRepoId(repoId));
+            (fromIndex.metadata as GraphData['metadata']).graphLayer = 'native';
+            (fromIndex.metadata as GraphData['metadata']).nativeIndex = { hit: true, indexedAt: meta.indexedAt, fingerprint: meta.fingerprint };
+            log.info('fetchMergedGraph: native graph served from index', { nodes: fromIndex.nodes.length, edges: fromIndex.edges.length, indexedAt: meta.indexedAt });
+            try {
+              const { enhanceInheritanceDataCached } = await import('./host/inheritanceEnhancer.ts');
+              await enhanceInheritanceDataCached(fromIndex, repoId);
+            } catch (e) {
+              log.warn('inheritance enhancement failed on native index graph', { error: String(e) });
+            }
+            return fromIndex;
+          }
+        }
+      } catch (e) {
+        log.warn('native index read failed — falling back to live scan', { error: String(e) });
+      }
+      // ② 实时扫描（库缺席/空库/读失败）。
       const nativeResult = await d.nativeAdapter.fetchDataWithSymbols(repoId);
       if (nativeResult.nodes.length > 0) {
+        // ③ 回写索引（写失败不阻塞图返回——索引是缓存层）。
+        try {
+          const { computeGraphFingerprint } = await import('./shared/graphFingerprint.ts');
+          const fp = computeGraphFingerprint({ nodes: nativeResult.nodes, edges: nativeResult.edges, metadata: { repoId: makeRepoId(repoId), timestamp: 0, nodeCount: nativeResult.nodes.length, edgeCount: nativeResult.edges.length } } as GraphData);
+          writeNativeIndex(repoId, fp, nativeResult.nodes, nativeResult.edges);
+        } catch (e) {
+          log.warn('native index write-back failed', { error: String(e) });
+        }
         const nativeMerged = d.merger.merge([nativeResult], makeRepoId(repoId));
-        log.info('fetchMergedGraph: auto fallback to native graph layer', {
+        log.info('fetchMergedGraph: auto fallback to native graph layer (live scan)', {
           nodes: nativeMerged.nodes.length,
           edges: nativeMerged.edges.length,
           source: nativeResult.source,

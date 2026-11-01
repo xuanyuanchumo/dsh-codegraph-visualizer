@@ -130,6 +130,16 @@ export interface GraphData {
      * 披露数据来源，而不是把空图当作「工作区没有代码」。
      */
     graphLayer?: 'upstream' | 'native' | 'empty';
+    /**
+     * 原生索引命中信息（cycle-128 · T2）：`graphLayer === 'native'` 且索引库
+     * 命中时在场——模型/客户端可据此披露「毫秒级索引读取」vs「实时扫描」。
+     * 实时扫描路径（回写后）不带此字段（hit 语义仅指本次图来自库）。
+     */
+    nativeIndex?: {
+      hit: true;
+      indexedAt: number;
+      fingerprint: string;
+    };
   };
   layers?: Layer[];
 }

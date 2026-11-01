@@ -192,6 +192,8 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       securityManager.reset();
       disposeGraphTools();
       closeAllDbConnections();
+      // cycle-128：原生索引写连接池同步清理（与只读池同处置）。
+      void import('./adapters/nativeIndex.ts').then(({ closeNativeIndexConnections }) => closeNativeIndexConnections());
       graphRepo.close();
     };
   }, 'codegraph: state cleanup');
