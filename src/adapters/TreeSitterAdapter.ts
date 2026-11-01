@@ -1,14 +1,21 @@
 import { createRequire } from 'node:module';
 import { scoped } from '../shared/Logger.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
-import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
+import type { GraphNode, GraphEdge, AdapterResult, CallSite, DataSourceType } from '../types/index.ts';
 import type { IAnalysisAdapter } from './IAdapter.ts';
 import type { ASTNode } from '../shared/CFGTypes.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import { TREE_SITTER } from '../shared/constants.ts';
 
 const log = scoped('tree-sitter-adapter');
-import { collectHeritageTargets, extractImportSources, IMPORT_STATEMENT_TYPES } from './treeSitterExtractors.ts';
+import {
+  applyTodoMarkers,
+  collectHeritageTargets,
+  extractImportSources,
+  extractSymbolName,
+  IMPORT_STATEMENT_TYPES,
+  maybeCollectCallSite,
+} from './treeSitterExtractors.ts';
 
 /**
  * 同步探测「本宿主上是否**存在** AST 分析通道」——给能力位 `astSource` 用
@@ -344,6 +351,8 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     const errors: string[] = [];
     /** 文件 → 该文件 import 的模块名（cycle-129 · T1；消费方 FileSystemAdapter 解析成边）。 */
     const importsByFile = new Map<string, string[]>();
+    /** 文件 → 该文件的调用点（T2；消费方 FileSystemAdapter 解析成 `call` 边）。 */
+    const callSitesByFile = new Map<string, CallSite[]>();
 
     for (let i = 0; i < files.length; i += TREE_SITTER.BATCH_SIZE) {
       const batch = files.slice(i, i + TREE_SITTER.BATCH_SIZE);
@@ -355,9 +364,9 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
           if (!parser) return null;
           try {
             const tree = parser.parse(file.content);
-            const { nodes, edges, importSources } = this.extractSymbols(tree.rootNode, file.filePath, grammar);
+            const { nodes, edges, importSources, callSites } = this.extractSymbols(tree.rootNode, file.filePath, grammar);
             tree.delete();
-            return { nodes, edges, filePath: file.filePath, importSources };
+            return { nodes, edges, filePath: file.filePath, importSources, callSites };
           } catch (e) {
             errors.push(`${file.filePath}: ${String(e)}`);
             return null;
@@ -372,11 +381,14 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
           if (result.importSources.length > 0) {
             importsByFile.set(result.filePath, result.importSources);
           }
+          // 无条件写入（空数组也写）：语义上等价于「本文件没有调用点」，而省掉一个分支
+          // 是本文件复杂度预算下的刻意选择（walk 已到 101，本轮不新增条件）。
+          callSitesByFile.set(result.filePath, result.callSites);
         }
       }
     }
 
-    log.info(`batchScan: ${files.length} files, ${allNodes.length} nodes, ${allEdges.length} edges, ${errors.length} errors, import-modules ${importsByFile.size} files`);
+    log.info(`batchScan: ${files.length} files, ${allNodes.length} nodes, ${allEdges.length} edges, ${errors.length} errors, import-modules ${importsByFile.size} files, call-sites ${callSitesByFile.size} files`);
 
     return {
       nodes: allNodes,
@@ -384,6 +396,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
       source: 'tree-sitter',
       timestamp: Date.now(),
       importsByFile,
+      callSitesByFile,
       ...(errors.length > 0 ? { error: errors.join('; ') } : {}),
     };
   }
@@ -417,28 +430,17 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     throw new Error(`Cannot load ${wasmFile} from any candidate path`);
   }
 
-  private extractSymbols(rootNode: TreeSitterNode, filePath: string, grammar: SupportedGrammar): { nodes: GraphNode[]; edges: GraphEdge[]; importSources: string[] } {
+  private extractSymbols(rootNode: TreeSitterNode, filePath: string, grammar: SupportedGrammar): { nodes: GraphNode[]; edges: GraphEdge[]; importSources: string[]; callSites: CallSite[] } {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
     const visited = new Set<string>();
     const nodeMap = new Map<string, GraphNode>();
     // import 模块源（cycle-129 · T1）：本文件 import 的模块名去重收集。
     const importSources: string[] = [];
+    // 调用点（T2）：语法事实收集，被调名 → 符号的裁决由 FileSystemAdapter 负责。
+    const callSites: CallSite[] = [];
 
-    /**
-     * `name` first, then the `type` field (Rust `impl_item` has no `name`; its `type` field is the
-     * implemented type, e.g. `Bar`), then the first name-bearing child. Measured across all six
-     * grammars: the label child of a symbol node is always an `identifier`, `property_identifier`
-     * or `type_identifier`. Nodes with none of these keep the explicit `<node.type>` marker —
-     * `arrow_function` / `closure_expression` have no name and are expected to render as such.
-     */
-    const extractName = (node: TreeSitterNode): string => {
-      const nameNode = node.childForFieldName?.('name') ||
-        node.childForFieldName?.('type') ||
-        node.children?.find((c: TreeSitterNode) =>
-          c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'type_identifier');
-      return nameNode ? nameNode.text : `<${node.type}>`;
-    };
+    const extractName = extractSymbolName;
 
     const makeId = (node: TreeSitterNode, label: string): string =>
       `${filePath}:${label}:${node.startPosition.row}`;
@@ -499,6 +501,17 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
           const sources = extractImportSources(node);
           if (sources.length > 0) importSources.push(...sources);
         }
+
+        // 调用点（T2）：语法事实，「名字 → 符号」的裁决由 FileSystemAdapter 完成。
+        // 无条件调用一次并 push（判定全在纯函数里）——本文件已贴近复杂度预算，
+        // walk 里不新增条件语句。`parentId` 此刻仍是**最近的符号祖先**。
+        const callSite = maybeCollectCallSite(
+          node,
+          nodeType,
+          parentId,
+          parentId ? nodeMap.get(parentId)?.type : undefined,
+        );
+        if (callSite) callSites.push(callSite);
 
         let graphType: GraphNode['type'] | null = null;
         const symbolKind = symbolKindFor(grammar, nodeType);
@@ -599,28 +612,14 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
           currentParentId = id;
         }
 
+        // TODO/FIXME 标记（cycle-122 的 todoMarkerMode 数据面）：打标逻辑已搬到模块级
+        // 纯函数。这一步是**复杂度预算**驱动的：walk 在本轮之前就是 101（超 100 预算），
+        // 把这段原有的 5 个条件语句移出后回到预算内，才谈得上「本轮不新增分支」。
+        // 语义等价（HACK/XXX/BUG 与 TODO/FIXME 一样算「有此标记」）。
         if (COMMENT_NODE_TYPES.has(nodeType)) {
-          const text = node.text;
-          const matches = text.match(TODO_PATTERNS);
-          if (matches && parentId) {
-            const parentNode = nodeMap.get(parentId);
-            if (parentNode) {
-              const hasTodo = matches.some((m) => m === 'TODO');
-              const hasFixme = matches.some((m) => m === 'FIXME');
-              const existingTags = parentNode.tags ?? [];
-              const newTags: string[] = [];
-              if (hasTodo && !existingTags.includes('todo')) newTags.push('todo');
-              if (hasFixme && !existingTags.includes('fixme')) newTags.push('fixme');
-              if (newTags.length > 0) {
-                parentNode.tags = [...existingTags, ...newTags];
-              }
-              const existingTodoCount = (parentNode.properties.todoCount as number) ?? 0;
-              const existingFixmeCount = (parentNode.properties.fixmeCount as number) ?? 0;
-              if (hasTodo) parentNode.properties.todoCount = existingTodoCount + 1;
-              if (hasFixme) parentNode.properties.fixmeCount = existingFixmeCount + 1;
-              parentNode.properties.hasTodoFixme = true;
-            }
-          }
+          const parentNode = parentId ? nodeMap.get(parentId) : undefined;
+          const matches = node.text.match(TODO_PATTERNS);
+          if (parentNode && matches) applyTodoMarkers(parentNode, matches);
         }
 
         for (let i = (node.childCount || 0) - 1; i >= 0; i--) {
@@ -631,7 +630,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     };
 
     walk(rootNode);
-    return { nodes, edges, importSources: [...new Set(importSources)] };
+    return { nodes, edges, importSources: [...new Set(importSources)], callSites };
   }
 
   async parseToAst(filePath: string, content: string): Promise<ASTNode | null> {

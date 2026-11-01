@@ -186,6 +186,45 @@ export interface CallGraphNodeProperties {
 
 export type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter' | 'dependency';
 
+/**
+ * 边的**证据分级**（本轮 T2：原生 `call` 边提取）。
+ *
+ * 为什么不是随便加一个 `confidence: number`：本轮的两跳解析只有两种可被代码证明的状态，
+ * 一个连续量会让「一堆 0.7」既无法验证也无法断言。
+ *
+ * - `'exact'`    —— 被调名在**同一个文件**的符号集里**唯一**命中。调用发生点与符号
+ *   定义点在同一个语法单元内，名字→符号的映射没有歧义（仍然只是名字级解析，
+ *   不是类型系统级解析，见 {@link CallSite} 的注释）。
+ * - `'inferred'` —— 同文件未命中，靠**本文件已解析出的 import 目标文件**里的唯一同名符号
+ *   补上。这一步引入了「import 图 + 名字唯一性」两个前提，任何一个错了边就错了，
+ *   所以它必须与 exact 区分开，并落到 `edgeOrigin: 'heuristic'` 档（见
+ *   `src/adapters/treeSitterExtractors.ts` 的 `resolveCallEdges`）。
+ *
+ * 不放在 `src/xuanji/**`：那是零宿主依赖的库（有源码级守卫
+ * `tests/unit/xuanji/libraryBoundary.test.ts`），图谱类型属于宿主。
+ */
+export type EvidenceGrade = 'exact' | 'inferred';
+
+/**
+ * 一个**调用点**（语法事实）：某符号体内出现了一次对被调简单名的调用。
+ *
+ * 本仓库反复强调的「适配器是语法事实收集者，不做语义裁决」在这里的落地方式：
+ * 本类型只记录「谁（callerId）在行为上出现了一次叫 calleeName 的调用、在第几行」，
+ * **不**记录被调方到底解析到了哪个符号（那是 `FileSystemAdapter` 需要 workspace
+ * 目录清单与 import 图才能做的裁决）。
+ *
+ * 刻意只存**简单名**（末段标识符）：`a.b()` 记 `b`、`self.foo()` 记 `foo`、`obj.M()` 记 `M`。
+ * 不做「按接收者类型找方法」的猜测——那需要类型信息，本通道没有。
+ */
+export interface CallSite {
+  /** 调用宿主符号的 id（最近的 function/method 祖先；模块顶层调用不产生 call site）。 */
+  callerId: NodeId;
+  /** 被调方的简单名（末段标识符）。 */
+  calleeName: string;
+  /** 调用点所在行（1-based，与 `GraphNode.lineNumber` 同域）。 */
+  line: number;
+}
+
 export interface AdapterResult {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -201,6 +240,14 @@ export interface AdapterResult {
    * 其它来源此字段缺席（不编造空对象）。
    */
   importsByFile?: Map<string, string[]>;
+  /**
+   * 文件 → 该文件的调用点列表（本轮 T2，仅 tree-sitter 源产出）。
+   *
+   * 与 `importsByFile` 同一条设计原则：TreeSitter 只交出**语法事实**（调用点），
+   * 「被调名 → 哪个符号」的裁决与 `exact`/`inferred` 分级由 FileSystemAdapter
+   * 在 workspace 上下文里完成。键域与 `importsByFile` 一致（绝对路径）。
+   */
+  callSitesByFile?: Map<string, CallSite[]>;
 }
 
 // ---- Graph heat-update event payloads -------------------------------------

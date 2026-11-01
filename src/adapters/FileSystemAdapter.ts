@@ -3,7 +3,7 @@ import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 import type { TreeSitterAdapter } from './TreeSitterAdapter.ts';
-import { parseTsconfigPaths, resolveAliasModule, type TsconfigPathsMapping } from './treeSitterExtractors.ts';
+import { parseTsconfigPaths, resolveAliasModule, resolveCallEdges, type TsconfigPathsMapping } from './treeSitterExtractors.ts';
 import { FILE_SYSTEM } from '../shared/constants.ts';
 
 const log = scoped('fs-adapter');
@@ -284,6 +284,12 @@ export class FileSystemAdapter implements IDataAdapter {
     };
 
     let importEdgeCount = 0;
+    /**
+     * 源文件（绝对路径）→ 被 import 到的目标文件（绝对路径）集合。
+     * call 边的第二跳（inferred）**只允许**沿这条已解析出的 import 关系走：
+     * import 解析不到的文件不在图里，也就不该成为 call 边端点（宁缺勿造）。
+     */
+    const importedFilesByFile = new Map<string, Set<string>>();
     for (const [fromFile, modules] of symbolResult.importsByFile ?? []) {
       const fromFileId = `file:${fromFile}`;
       for (const moduleName of modules) {
@@ -299,10 +305,64 @@ export class FileSystemAdapter implements IDataAdapter {
           properties: { edgeOrigin: 'ast', module: moduleName },
         });
         importEdgeCount++;
+        const bucket = importedFilesByFile.get(fromFile);
+        if (bucket) bucket.add(resolved);
+        else importedFilesByFile.set(fromFile, new Set([resolved]));
       }
     }
 
-    log.info(`fetchDataWithSymbols: ${allNodes.length} nodes (${structureResult.nodes.length} structure + ${symbolResult.nodes.length} symbols), ${allEdges.length} edges (imports ${importEdgeCount})`);
+    // ── call 边提取与证据分级（T2：原生通道行为视图的核心缺口）─────────────
+    //
+    // 为什么要在这里做而不是在 TreeSitter 里：名字 → 符号的裁决需要 workspace
+    // 上下文（本文件符号集 + 已解析出的 import 图），那正是本适配器的职能；
+    // 语法事实（谁在第几行调用了什么名字）已由 callSitesByFile 交出。
+    //
+    // 两跳（详见 treeSitterExtractors.resolveCallEdges 的头注）：
+    //   exact    同文件唯一命中；
+    //   inferred 跨文件（沿 import 图）唯一命中；
+    //   同文件多义 / 两跳皆空 ⇒ 跳过（不猜）。统计进日志，便于观测「有多少调用点
+    //   因为歧义被放弃」——没有这个数字，「0 条 call 边」和「全被跳过」长得一样。
+    const symbolsByFile = new Map<string, Array<{ label: string; id: string }>>();
+    for (const symbolNode of symbolResult.nodes) {
+      const bucket = symbolsByFile.get(symbolNode.filePath);
+      const entry = { label: symbolNode.label, id: String(symbolNode.id) };
+      if (bucket) bucket.push(entry);
+      else symbolsByFile.set(symbolNode.filePath, [entry]);
+    }
+
+    let callEdgeCount = 0;
+    let callAmbiguous = 0;
+    let callUnresolved = 0;
+    let callExact = 0;
+    let callInferred = 0;
+    for (const [fromFile, callSites] of symbolResult.callSitesByFile ?? []) {
+      const importedFileSymbols = new Map<string, Array<{ label: string; id: string }>>();
+      for (const importedFile of importedFilesByFile.get(fromFile) ?? []) {
+        const symbols = symbolsByFile.get(importedFile);
+        if (symbols) importedFileSymbols.set(importedFile, symbols);
+      }
+      const resolved = resolveCallEdges({
+        callSites,
+        localSymbols: symbolsByFile.get(fromFile) ?? [],
+        importedFileSymbols,
+      });
+      for (const edge of resolved.edges) {
+        allEdges.push({
+          id: EdgeId(edge.id),
+          source: NodeId(edge.source),
+          target: NodeId(edge.target),
+          type: 'call',
+          properties: { ...edge.properties },
+        });
+      }
+      callEdgeCount += resolved.edges.length;
+      callAmbiguous += resolved.ambiguous;
+      callUnresolved += resolved.unresolved;
+      callExact += resolved.byEvidence.exact;
+      callInferred += resolved.byEvidence.inferred;
+    }
+
+    log.info(`fetchDataWithSymbols: ${allNodes.length} nodes (${structureResult.nodes.length} structure + ${symbolResult.nodes.length} symbols), ${allEdges.length} edges (imports ${importEdgeCount}, calls ${callEdgeCount} = exact ${callExact} + inferred ${callInferred}; ambiguous ${callAmbiguous} skipped, unresolved ${callUnresolved} skipped)`);
 
     return {
       nodes: allNodes,
