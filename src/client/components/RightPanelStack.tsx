@@ -11,6 +11,7 @@ import { CyclePanel } from './CyclePanel.tsx';
 import { RuntimePanel } from './RuntimePanel.tsx';
 import { DiffPanel } from './DiffPanel.tsx';
 import { KeywordQueryPanel } from './KeywordQueryPanel.tsx';
+import { PathPatternPanel } from './PathPatternPanel.tsx';
 import { useGraphStore } from '../store/graphStore.ts';
 import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
@@ -68,6 +69,7 @@ interface RightPanelStackProps {
     cyclesEmpty: string;
     runtime: string;
     keywordQuery: string;
+    pathPattern: string;
     godModuleStats: (n: number, e: number) => string;
     /** 扫描完成但无超标模块（诚实空态）。 */
     godModuleEmpty: string;
@@ -172,6 +174,22 @@ export function RightPanelStack(props: RightPanelStackProps) {
           // 让 `RightPanelStack` 的 props 多背一层只会让"谁负责清空"更难回答。
           useGraphStore.getState().clearKeywordQuery();
           panel.setShowKeywordQuery(false);
+        }}
+      />,
+    },
+    {
+      // ρ 路径模式面板（cycle-135 / 璇玑图 ρ）。与关键词检索同一条判断：
+      // **不**附加「有没有结果」的前置条件——首次打开必须能看到输入框，
+      // 否则「点开开关什么都没发生」。
+      //
+      // 关闭时清空结果：`clearPathPattern` 会推进请求令牌，在途的旧请求因此
+      // 无法把结果写回一个已经关闭的面板。
+      visible: panel.showPathPattern,
+      children: <PathPatternPanel
+        label={props.labels.pathPattern}
+        onClose={() => {
+          useGraphStore.getState().clearPathPattern();
+          panel.setShowPathPattern(false);
         }}
       />,
     },

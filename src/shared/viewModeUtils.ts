@@ -104,6 +104,7 @@ export type AnalysisPanelKey =
   | 'showRuntime'
   | 'showDiff'
   | 'showKeywordQuery'
+  | 'showPathPattern'
   | 'showMiniMap' | 'showLegend';
 
 /**
@@ -130,12 +131,23 @@ export type AnalysisPanelKey =
  *      反过来同样成立：往 `RUNTIME_PANELS` 里加一个在这一层永远点不出结果的入口，
  *      就是给用户一个死按钮。`tests/unit/viewModeUtils.test.ts` 的层矩阵用例对
  *      三层逐层断言 `showKeywordQuery` 的有无，两个方向都钉住。
+ *
+ * `showPathPattern`（cycle-135 / 璇玑图 ρ）与 `showKeywordQuery` **同一条判据**：
+ * ρ 路径模式枚举的是**图上的路径序列**，结果要能被渲染（路径列表 + 起止节点），
+ * 因此它需要一层有图的视图。运行时层没有图，故不在 `RUNTIME_PANELS` 里。
+ *
+ * 为什么它和 `showKeywordQuery` 是两个独立键而不是合并：ρ 的输入是**结构化模式文本**
+ * （边类型序列正则），关键词检索的输入是**自由文本**；两者的提交语义、诊断形态
+ * （拼错类型名 vs 语法错误）、结果形状（路径列表 vs 子图）都不同。合并成一个面板
+ * 会让「为什么这一项要打字」从分组标题读不出来——与 `DIFF_ITEMS` / `KEYWORD_QUERY_ITEMS`
+ * 是同一个理由。
  */
 export const STRUCTURAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showSearch', 'showPathFind', 'showHealthScore', 'showRules', 'showImport', 'showFilterPanel',
   'showDeadCode',
   'showDiff',
   'showKeywordQuery',
+  'showPathPattern',
   'showMiniMap', 'showLegend',
 ]);
 
@@ -144,6 +156,7 @@ export const BEHAVIORAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showDeadCode',
   'showDiff',
   'showKeywordQuery',
+  'showPathPattern',
   'showSearch', 'showPathFind', 'showMiniMap', 'showLegend',
 ]);
 

@@ -47,6 +47,15 @@ export interface ToolbarVisibilityState {
    * 画布上高亮），所以它需要一层有图的视图；运行时层没有图，该面板在这一层不可用。
    */
   showKeywordQuery: boolean;
+  /**
+   * ρ 路径模式面板（cycle-135 / 璇玑图 ρ）。
+   *
+   * 与 `showKeywordQuery` **同一条层判据**：ρ 枚举的是图上的路径序列，结果要渲染
+   * 路径列表与起止节点，因此需要一层有图的视图；运行时层没有图，该面板不可用。
+   * 单独一个键而非并进关键词检索：两者的输入（结构化模式 vs 自由文本）、诊断形态
+   * （拼错类型名 vs 语法错误）与结果形状（路径列表 vs 子图）都不同。
+   */
+  showPathPattern: boolean;
   showRegistry: boolean;
 }
 
@@ -73,6 +82,8 @@ export interface ToolbarToggleHandlers {
   onToggleDiff: () => void;
   /** 关键词图检索面板开关（cycle-111 / N-5）。 */
   onToggleKeywordQuery: () => void;
+  /** ρ 路径模式面板开关（cycle-135）。 */
+  onTogglePathPattern: () => void;
   onToggleRegistry: () => void;
 }
 

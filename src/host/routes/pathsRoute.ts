@@ -44,7 +44,7 @@ import { sendJson, sendError } from '../HttpHelpers.ts';
 import { existsSync } from 'node:fs';
 import type { GraphData } from '../../types/index.ts';
 import { ERROR_CODES } from '../../shared/constants.ts';
-import { XuanjiAdapterPool, formatPatternError, type AdapterEdgeType, DEFAULT_PATH_EDGE_TYPES } from '../../shared/analysis/XuanjiAdapter.ts';
+import { XuanjiAdapterPool, formatPatternError, checkPatternSyntax, KNOWN_ADAPTER_EDGE_TYPES, type AdapterEdgeType, DEFAULT_PATH_EDGE_TYPES } from '../../shared/analysis/XuanjiAdapter.ts';
 
 /** 路由面独立池（与工具面 xuanjiPool 隔离——工具面的缓存基线语义不同）。 */
 const routePool = new XuanjiAdapterPool(2);
@@ -131,6 +131,61 @@ function parseEdgeTypes(raw: unknown): AdapterEdgeType[] | null {
 export const PATHS_ROUTE_PATH = '/api/v1/codegraph/paths';
 
 /**
+ * ρ 语法预检路由（cycle-135）：`GET /api/v1/codegraph/path-pattern/syntax?pattern=...`
+ *
+ * ## 为什么单独一条路由而不是让客户端自己解析
+ *
+ * `parsePathPattern` 在 `src/xuanji/core/path-pattern.ts`，它依赖的是 `EdgeType`
+ * 类型与 NFA 构造——把它打进客户端 bundle 会让「库的边界」在 bundle 层面消失
+ * （`tests/unit/xuanji/libraryBoundary.test.ts` 断言 `src/xuanji` 零宿主依赖，
+ * 但反过来客户端依赖库同样会让 Host/Client 隔离的**意图**落空）。
+ * 更硬的理由：语法与类型名的合法集（Σ）是**宿主侧事实**——Σ 由 `GraphEdge.type`
+ * 决定，客户端不应复制一份（复制就会静默分叉，本仓反复记录过）。
+ *
+ * ## 为什么预检**不**返回 unknownEdgeTypes
+ *
+ * 拼错类型名（`calls`）**语法合法**（它是一个合法的 type token），只有**枚举**
+ * 时才能发现它不在 Σ 里。预检只回答「ρ 能不能被解析」，不回答「类型名对不对」——
+ * 后者的答案依赖图上实际存在哪些边，那是 `/paths?pattern=` 的职责。
+ * 把两件事混在一条路由上会让「语法对但类型错」被误报成语法错。
+ */
+export const PATH_PATTERN_SYNTAX_ROUTE_PATH = '/api/v1/codegraph/path-pattern/syntax';
+
+/**
+ * 语法预检 handler —— 返回 `true` 表示已写响应。
+ *
+ * 只做 parse（`checkPatternSyntax`），不编译、不碰图：预检的语义是「这条 ρ
+ * 文本能否被解析」，与图的状态无关。因此它**不需要**工作区解析（没有图可查），
+ * 这让它能在宿主还没建索引时就可用——这正是界面逐键校验需要的。
+ */
+function runSyntaxBranch(
+  res: Parameters<typeof sendJson>[0],
+  pattern: string,
+  req: Parameters<typeof sendJson>[3],
+  corsConfig: Parameters<typeof sendJson>[4],
+): boolean {
+  const check = checkPatternSyntax(pattern);
+  if (check.ok) {
+    // 额外透出 Σ（合法类型名全集），让客户端能做「输入提示 / 自动补全」而不必
+    // 复制一份类型名列表（复制即分叉）。
+    sendJson(res, 200, {
+      ok: true,
+      pattern,
+      edgeTypes: [...KNOWN_ADAPTER_EDGE_TYPES].sort(),
+    }, req, corsConfig);
+    return true;
+  }
+  sendJson(res, 200, {
+    ok: false,
+    pattern,
+    error: check.error instanceof Error ? check.error.message : String(check.error),
+    diagnostic: formatPatternError(pattern, check.error),
+    edgeTypes: [...KNOWN_ADAPTER_EDGE_TYPES].sort(),
+  }, req, corsConfig);
+  return true;
+}
+
+/**
  * `pattern`（ρ）分支的具体求值——cycle-134。
  *
  * 抽成独立函数而不是内联进 handler：`registerPathsRoute` 的 handler 复杂度已经很高
@@ -173,6 +228,12 @@ function runPatternBranch(
       pattern: result.pattern,
       patternEdgeTypes: result.patternEdgeTypes,
       stateCount: result.stateCount,
+      /**
+       * 拼错诊断（cycle-135）：ρ 里出现但不在 Σ 里的类型名。
+       * 与 `paths: []` 一起返回时，客户端据此区分「我写错了」与「图上没有这种边」——
+       * 两者都是空结果，但用户下一步动作完全不同。
+       */
+      unknownEdgeTypes: result.unknownEdgeTypes,
       paths: result.paths.map((p) => ({ ids: p, labels: p.map((id) => labelOf.get(id) ?? id) })),
       truncated: result.truncated,
       total: result.total,
@@ -314,6 +375,18 @@ export function registerPathsRoute(rc: RouteContext): void {
       }, req, corsConfig);
     }),
   }), 'codegraph: paths route');
+
+  // cycle-135：ρ 语法预检路由。无图、无工作区解析——语法与 Σ 是宿主侧事实，
+  // 且预检的语义不依赖图的状态，因此宿主还没建索引时它就能工作（界面逐键校验需要）。
+  ctx.effect(() => ctx.webServer!.register({
+    kind: 'exact',
+    path: PATH_PATTERN_SYNTAX_ROUTE_PATH,
+    handler: withRouteMiddleware('GET', PATH_PATTERN_SYNTAX_ROUTE_PATH, corsConfig, rateLimiter, async (req, res) => {
+      const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
+      const pattern = url.searchParams.get('pattern') ?? '';
+      runSyntaxBranch(res, pattern, req, corsConfig);
+    }),
+  }), 'codegraph: path-pattern syntax route');
 
   void routePool;
 }

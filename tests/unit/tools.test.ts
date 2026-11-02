@@ -450,6 +450,29 @@ describe('createGraphTools', () => {
     expect(emptyText).not.toContain('Invalid path pattern');
   });
 
+  it('graph_path_pattern render 把「拼错类型名」与「零结果」区分开（cycle-135）', async () => {
+    const tools = await createGraphTools(ctx);
+    const tool = tools.graphPathPattern as unknown as {
+      output: { render: (args: unknown, value: unknown) => Array<{ text: string }> };
+    };
+    // 拼错：unknownEdgeTypes 非空 ⇒ 渲染「Unknown edge type(s)」并列出合法类型名。
+    const unknownText = tool.output.render({}, {
+      paths: [], pattern: 'calls+', patternEdgeTypes: ['calls'], stateCount: 4,
+      truncated: false, total: 0, unknownEdgeTypes: ['calls'],
+    })[0]!.text;
+    expect(unknownText).toContain('Unknown edge type(s)');
+    expect(unknownText).toContain('calls');
+    expect(unknownText).not.toContain('No path found');
+
+    // 合法的零结果：unknownEdgeTypes 为空 ⇒ 渲染「No path found」，不误报拼错。
+    const emptyText = tool.output.render({}, {
+      paths: [], pattern: 'extend', patternEdgeTypes: ['extend'], stateCount: 3,
+      truncated: false, total: 0, unknownEdgeTypes: [],
+    })[0]!.text;
+    expect(emptyText).toContain('No path found');
+    expect(emptyText).not.toContain('Unknown edge type(s)');
+  });
+
   it('graph_integrity 已装载后报告图规模与休眠态（经 fetchMergedGraph 同链路）', async () => {
     getMockFetchData('codegraph').mockResolvedValue({
       nodes: [

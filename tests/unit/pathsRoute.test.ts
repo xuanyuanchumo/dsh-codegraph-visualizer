@@ -51,7 +51,7 @@ vi.mock('node:fs/promises', () => ({
   },
 }));
 
-const { registerPathsRoute, PATHS_ROUTE_PATH } = await import('../../src/host/routes/pathsRoute.ts');
+const { registerPathsRoute, PATHS_ROUTE_PATH, PATH_PATTERN_SYNTAX_ROUTE_PATH } = await import('../../src/host/routes/pathsRoute.ts');
 const { createRateLimiter } = await import('../../src/host/RateLimiter.ts');
 const { SecurityManager } = await import('../../src/host/security.ts');
 const { makeNode, makeEdge, makeGraphData } = await import('../helpers.ts');
@@ -374,5 +374,108 @@ describe('pattern（ρ 路径模式）分支', () => {
     expect(body.total).toBe(1);
     // 原分支不返回 pattern 字段
     expect('pattern' in body).toBe(false);
+  });
+});
+
+// ── cycle-135：unknownEdgeTypes 透出 + 语法预检路由 ─────────────────────────
+
+describe('unknownEdgeTypes（拼错类型名诊断）透出', () => {
+  it('pattern=calls ⇒ 200 空结果 + unknownEdgeTypes: ["calls"]（与「图上没有」可区分）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=calls`);
+    expect(code).toBe(200);
+    expect(body.paths).toEqual([]);
+    expect(body.unknownEdgeTypes).toEqual(['calls']);
+  });
+
+  it('全部类型名合法时 unknownEdgeTypes 为空数组（字段必须存在，不是缺省）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=call&maxHops=1`);
+    expect(code).toBe(200);
+    expect(body.unknownEdgeTypes).toEqual([]);
+  });
+
+  it('合法但本图没有的 Σ 成员（contains）⇒ unknownEdgeTypes 为空（合法的零结果，不算拼错）', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=contains`);
+    expect(code).toBe(200);
+    expect(body.paths).toEqual([]);
+    expect(body.unknownEdgeTypes).toEqual([]);
+  });
+
+  it('大小写不匹配（Call）⇒ 识别为拼错', async () => {
+    const harness = makeHarness();
+    harness.setSlot(makeFixtureGraph());
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}&pattern=Call`);
+    expect(code).toBe(200);
+    expect(body.unknownEdgeTypes).toEqual(['Call']);
+  });
+});
+
+describe('ρ 语法预检路由', () => {
+  type SyntaxHarness = { ctx: MockCtx; handler: Harness['handler'] };
+
+  function makeSyntaxHarness(): SyntaxHarness {
+    const harness = makeHarness();
+    const registration = harness.ctx.webServer.register.mock.calls
+      .map((call) => call[0] as { path: string; kind: string; handler: Harness['handler'] })
+      .find((candidate) => candidate.path === PATH_PATTERN_SYNTAX_ROUTE_PATH);
+    if (!registration) throw new Error(`未注册路由 ${PATH_PATTERN_SYNTAX_ROUTE_PATH}`);
+    return { ctx: harness.ctx, handler: registration.handler };
+  }
+
+  async function callSyntax(handler: SyntaxHarness['handler'], url: string): Promise<{ code: number; body: Record<string, unknown> }> {
+    const { res, state } = makeRes();
+    await handler(makeReq(url), res);
+    let body: Record<string, unknown> = {};
+    if (state.body) body = JSON.parse(state.body) as Record<string, unknown>;
+    return { code: state.code, body };
+  }
+
+  const S = PATH_PATTERN_SYNTAX_ROUTE_PATH;
+
+  it('注册在文档化路径上，且与 /paths 是两条独立路由', () => {
+    const { ctx } = makeSyntaxHarness();
+    const paths = ctx.webServer.register.mock.calls.filter((c) => (c[0] as { path: string }).path === P);
+    const syntax = ctx.webServer.register.mock.calls.filter((c) => (c[0] as { path: string }).path === S);
+    expect(paths).toHaveLength(1);
+    expect(syntax).toHaveLength(1);
+  });
+
+  it('合法 ρ ⇒ ok:true 且回显 Σ 全集（客户端不复制类型名列表）', async () => {
+    const { handler } = makeSyntaxHarness();
+    const { code, body } = await callSyntax(handler, `${S}?pattern=${encodeURIComponent('call+ . import?')}`);
+    expect(code).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.pattern).toBe('call+ . import?');
+    expect(body.edgeTypes).toEqual([
+      'aggregation', 'association', 'call', 'composition', 'contains',
+      'dependency', 'extend', 'implement', 'import',
+    ]);
+  });
+
+  it('语法错 ⇒ 200（不是 400）+ ok:false + 带 ^ 指位的诊断', async () => {
+    const { handler } = makeSyntaxHarness();
+    const { code, body } = await callSyntax(handler, `${S}?pattern=${encodeURIComponent('call|')}`);
+    expect(code).toBe(200);
+    expect(body.ok).toBe(false);
+    expect(String(body.diagnostic)).toContain('^');
+  });
+
+  it('空 pattern ⇒ ok:true（ε 合法）', async () => {
+    const { handler } = makeSyntaxHarness();
+    const { code, body } = await callSyntax(handler, `${S}?pattern=`);
+    expect(code).toBe(200);
+    expect(body.ok).toBe(true);
+  });
+
+  it('预检不返回 unknownEdgeTypes（拼错语法合法，只有枚举才能发现）', async () => {
+    const { handler } = makeSyntaxHarness();
+    const { body } = await callSyntax(handler, `${S}?pattern=calls`);
+    expect(body.ok).toBe(true);
+    expect('unknownEdgeTypes' in body).toBe(false);
   });
 });

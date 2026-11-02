@@ -151,6 +151,26 @@ export const KEYWORD_QUERY_ITEMS: ToolMenuItem[] = [
   { panel: 'showKeywordQuery', Icon: SearchIcon, key: 'toolbar.keywordQuery', btnClass: 'cg-keywordquery-btn', toggle: 'onToggleKeywordQuery' },
 ];
 
+/**
+ * ρ 路径模式的工具项（cycle-135 / 璇玑图 ρ）。
+ *
+ * 与关键词检索同属「**换一个输入**再去图上查询」的一族，因此单独成段而不是并进
+ * `ANALYSIS_ITEMS`（那 5 项都是对已有画布做图算法分析）。但两者是**两个面板**
+ * 而不是一个面板的两种模式，理由与 `DIFF_ITEMS` 相同：输入的语义（结构化模式 vs
+ * 自由文本）、诊断形态（拼错类型名 vs 语法错误）、结果形状（路径列表 vs 子图）都不同，
+ * 合并会让「为什么这一项要打字」无法从分组标题读出来。
+ *
+ * 由 `availablePanels.has('showPathPattern')` 门控：结构层与行为层有图可枚举路径，
+ * 运行时层没有图，该段在运行时层整体消失（段标题一并消失，靠 `ToolbarActions` 的
+ * `visibleSections` 过滤，不会留下空标题）。
+ *
+ * 图标复用 `PathIcon`：语义上 ρ 就是「图上的一条路径的形状」，与 `showPathFind`
+ * 同为路径族；`btnClass` 与 i18n key 各自独立，用户靠标签区分，不靠图标。
+ */
+export const PATH_PATTERN_ITEMS: ToolMenuItem[] = [
+  { panel: 'showPathPattern', Icon: PathIcon, key: 'toolbar.pathPattern', btnClass: 'cg-pathpattern-btn', toggle: 'onTogglePathPattern' },
+];
+
 export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] }[] = [
   { labelKey: 'toolbar.analysis', items: ANALYSIS_ITEMS },
   { labelKey: 'toolbar.quality', items: QUALITY_ITEMS },
@@ -159,6 +179,7 @@ export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] 
   // 追加在末尾（不重排既有四段）：段的分隔符位置取决于「这是第几个**可见**分组」，
   // 插在中间会让 `ToolbarActions` 的分隔符索引与既有 E2E 的段序断言一起漂移。
   { labelKey: 'toolbar.keywordSection', items: KEYWORD_QUERY_ITEMS },
+  { labelKey: 'toolbar.pathPatternSection', items: PATH_PATTERN_ITEMS },
 ];
 export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
   { value: 'png', key: 'export.png' },

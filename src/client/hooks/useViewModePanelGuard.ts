@@ -41,6 +41,17 @@ interface PanelGuardApi {
    * 那条单向驱动，因此放进本清单是唯一写入方，不存在互相回滚。
    */
   showDiff: boolean; setShowDiff: (v: boolean) => void;
+  /**
+   * ρ 路径模式面板（cycle-135）。
+   *
+   * 它在**自动关闭清单里**（与 `showDiff` 同族）：`showPathPattern` 属于结构层/行为层的
+   * 能力，切到运行时层后 `getAvailablePanels('runtime')` 不含它，必须收起——否则用户会
+   * 停在一张空画布上，对着一个没有落地对象的 ρ 输入框。
+   *
+   * 它没有 `showRuntime` 那条「由 viewMode effect 单向驱动」的写入者，因此放进本清单是
+   * 该 key 的唯一写入方，不存在 cycle-84「guard 与 writer 互相回滚」的失败模式。
+   */
+  showPathPattern: boolean; setShowPathPattern: (v: boolean) => void;
 }
 
 interface UseViewModePanelGuardOpts {
@@ -72,6 +83,7 @@ export function useViewModePanelGuard(opts: UseViewModePanelGuardOpts): void {
       ['showSearch', opts.panel.showSearch, () => opts.panel.setShowSearch(false)],
       ['showPathFind', opts.panel.showPathFind, () => opts.panel.setShowPathFind(false)],
       ['showDiff', opts.panel.showDiff, () => opts.panel.setShowDiff(false)],
+      ['showPathPattern', opts.panel.showPathPattern, () => opts.panel.setShowPathPattern(false)],
     ];
     for (const [key, isShowing, close] of panelEntries) {
       if (!available.has(key) && isShowing) close();

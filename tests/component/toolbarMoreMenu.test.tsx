@@ -52,6 +52,9 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleHotspot: noop, onToggleGodModule: noop, onToggleCoreFunction: noop,
     onToggleDeadCode: noop, onToggleFilterPanel: noop, onToggleTour: noop,
     onToggleRuntime: noop, onToggleDiff: noop, onToggleKeywordQuery: noop,
+  // 璇玑图 ρ 路径模式面板（cycle-135）
+  showPathPattern: false,
+  onTogglePathPattern: noop,
   onToggleRegistry: noop,
     ...overrides,
   };

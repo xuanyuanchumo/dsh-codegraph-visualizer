@@ -18,6 +18,7 @@ import { createFilterSlice } from './slices/filterSlice.ts';
 import { createAnalysisSlice } from './slices/analysisSlice.ts';
 import { createPanelLodSlice } from './slices/panelLodSlice.ts';
 import { createKeywordQuerySlice } from './slices/keywordQuerySlice.ts';
+import { createPathPatternSlice } from './slices/pathPatternSlice.ts';
 import { clearEtagCache } from '../api/index.ts';
 import { getMinPanelSize } from '../../shared/constants.ts';
 import { getSafeStorage, safeGetItem } from '../utils/safeStorage.ts';
@@ -99,6 +100,9 @@ export const useGraphStore = create<GraphState>()(
         // 关键词图检索的请求状态（cycle-111 / N-5）。`GraphState` 的形状由该切片用
         // 声明合并扩展（见 `keywordQuerySlice.ts` 顶部的说明），因此这里只需并进来。
         ...createKeywordQuerySlice(set, get),
+        // 璇玑图 ρ 路径模式枚举的请求状态（cycle-135）。`GraphState` 的形状由该切片用
+        // 声明合并扩展（见 `pathPatternSlice.ts` 顶部的说明），因此这里只需并进来。
+        ...createPathPatternSlice(set, get),
       };
       registerStoreGetter(get);
       return store as GraphState;

@@ -778,6 +778,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
           pattern?: string;
           patternEdgeTypes?: readonly string[];
           stateCount?: number;
+          unknownEdgeTypes?: readonly string[];
           error?: string;
           diagnostic?: string;
         } | null;
@@ -790,6 +791,13 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
           return [{ type: 'text' as const, text: TOOL_MESSAGES.PATH_PATTERN_FAILED?.en ?? 'Path pattern evaluation failed' }];
         }
         const head = `pattern "${v.pattern ?? ''}" (types: ${(v.patternEdgeTypes ?? []).join('|') || 'none'}, ${v.stateCount ?? 0} NFA states)`;
+        // cycle-135：空结果要区分「拼错类型名」与「图上确实没有这种边」。
+        // 两者在返回面上同形（`paths: []`），不区分会让模型把「我写错了」误读成
+        // 「这个仓库没有 call 边」而放弃。
+        const unknown = v.unknownEdgeTypes ?? [];
+        if (unknown.length > 0) {
+          return [{ type: 'text' as const, text: `${head}\nUnknown edge type(s): ${unknown.join(', ')}. Valid types: call/import/extend/implement/dependency/contains/association/aggregation/composition.` }];
+        }
         if (v.paths.length === 0) {
           return [{ type: 'text' as const, text: `${head}\n${TOOL_MESSAGES.NO_PATH_FOUND?.en ?? 'No path found'}` }];
         }

@@ -2307,7 +2307,52 @@
       "timestamp": "2026-11-01T16:16:38.259Z",
       "previousHash": "f38e60fc435af482657dc557e1e7071788678edaed7ba97787ddb98575d9ea29",
       "hash": "d53d81cacd3c17774fbf78d1852e53dffd990f6f68a8d4928aedfe807eeb0ea6"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "Evaluation report found in cycle-135 (16 dimension rows) [Q1:PASS,Q5:PASS]",
+      "timestamp": "2026-11-02T02:57:13.919Z",
+      "previousHash": "d53d81cacd3c17774fbf78d1852e53dffd990f6f68a8d4928aedfe807eeb0ea6",
+      "hash": "abeb0e32e40859cdf29e337cd61f6fff49bb93b4c45c910225395ea84425bc67"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "All 9 tasks completed §cycle-135 [Q7:PASS]",
+      "timestamp": "2026-11-02T02:57:13.940Z",
+      "previousHash": "abeb0e32e40859cdf29e337cd61f6fff49bb93b4c45c910225395ea84425bc67",
+      "hash": "06dcddbb76f522faea0a90711b3f15b313e5c059971c63156c58e50d2ecfdc65"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "FAIL",
+      "detail": "Test report summary not recognized: test-report.md has no 通过/失败 rows (expected the §2 汇总 table) §cycle-135",
+      "timestamp": "2026-11-02T02:57:13.953Z",
+      "previousHash": "06dcddbb76f522faea0a90711b3f15b313e5c059971c63156c58e50d2ecfdc65",
+      "hash": "00f412ebbe5d17020ed0dbb23e4cfedea5cb3e37cb5cdb18253048a0e66bb557"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "Build passed: pnpm run build §cycle-135 [dist=absent] [Q3:PASS,Q4:PASS]",
+      "timestamp": "2026-11-02T02:57:30.588Z",
+      "previousHash": "00f412ebbe5d17020ed0dbb23e4cfedea5cb3e37cb5cdb18253048a0e66bb557",
+      "hash": "bde2d96eb6ba62dadb6bb1fb142f907f9ca56ab331b2dfbc9a8a752c12d1a423"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "Zero failures, zero errors (test-report.md + journey coverage verified) §cycle-135 [Q2:PASS]",
+      "timestamp": "2026-11-02T03:04:32.205Z",
+      "previousHash": "bde2d96eb6ba62dadb6bb1fb142f907f9ca56ab331b2dfbc9a8a752c12d1a423",
+      "hash": "5bcfbd47c610056e9cb4de65c6115c912b30e860d7b71ec203278274da752d3a"
     }
   ],
-  "chainHead": "d53d81cacd3c17774fbf78d1852e53dffd990f6f68a8d4928aedfe807eeb0ea6"
+  "chainHead": "5bcfbd47c610056e9cb4de65c6115c912b30e860d7b71ec203278274da752d3a"
 }

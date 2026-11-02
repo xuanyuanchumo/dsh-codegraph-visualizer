@@ -84,6 +84,9 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     showKeywordQuery: false,
       showRegistry: false,
     onToggleKeywordQuery: noop,
+    // 璇玑图 ρ 路径模式面板（cycle-135）
+    showPathPattern: false,
+    onTogglePathPattern: noop,
     onToggleRegistry: noop,
     ...overrides,
   };

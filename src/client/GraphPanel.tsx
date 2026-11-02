@@ -67,6 +67,7 @@ import './styles/tour-panel.css'; import './styles/responsive.css'; import './st
 import './styles/runtime-panel.css';
 import './styles/diff-panel.css';
 import './styles/keyword-query-panel.css';
+import './styles/path-pattern-panel.css';
 
 const log = scoped('panel');
 
@@ -654,6 +655,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
           cyclesEmpty: t('cycles.empty'),
           runtime: t('runtime.title'),
           keywordQuery: t('keywordQuery.title'),
+          pathPattern: t('pathPattern.title'),
           godModuleStats: (n, e) => t('godmodule.stats', { nodes: n, edges: e }),
           godModuleEmpty: t('godmodule.empty'),
           godModuleWait: t('godmodule.wait'),

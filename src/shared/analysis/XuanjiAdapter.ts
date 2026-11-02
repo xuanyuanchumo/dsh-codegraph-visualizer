@@ -61,6 +61,30 @@ export const DEFAULT_PATH_EDGE_TYPES: readonly AdapterEdgeType[] = [
   'dependency',
 ];
 
+/**
+ * Σ：`GraphEdge.type` 的**全部取值域**（cycle-135）。
+ *
+ * 用途是把 ρ 里「类型名拼错」与「类型名合法但这张图上没有这种边」分开。
+ * 两者都导致零结果，但**诊断价值完全不同**：前者是用户输入错误（应提示改用
+ * 正确的类型名），后者是合法的零结果（图上确实没有这种关系）。若混在一个
+ * 集合里返回，`calls+` 与「图上没有 call 边」在返回面同形，Agent/用户都会误判。
+ *
+ * 与 {@link DEFAULT_PATH_EDGE_TYPES} 的关系：后者是「路径读法参与遍历的子集」，
+ * 前者是「类型名的合法全集」。前者用于拼错诊断，后者用于默认遍历范围——
+ * 两者不可互相替代（`contains` 在 Σ 里合法，但不参与默认路径读法）。
+ */
+export const KNOWN_ADAPTER_EDGE_TYPES: ReadonlySet<AdapterEdgeType> = new Set<AdapterEdgeType>([
+  'call',
+  'import',
+  'extend',
+  'implement',
+  'dependency',
+  'contains',
+  'association',
+  'aggregation',
+  'composition',
+]);
+
 /** `findPathsBetween` 的读法参数。 */
 export interface PathEnumerationOptions {
   /** 参与遍历的边类型；缺省用 DEFAULT_PATH_EDGE_TYPES。 */
@@ -157,6 +181,18 @@ export interface PatternEnumerationResult extends PathEnumerationResult {
   readonly patternEdgeTypes: readonly string[];
   /** 编译后的 NFA 状态数（预算/性能诊断用）。 */
   readonly stateCount: number;
+  /**
+   * ρ 里出现、但**不在 Σ（`GraphEdge.type` 取值域）**里的类型名（cycle-135）。
+   *
+   * 为什么要单独一个字段：`calls+`（拼错）与「图上没有 call 边」都产生
+   * `paths: []`，但前者是**用户输入错误**、后者是**合法的零结果**。把两者混在
+   * 返回面里，调用方（模型或用户）无法区分「我写错了」与「图上没有」，必然误判。
+   *
+   * 取值域口径：`KNOWN_ADAPTER_EDGE_TYPES`（9 值全集）。注意它与
+   * `patternEdgeTypes` 的差别——后者是 ρ 里**出现过的所有**标识符（含拼错的），
+   * 前者只保留拼错的。`unknownEdgeTypes` 非空时结果必为空，且**不是语法错误**。
+   */
+  readonly unknownEdgeTypes: readonly string[];
 }
 
 /**
@@ -848,16 +884,27 @@ export class XuanjiAdapter {
      * 两者必须在返回面上可区分：语法错 ⇒ 抛 `PathPatternError`（工具层渲染成
      * 带 ^ 的诊断）；关系不存在 ⇒ 零结果 + `paths: []`。
      *
+     * cycle-135 把「缺失」再拆成两半（本仓「拼错 ≠ 缺失」纪律的直接应用）：
+     * - `unknownEdgeTypes`：**不在 Σ** 里（`calls` / `Call`）——用户写错了；
+     * - `absentFromGraph`：在 Σ 里、但这张图没有这种边——合法的零结果。
+     * 两者都产出空路径，但诊断含义不同，因此分别暴露。
+     *
      * 这同时绕开 `assertRule` 的 Σ_R ⊆ Σ 静态校验（它按「边类型必须出现在图里」
      * 判非法规则）——那个校验适用于 `findPathsBetween` 的手写 edgeTypes，
      * 对本方法会把「合法的零结果」误判成「非法规则」。
      */
     const present = this.space.edgeTypes();
-    const absent = [...compiled.edgeTypes].filter((type) => !present.has(type));
-    if (absent.length > 0) {
+    const unknownEdgeTypes = [...compiled.edgeTypes]
+      .filter((type) => !KNOWN_ADAPTER_EDGE_TYPES.has(type as AdapterEdgeType))
+      .sort();
+    const absentFromGraph = [...compiled.edgeTypes]
+      .filter((type) => KNOWN_ADAPTER_EDGE_TYPES.has(type as AdapterEdgeType) && !present.has(type))
+      .sort();
+    if (unknownEdgeTypes.length > 0 || absentFromGraph.length > 0) {
       return {
         paths: [], truncated: false, total: 0, nextCursor: null,
         pattern, patternEdgeTypes: [...compiled.edgeTypes].sort(), stateCount: compiled.stateCount,
+        unknownEdgeTypes,
       };
     }
 
@@ -868,6 +915,7 @@ export class XuanjiAdapter {
       return {
         paths: [], truncated: false, total: 0, nextCursor: null,
         pattern, patternEdgeTypes: [...compiled.edgeTypes].sort(), stateCount: compiled.stateCount,
+        unknownEdgeTypes,
       };
     }
 
@@ -914,6 +962,7 @@ export class XuanjiAdapter {
       pattern,
       patternEdgeTypes: [...compiled.edgeTypes].sort(),
       stateCount: compiled.stateCount,
+      unknownEdgeTypes,
     };
   }
 
