@@ -473,6 +473,75 @@ describe('createGraphTools', () => {
     expect(emptyText).not.toContain('Unknown edge type(s)');
   });
 
+  // ── cycle-137：ρ 的 commit 切片（研究方案 §4 的 𝒯 维） ────────────────
+
+  it('graph_path_pattern 未提供 commitLog ⇒ temporal: null（行为不变）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} },
+        { id: 's', label: 'service', type: 'function', filePath: 'svc.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [{ id: 'e1', source: 'h', target: 's', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', maxHops: 1 },
+      mockExec,
+    )) as { paths: string[][]; temporal: unknown };
+    expect(result.paths).toEqual([['h', 's']]);
+    expect(result.temporal).toBeNull();
+  });
+
+  it('graph_path_pattern 提供 commitLog ⇒ 在切片上枚举 + 回显 temporal 元信息', async () => {
+    // commit1 触及 main.ts、commit2 触及 svc.ts；全区间 ⇒ 两者都在，other.ts 被排除。
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} },
+        { id: 's', label: 'service', type: 'function', filePath: 'svc.ts', lineNumber: 1, properties: {} },
+        { id: 'x', label: 'other', type: 'function', filePath: 'other.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'h', target: 's', type: 'call', properties: {} },
+        { id: 'e2', source: 's', target: 'x', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', maxHops: 1, commitLog: 'abc1234\x1f1000\nmain.ts\n\x1edef5678\x1f2000\nsvc.ts\n' },
+      mockExec,
+    )) as {
+      paths: string[][];
+      temporal: { available: boolean; sliceCount: number; from: string | null; to: string | null };
+    };
+    // 切片后 h→s 保留（两端都在区间内），s→x 被排除（other.ts 不在区间内）。
+    expect(result.paths).toEqual([['h', 's']]);
+    expect(result.temporal.available).toBe(true);
+    expect(result.temporal.sliceCount).toBe(2);
+    expect(result.temporal.from).toBe('abc1234');
+    expect(result.temporal.to).toBe('def5678');
+  });
+
+  it('graph_path_pattern 提供 commitLog 但历史为空 ⇒ 诚实降级（不拿原图冒充切片）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', commitLog: '\x1e\x1e' },
+      mockExec,
+    )) as { paths: string[][]; temporal: { available: boolean; reason?: string }; reason?: string };
+    expect(result.paths).toEqual([]);
+    expect(result.temporal.available).toBe(false);
+    expect(result.reason).toContain('commit 历史为空');
+  });
+
   it('graph_integrity 已装载后报告图规模与休眠态（经 fetchMergedGraph 同链路）', async () => {
     getMockFetchData('codegraph').mockResolvedValue({
       nodes: [

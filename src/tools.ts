@@ -13,6 +13,7 @@ import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { XuanjiAdapterPool, formatPatternError, type AdapterEdgeType } from './shared/analysis/XuanjiAdapter.ts';
+import { sliceGraphForTemporal, temporalXuanjiPool } from './shared/analysis/temporalEnumeration.ts';
 // ρ 语法错误的**类型判定**用 instanceof，不用 `e.name === 'PathPatternError'`：
 // name 是运行期字符串，重命名/minify/子类化都会让它静默失效；class 身份是编译期绑定的。
 import { PathPatternError } from './xuanji/core/path-pattern.ts';
@@ -766,6 +767,35 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         type: 'string',
         description: "'dfs-order' (default) stops at the cap in deterministic DFS order; 'top-k-weight' enumerates ALL candidates first and keeps the highest total edge weight — slower on large graphs.",
       },
+      /**
+       * ρ 的 commit 切片（cycle-137 / 研究方案 §4 的 $\\mathcal{T}$ 维）。
+       *
+       * 语义：「在给定 commit 切片 `t` 下枚举」——先按区间切片，再在切片上跑 ρ。
+       * 三者互斥地组合：`days` 取时间窗、`from`/`to` 取 hash 区间。
+       *
+       * 为什么用 raw git 输出而不是让宿主自己跑 git：ρ 是**模型工具**，模型手里
+       * 通常已经有 `git log` 的输出（或能跑）；把解析放在库侧（`parseCommitLog`）
+       * 让「切片」成为可单测的纯函数，而不是藏在宿主子进程里。
+       *
+       * 与 `graph_slice` 的 `commitLog` **同一份解析器**（`src/shared/temporal.ts`
+       * 的 `parseCommitLog`），不是两份。
+       */
+      commitLog: {
+        type: 'string',
+        description: 'Raw `git log --name-only --format=%x1e%H%x1f%ct` output. When provided, ρ is enumerated on the commit-sliced graph (研究方案 §4 的 T 维).',
+      },
+      days: {
+        type: 'number',
+        description: 'Temporal slice: only commits within the last N days. Combined with commitLog.',
+      },
+      from: {
+        type: 'string',
+        description: 'Temporal slice: keep commits from this hash onward (inclusive). Combined with commitLog.',
+      },
+      to: {
+        type: 'string',
+        description: 'Temporal slice: keep commits up to this hash (inclusive). Combined with commitLog.',
+      },
     },
     output: {
       schema: { type: 'json' },
@@ -832,11 +862,39 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         cursor?: number;
         pageSize?: number;
         truncation?: string;
+        commitLog?: string;
+        days?: number;
+        from?: string;
+        to?: string;
       };
-      const data = await fetchMergedGraph(invoke, a.repoId);
-      if (data.nodes.length === 0) return null;
+      const merged = await fetchMergedGraph(invoke, a.repoId);
+      if (merged.nodes.length === 0) return null;
 
-      const adapter = xuanjiPool.get(a.repoId);
+      // cycle-137：ρ 的 commit 切片（研究方案 §4 的 𝒯 维）。
+      // 未提供 commitLog ⇒ temporal === null，行为与既有调用逐字节一致。
+      const { data, temporal } = sliceGraphForTemporal(merged, {
+        ...(a.commitLog !== undefined ? { commitLog: a.commitLog } : {}),
+        ...(a.days !== undefined ? { days: a.days } : {}),
+        ...(a.from ? { from: a.from } : {}),
+        ...(a.to ? { to: a.to } : {}),
+      });
+
+      // 时序请求但切片不可用 ⇒ 诚实降级，不拿原图冒充切片（研究方案 §4：没有 𝒯
+      // 就没有时序切片，把它渲染成「整个仓库」比渲染成「空图」更远离事实）。
+      if (temporal?.requested && !temporal.available) {
+        return toJsonValue({
+          pattern: a.pattern,
+          paths: [] as string[][],
+          truncated: false,
+          total: 0,
+          temporal,
+          reason: temporal.reason ?? 'commit 切片不可用',
+        });
+      }
+
+      // 切片图是原图的子集；把它 sync 进主池会让下一次不带 commitLog 的 ρ 调用静默少查。
+      // 因此时序路径用**独立**的时序池（temporalXuanjiPool，见 temporalEnumeration.ts）。
+      const adapter = temporal ? temporalXuanjiPool.get(a.repoId) : xuanjiPool.get(a.repoId);
       adapter.syncGraph(data);
 
       const limit = clampInt(a.limit, 1, 50, 20);
@@ -853,7 +911,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
             ? { truncation: a.truncation }
             : {}),
         });
-        return toJsonValue(result);
+        return toJsonValue({ ...result, temporal: temporal ?? null });
       } catch (e) {
         // 只有 ρ 语法错误走这里（其余异常照常上抛，保持响亮失败）。
         const diagnostic = formatPatternError(a.pattern, e);
@@ -863,6 +921,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
           paths: [] as string[][],
           truncated: false,
           total: 0,
+          temporal: temporal ?? null,
           error: `Invalid path pattern: ${e instanceof Error ? e.message : String(e)}`,
           diagnostic,
         });
