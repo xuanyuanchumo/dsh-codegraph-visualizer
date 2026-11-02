@@ -350,8 +350,10 @@ describe('createGraphTools', () => {
     expect(tools.graphIntegrity.name).toBe('graph_integrity');
     // cycle-134：路径模式 ρ 读法（边类型**序列**约束，扁平 edgeTypes 表达不了）
     expect(tools.graphPathPattern.name).toBe('graph_path_pattern');
+    // cycle-135：多维视图切片（研究方案 §4 的 T / Π 维 + §7.1 统一接口）
+    expect(tools.graphSlice.name).toBe('graph_slice');
     // 数量也要钉住：只断言「每个名字对」时，漏掉一个工具不会有任何断言变红。
-    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(13);
+    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(14);
   });
 
   // ── graph_integrity ──────────────────────────────────────────────────
@@ -1724,6 +1726,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphQuery: { repoId: 'repo-1', query: 'graphStore' },
   graphIntegrity: { repoId: 'repo-1' },
   graphPathPattern: { repoId: 'repo-1', pattern: 'call+' },
+  graphSlice: { repoId: 'repo-1', view: 'structural', granularity: 'file' },
 };
 
 const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawInput: unknown }> = [

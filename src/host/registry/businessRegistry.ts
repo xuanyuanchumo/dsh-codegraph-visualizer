@@ -29,7 +29,7 @@ export interface RegistryEntry {
   lifecycle: 'registered' | 'producing' | 'consuming' | 'degraded' | 'disposed';
 }
 
-/** LLM 工具（11 个）——factory 返回与 entry 注册的集合相等性由 tools.test.ts 守卫。 */
+/** LLM 工具（14 个）——factory 返回与 entry 注册的集合相等性由 tools.test.ts 守卫。 */
 export const TOOL_ENTRIES: RegistryEntry[] = [
   { id: 'graph_status', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '能力位 + 工作区索引状态', consumers: ['LLM 会话', 'tests/unit/tools.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
   { id: 'graph_data', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '合并图数据（codegraph+lens，增量 delta）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
@@ -49,6 +49,10 @@ export const TOOL_ENTRIES: RegistryEntry[] = [
   // 这正是本仓「注册-生产-消费」三面可观测性要覆盖的形态：注册了但矩阵不知道，
   // 运维与守卫都会以为它不存在。
   { id: 'graph_path_pattern', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '路径模式 ρ 枚举（边类型序列正则 → PathRule → enumerate）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/patternEnumerationAdapter.test.ts'], guardTest: 'tools.test.ts', lifecycle: 'consuming' },
+  // cycle-135：多维视图切片（研究方案 §4 的 $\mathcal{T}$ / $\Pi$ 维 + §7.1 统一接口）。
+  // 一个入口收敛四个正交视图：structural / temporal（commit 切片 + 边挥发度）/
+  // ownership（blame 作者 + bus factor）/ domain（Louvain 社区 → 领域标签）。
+  { id: 'graph_slice', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '按视图×粒度的图切片 + 视图专属标注（时序/作者/领域）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/graphSlice.test.ts'], guardTest: 'graphSlice.test.ts', lifecycle: 'consuming' },
 ];
 
 /** HTTP 路由（19 条）——tree-sitter/health 的消费面是测试与 E2E（外部消费）。 */

@@ -78,6 +78,8 @@ const REGISTERED_TOOL_NAMES = Object.freeze([
   // cycle-134：路径模式 ρ（边类型序列约束）。列在这里的理由与其它工具相同——
   // 入口注册了却拿不出合法 presentCall/presentResult，轨迹里就是一张空卡片。
   'graph_path_pattern',
+  // cycle-135：多维视图切片（时序 / 所有权 / 领域 + 结构）。
+  'graph_slice',
 ]);
 
 /** 每个工具的**合法**参数样本：必须满足 `required: true` 的每一项且类型正确。 */
@@ -95,6 +97,7 @@ const VALID_ARGS: Record<string, Record<string, unknown>> = Object.freeze({
   graph_query: { repoId: 'repo-1', query: 'alpha' },
   graph_integrity: { repoId: 'repo-1' },
   graph_path_pattern: { repoId: 'repo-1', pattern: 'call+' },
+  graph_slice: { repoId: 'repo-1', view: 'structural' },
 });
 
 type MockCtx = Context & {

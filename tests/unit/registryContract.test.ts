@@ -111,7 +111,8 @@ describe('business registry contract', () => {
     // cycle-132：+graph_integrity（璇玑图白盒可观测工具）。
     // cycle-134：+graph_path_pattern。这个数字曾经漏更新，导致真机 /status 报
     // `byFace.tools = 12` 而实际注册 13 个——见下面「注册数 == 登记数」的守卫。
-    expect(TOOL_ENTRIES.length).toBe(13);
+    // cycle-135：+graph_slice（多维视图切片：时序 / 所有权 / 领域 + 结构）。
+    expect(TOOL_ENTRIES.length).toBe(14);
     expect(ROUTE_ENTRIES.length).toBe(21);
     expect(ENTRY_ITEMS.length).toBe(4);
     expect(SKILL_ENTRIES.length).toBe(1);

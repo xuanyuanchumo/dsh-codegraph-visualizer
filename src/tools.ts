@@ -19,6 +19,16 @@ import { PathPatternError } from './xuanji/core/path-pattern.ts';
 import { renderSubgraphText, selectSeeds, tokenizeQuery } from './xuanji/query/keyword-query.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
+import {
+  graphSlice as sliceGraph,
+  GRAPH_SLICE_VIEWS,
+  GRAPH_SLICE_GRANULARITIES,
+  type GraphSliceView,
+  type GraphSliceGranularity,
+  type GraphSliceResult,
+} from './shared/domain.ts';
+import { parseCommitLog } from './shared/temporal.ts';
+import { parseGitBlamePorcelain, groupBlameByFile } from './shared/ownership.ts';
 import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
 import { CACHE, PATH_FINDER, TOOL_MESSAGES, API } from './shared/constants.ts';
 import {
@@ -429,6 +439,46 @@ export async function executeGraphImpact(args: { symbolId: string }, invoke: Ups
   if (normalized) return toJsonValue(normalized);
   const lens = await invoke('lens_impact', { symbolId: args.symbolId });
   return toJsonValue(lens ?? { affected: [], depth: 0 });
+}
+
+/**
+ * `graph_slice` 的执行体（cycle-135：多维视图切片）。
+ *
+ * 四个视图共用一条链路：先 `fetchMergedGraph` 取合并图，再交给 `graphSlice` 统一切片。
+ * 时序/所有权视图的**外部事实**（commit 历史、blame）通过两个可选字符串参数注入：
+ * - `commitLog`：`git log --name-only --format=%x1e%H%x1f%ct` 的原始输出；
+ * - `blameLog`：`git blame --porcelain <file>` 的原始输出。
+ *
+ * 为什么让模型/调用方注入原始文本而不是在工具里直接跑 git：本工具是**读图**工具，
+ * 与其余 `graph_*` 一样只依赖 `invoke` 上游通道；git 子进程属于宿主 `/churn`、
+ * `/blame` 一类的分析路由职责（`gitChurn.ts` 已有实现）。这样切片逻辑保持纯函数、
+ * 可单测，也避免在工具层再引入一条 git 依赖。缺这两个参数时，对应视图走**显式降级**
+ * （`viewDataAvailable: false` + `reason`），而不是编造一份缺维度的图。
+ */
+export async function executeGraphSlice(
+  args: {
+    repoId: string;
+    view: GraphSliceView;
+    granularity?: GraphSliceGranularity;
+    focus?: string;
+    commitLog?: string;
+    blameLog?: string;
+  },
+  invoke: UpstreamInvoker,
+): Promise<GraphSliceResult> {
+  const data = await fetchMergedGraph(invoke, args.repoId);
+  const commitHistory = args.commitLog
+    ? { slices: parseCommitLog(args.commitLog), head: null, available: true, error: null }
+    : null;
+  const blameByFile = args.blameLog ? groupBlameByFile(parseGitBlamePorcelain(args.blameLog)) : null;
+
+  return sliceGraph(data, {
+    view: args.view,
+    granularity: args.granularity,
+    focus: args.focus,
+    commitHistory,
+    blameByFile,
+  });
 }
 
 // ── Tool factory ────────────────────────────────────────────────────────
@@ -1174,6 +1224,81 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
+  // cycle-135：多维视图切片（研究方案 §4 的 $\mathcal{T}$ 与 $\Pi$ 维 + §7.1 的统一接口）。
+  // 四个视图（structural / temporal / ownership / domain）共用一条链路，差别只在
+  // 「标注什么」与「外部事实从哪来」。详见 `src/shared/domain.ts` 的 `graphSlice`。
+  const graphSlice = defineTool({
+    name: 'graph_slice',
+    description:
+      'Slice the code graph by view and granularity: structural (AST symbols), temporal (commit slices + edge volatility), ownership (git blame authors + bus factor) or domain (Louvain communities → domain labels). Use when you need a bounded subgraph along one orthogonal dimension instead of the whole hairball. `focus` takes a node id/label (1-hop neighborhood) or a file path (whole file). Temporal/ownership views accept raw git output via `commitLog` (git log --name-only --format=%x1e%H%x1f%ct) and `blameLog` (git blame --porcelain); without them the view degrades explicitly (viewDataAvailable: false + reason) rather than returning a graph missing that dimension.',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      view: {
+        type: 'string',
+        enum: [...GRAPH_SLICE_VIEWS],
+        required: true,
+        description: 'Which orthogonal dimension to slice and label.',
+      },
+      granularity: {
+        type: 'string',
+        enum: [...GRAPH_SLICE_GRANULARITIES],
+        description: 'Aggregation level: repo (as-is), file (collapse to file nodes), symbol (default).',
+      },
+      focus: {
+        type: 'string',
+        description: 'Node id/label (1-hop neighborhood) or file path (whole file). Omit to slice the whole graph.',
+      },
+      commitLog: {
+        type: 'string',
+        description: 'Raw `git log --name-only --format=%x1e%H%x1f%ct` output (temporal view).',
+      },
+      blameLog: {
+        type: 'string',
+        description: 'Raw `git blame --porcelain` output (ownership view).',
+      },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as GraphSliceResult | null;
+        if (!v || !v.available) {
+          return [{ type: 'text' as const, text: `Slice unavailable: ${v?.reason ?? 'unknown reason'}` }];
+        }
+        const labelSamples = Object.entries(v.labels).slice(0, 10).map(([id, label]) => `  ${id} → ${label}`);
+        const lines = [
+          `${v.view} @ ${v.granularity}: ${v.nodes.length} nodes, ${v.edges.length} edges`,
+          ...(labelSamples.length > 0 ? [`labels:\n${labelSamples.join('\n')}`] : []),
+          ...(v.reason ? [`note: ${v.reason}`] : []),
+        ];
+        return [{ type: 'text' as const, text: lines.join('\n') }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { repoId: string; view: string; granularity?: string; focus?: string };
+      return {
+        card: 'generic' as const,
+        title: 'Slice graph view',
+        kind: 'other' as const,
+        rawInput: { repoId: a.repoId, view: a.view, granularity: a.granularity ?? 'symbol' },
+      };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Graph slice failed' : 'Graph slice',
+    }),
+    execute: async (args) => {
+      const slice = await executeGraphSlice(args as {
+        repoId: string;
+        view: GraphSliceView;
+        granularity?: GraphSliceGranularity;
+        focus?: string;
+        commitLog?: string;
+        blameLog?: string;
+      }, invoke);
+      return toJsonValue(slice);
+    },
+  });
+
   return {
     graphStatus,
     graphData,
@@ -1188,6 +1313,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     graphFocus,
     graphQuery,
     graphIntegrity,
+    graphSlice,
     dispose: () => {
       xuanjiPool.dispose();
       graphCache.clear();

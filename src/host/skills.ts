@@ -1,5 +1,5 @@
 /**
- * 把本插件的 11 个 `graph_*` 工具注册成一条**运行时 Skill**（`ctx.skills.register`）。
+ * 把本插件的 14 个 `graph_*` 工具注册成一条**运行时 Skill**（`ctx.skills.register`）。
  *
  * ## 为什么需要这条 Skill（而工具描述不够）
  *
@@ -8,7 +8,7 @@
  * 可查询的图 —— 除非有人在指令层告诉它。这正是 Skill 的定位：**可选的指令，不是会话事件**
  * （kb `site/reference/subsystems/skills.md:9`）。
  *
- * 本仓的 11 个工具全部带 `presentCall` / `presentResult`（`src/tools.ts`），所以「轨迹里
+ * 本仓的 14 个工具全部带 `presentCall` / `presentResult`（`src/tools.ts`），所以「轨迹里
  * 能看到本插件的调用」在**契约层**已经成立；缺的是**触发**：模型不知道何时挑它们。
  * 用户 objective #3 的「DSH 大模型使用时 dsh 的轨迹要有本技能插件的调用」因此是两件事：
  * 可见性（已有）+ 可发现性（本文件）。
@@ -102,6 +102,17 @@ manifest 依赖解析。三者都没有时插件仍可提供 AST 解析（\`/ast
    \`call+ . import? . dependency\` 跨视图路径。语法：类型名用空格或 \`.\` 拼接，
    \`|\` 为并、\`(...)\` 分组、\`?\` \`*\` \`+\` \`{n,m}\` 为量词。
    **模式写错会返回带 \`^\` 指位的诊断**，不要把它当成"零结果"——零结果是 \`paths: []\` 且没有 \`error\` 字段。
+
+9. **"只看一个维度" / "这段代码属于哪个领域" / "这段代码是谁写的" / "哪些关系是最近才出现的"**
+   → \`graph_slice\`。四个正交视图共用**一个**入口（研究方案 §7.1 的统一接口）：
+   \`view='structural'\`（符号与静态关系）、\`view='temporal'\`（commit 切片 + 边挥发度）、
+   \`view='ownership'\`（git blame 作者归属 + bus factor）、\`view='domain'\`（Louvain 社区 → 领域标签）。
+   \`granularity\` 决定聚合层（\`repo\` 原样 / \`file\` 折叠成文件节点 / \`symbol\` 缺省）；
+   \`focus\` 取一块（nodeId/label 的 1 跳邻域，或文件路径）。
+   \`view='temporal'\` 需要 \`commitLog\`（\`git log --name-only --format=%x1e%H%x1f%ct\` 的原始输出），
+   \`view='ownership'\` 需要 \`blameLog\`（\`git blame --porcelain\` 的原始输出）。
+   缺这两个输入时返回 \`viewDataAvailable: false\` + \`reason\` —— 那是**显式降级**，
+   不要把它读成"这个维度没有东西"。
 
 ## 用法纪律
 

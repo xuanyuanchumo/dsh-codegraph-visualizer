@@ -48,7 +48,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const repoReady = graphRepo.init();
   if (!repoReady) { log.warn('graph repository init failed, persistence disabled'); }
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphPathPattern, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphPathPattern, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, graphSlice, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -65,7 +65,9 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     const d12 = ctx.tools.register(graphIntegrity);
     // cycle-134：路径模式 ρ 读法（序列约束的图谱查询）。
     const d13 = ctx.tools.register(graphPathPattern);
-    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); d13(); };
+    // cycle-135：多维视图切片（时序/所有权/领域 + 结构），研究方案 §7.1 的统一接口。
+    const d14 = ctx.tools.register(graphSlice);
+    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); d13(); d14(); };
   }, 'codegraph: tool registrations');
 
   let lastGraphData: GraphData | null = null;
@@ -100,7 +102,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   registerService(routeDeps);
   registerRoutes(routeDeps);
 
-  // 把 11 个 graph_* 工具注册成一条运行时 Skill（`ctx.skills.register`）。
+  // 把 14 个 graph_* 工具注册成一条运行时 Skill（`ctx.skills.register`）。
   //
   // 为什么放在这里而不是放进静态 `inject`：`skills` 是可选服务，写进静态 inject 会让
   // 「宿主没挂 skill 子系统」的 profile 把**整个插件**置为 INACTIVE —— 拿一条可选指令换
