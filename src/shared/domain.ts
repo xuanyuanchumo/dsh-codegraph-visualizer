@@ -35,11 +35,17 @@ import { normalizeChurnPath } from './churn.ts';
 import { commitSliceGraph, edgeVolatility, type CommitHistory, type TemporalSliceResult } from './temporal.ts';
 import { buildOwnershipMap, type BlameLine } from './ownership.ts';
 import { scoped } from './Logger.ts';
+import { VIEW_NAMES, type ViewName } from './views.ts';
 
 const log = scoped('domain');
 
-/** 视图类型。 */
-export type GraphSliceView = 'structural' | 'temporal' | 'ownership' | 'domain';
+/**
+ * 视图类型。
+ *
+ * cycle-138 起从 `src/shared/views.ts` 的 `VIEW_NAMES` **派生**，不再是本文件里
+ * 再写一份字面量——四视图的名单从此只有一个真源（§4 的 Π 视图划分函数）。
+ */
+export type GraphSliceView = ViewName;
 
 /** 聚合粒度。 */
 export type GraphSliceGranularity = 'repo' | 'file' | 'symbol';
@@ -77,7 +83,8 @@ export interface GraphSliceResult {
 }
 
 /** focus 邻域默认上限。 */
-const DEFAULT_MAX_NEIGHBORS = 200;
+/** focus 邻域的默认上限（cycle-138 起导出，供 `graph_views` 复用同一口径）。 */
+export const DEFAULT_MAX_NEIGHBORS = 200;
 
 /** 构造一个「没切出来」的结果：`available: false` + 原因，不编造图。 */
 function emptyResult(view: GraphSliceView, granularity: GraphSliceGranularity, reason: string): GraphSliceResult {
@@ -120,7 +127,8 @@ function filterEdgesByIds(edges: readonly GraphEdge[], keep: ReadonlySet<string>
  * 保护，否则一个 hub 会把整张图拉进来）。没命中再当作文件路径：取该文件下全部节点。
  * 两者都没命中 → 空结果（原因由调用方写）。
  */
-function focusNeighborhood(
+/** 取 focus 的 1-hop 邻域（或整图）。cycle-138 起导出，供 `graph_views` 复用。 */
+export function focusNeighborhood(
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
   focus: string | undefined,
@@ -228,7 +236,8 @@ function minString(values: readonly string[]): string {
  * 标签编号按「社区内最小 nodeId」字典序规范重排，因此**不依赖 Louvain 的内部编号**；
  * 没有被 Louvain 覆盖到的孤立节点各自成一个领域，保证「每个节点都有标签」。
  */
-async function computeDomainLabels(
+/** 用 Louvain 社区检测给节点打领域标签。cycle-138 起导出，供 `graph_views` 复用。 */
+export async function computeDomainLabels(
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
 ): Promise<{ labels: Record<string, string>; domainNames: Record<string, string>; domainCount: number }> {
@@ -372,8 +381,9 @@ export async function graphSlice(
   };
 }
 
-/** 四个视图的合法集合（供工具参数校验与文档生成共用，避免两处字面量漂移）。 */
-export const GRAPH_SLICE_VIEWS: readonly GraphSliceView[] = ['structural', 'temporal', 'ownership', 'domain'] as const;
+/** 四个视图的合法集合（供工具参数校验与文档生成共用）。
+ *  cycle-138：从 `VIEW_NAMES` 派生，不再写第二份字面量。 */
+export const GRAPH_SLICE_VIEWS: readonly GraphSliceView[] = [...VIEW_NAMES];
 
 /** 三个粒度的合法集合。 */
 export const GRAPH_SLICE_GRANULARITIES: readonly GraphSliceGranularity[] = ['repo', 'file', 'symbol'] as const;

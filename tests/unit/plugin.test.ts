@@ -191,14 +191,15 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 14 tools and 6 event listeners', async () => {
+  it('should register 15 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     await apply(ctx);
     // cycle-132：+graph_integrity（璇玑图白盒可观测）。
     // cycle-134：+graph_path_pattern（路径模式 ρ 读法）。
     // cycle-135：+graph_slice（多维视图切片）。
-    expect(ctx.tools.register).toHaveBeenCalledTimes(14);
+    // cycle-138：+graph_views（Π 视图划分函数）。
+    expect(ctx.tools.register).toHaveBeenCalledTimes(15);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/repo/scanned', expect.any(Function));
@@ -246,9 +247,12 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     // cycle-135：graph_slice（多维视图切片）同样两侧都必须出现。
     expect(registeredNames).toContain('graph_slice');
     expect(returnedNames).toContain('graph_slice');
-    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 14」，
+    // cycle-138：graph_views（Π 视图划分函数）同样两侧都必须出现。
+    expect(registeredNames).toContain('graph_views');
+    expect(returnedNames).toContain('graph_views');
+    // 计数式断言的补充：集合相等 + 唯一性已由上面两行钉住，这里再钉「数量确实是 15」，
     // 否则「工厂和入口同时漏掉同一个工具」仍然满足集合相等。
-    expect(registeredNames).toHaveLength(14);
+    expect(registeredNames).toHaveLength(15);
   });
 
 

@@ -48,7 +48,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const repoReady = graphRepo.init();
   if (!repoReady) { log.warn('graph repository init failed, persistence disabled'); }
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphPathPattern, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, graphSlice, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphPathPattern, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, graphSlice, graphViews, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -67,7 +67,9 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     const d13 = ctx.tools.register(graphPathPattern);
     // cycle-135：多维视图切片（时序/所有权/领域 + 结构），研究方案 §7.1 的统一接口。
     const d14 = ctx.tools.register(graphSlice);
-    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); d13(); d14(); };
+    // cycle-138：Π 视图划分函数（研究方案 §4 的 Π 维）。
+    const d15 = ctx.tools.register(graphViews);
+    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); d13(); d14(); d15(); };
   }, 'codegraph: tool registrations');
 
   let lastGraphData: GraphData | null = null;

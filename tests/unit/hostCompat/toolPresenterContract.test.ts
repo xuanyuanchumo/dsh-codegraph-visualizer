@@ -80,6 +80,8 @@ const REGISTERED_TOOL_NAMES = Object.freeze([
   'graph_path_pattern',
   // cycle-135：多维视图切片（时序 / 所有权 / 领域 + 结构）。
   'graph_slice',
+  // cycle-138：Π 视图划分函数（每个节点/边属于哪些视图）。
+  'graph_views',
 ]);
 
 /** 每个工具的**合法**参数样本：必须满足 `required: true` 的每一项且类型正确。 */
@@ -98,6 +100,7 @@ const VALID_ARGS: Record<string, Record<string, unknown>> = Object.freeze({
   graph_integrity: { repoId: 'repo-1' },
   graph_path_pattern: { repoId: 'repo-1', pattern: 'call+' },
   graph_slice: { repoId: 'repo-1', view: 'structural' },
+  graph_views: { repoId: 'repo-1' },
 });
 
 type MockCtx = Context & {

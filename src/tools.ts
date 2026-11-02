@@ -22,14 +22,18 @@ import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
 import {
   graphSlice as sliceGraph,
+  focusNeighborhood,
+  computeDomainLabels,
   GRAPH_SLICE_VIEWS,
   GRAPH_SLICE_GRANULARITIES,
+  DEFAULT_MAX_NEIGHBORS,
   type GraphSliceView,
   type GraphSliceGranularity,
   type GraphSliceResult,
 } from './shared/domain.ts';
-import { parseCommitLog } from './shared/temporal.ts';
-import { parseGitBlamePorcelain, groupBlameByFile } from './shared/ownership.ts';
+import { parseCommitLog, filterSlices, type CommitRange } from './shared/temporal.ts';
+import { parseGitBlamePorcelain, groupBlameByFile, buildOwnershipMap } from './shared/ownership.ts';
+import { partitionByView, serializeViewPartition } from './shared/views.ts';
 import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
 import { CACHE, PATH_FINDER, TOOL_MESSAGES, API } from './shared/constants.ts';
 import {
@@ -1366,6 +1370,133 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     },
   });
 
+  // cycle-138：Π 视图划分函数（研究方案 §4 的 Π 维）。
+  //
+  // 与 `graph_slice` 的区别：`graph_slice` 回答「按某个视图切出子图」，本工具回答
+  // 「每个节点/边属于**哪些**视图」。后者是 §4 的 Π: V ∪ E → 2^{V_view} 的正式实现，
+  // 前者只是它的一个投影。
+  //
+  // 四个视图的事实来源（缺哪个就缺哪个视图，绝不静默补全）：
+  // - structural：恒属所有节点/边（基图）；
+  // - temporal：`commitLog` 里被触及的文件；
+  // - ownership：`blameLog` 里有记录的节点；
+  // - domain：Louvain 社区检测分配到的节点。
+  const graphViews = defineTool({
+    name: 'graph_views',
+    description:
+      'Report the view partition Π (研究方案 §4): which orthogonal views each node and edge belongs to. The four views are structural (base graph, always), temporal (files touched by a commit slice), ownership (nodes with a git blame record) and domain (Louvain community assignment). Use this when you need to know "which views does this symbol belong to" rather than "give me the subgraph of one view" (that is graph_slice). Temporal/ownership views degrade explicitly when their raw git input (commitLog / blameLog) is absent.',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      focus: {
+        type: 'string',
+        description: 'Node id/label (1-hop neighborhood) or file path (whole file). Omit to partition the whole graph.',
+      },
+      commitLog: {
+        type: 'string',
+        description: 'Raw `git log --name-only --format=%x1e%H%x1f%ct` output (temporal view).',
+      },
+      blameLog: {
+        type: 'string',
+        description: 'Raw `git blame --porcelain` output (ownership view).',
+      },
+      days: { type: 'number', description: 'Temporal slice: only commits within the last N days.' },
+      from: { type: 'string', description: 'Temporal slice: keep commits from this hash onward (inclusive).' },
+      to: { type: 'string', description: 'Temporal slice: keep commits up to this hash (inclusive).' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as {
+          nodes?: Array<{ id: string; views: string[] }>;
+          edges?: Array<{ id: string; views: string[] }>;
+          viewCounts?: Record<string, number>;
+          edgeViewCounts?: Record<string, number>;
+          domain?: { domainCount: number; domainNames: string[] };
+        } | null;
+        if (!v) return [{ type: 'text' as const, text: 'View partition unavailable' }];
+        const lines = [
+          `Π view partition: ${v.nodes?.length ?? 0} nodes, ${v.edges?.length ?? 0} edges`,
+          `view counts: ${Object.entries(v.viewCounts ?? {}).map(([k, n]) => `${k}=${n}`).join(', ')}`,
+        ];
+        if (v.domain) lines.push(`domain: ${v.domain.domainCount} communities (${v.domain.domainNames.join(', ') || 'none'})`);
+        const samples = (v.nodes ?? []).slice(0, 8).map((n) => `  ${n.id} → [${n.views.join(', ')}]`);
+        if (samples.length > 0) lines.push(`samples:\n${samples.join('\n')}`);
+        return [{ type: 'text' as const, text: lines.join('\n') }];
+      },
+    },
+    presentCall: (args) => {
+      const a = args as { repoId: string; focus?: string; commitLog?: string; blameLog?: string };
+      return {
+        card: 'generic' as const,
+        title: 'Report view partition Π',
+        kind: 'other' as const,
+        rawInput: { repoId: a.repoId, ...(a.focus === undefined ? {} : { focus: a.focus }) },
+      };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'View partition failed' : 'View partition Π',
+    }),
+    execute: async (args) => {
+      const a = args as {
+        repoId: string;
+        focus?: string;
+        commitLog?: string;
+        blameLog?: string;
+        days?: number;
+        from?: string;
+        to?: string;
+      };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      if (data.nodes.length === 0) return null;
+
+      // focus 邻域（与 graph_slice 同一函数、同一口径）
+      const base = a.focus
+        ? focusNeighborhood(data.nodes, data.edges, a.focus, DEFAULT_MAX_NEIGHBORS)
+        : { nodes: data.nodes, edges: data.edges };
+
+      // 时序事实：被 commit 切片触及的文件（归一化路径）
+      let temporalFiles: Set<string> | undefined;
+      if (a.commitLog && a.commitLog.trim() !== '') {
+        const history = { slices: parseCommitLog(a.commitLog), head: null, available: true };
+        const range: CommitRange = {
+          ...(a.days !== undefined ? { days: a.days } : {}),
+          ...(a.from ? { from: a.from } : {}),
+          ...(a.to ? { to: a.to } : {}),
+        };
+        const { slices } = filterSlices(history, range);
+        temporalFiles = new Set<string>();
+        for (const slice of slices) for (const file of slice.files) temporalFiles.add(file);
+      }
+
+      // 所有权事实：有 blame 记录的节点
+      let attributedNodeIds: ReadonlySet<string> | undefined;
+      if (a.blameLog && a.blameLog.trim() !== '') {
+        const ownership = buildOwnershipMap(base.nodes, groupBlameByFile(parseGitBlamePorcelain(a.blameLog)));
+        attributedNodeIds = new Set(Object.keys(ownership.nodeLabels));
+      }
+
+      // 领域事实：Louvain 社区
+      const domain = await computeDomainLabels(base.nodes, base.edges);
+      const domainByNodeId = new Map<string, string>();
+      for (const [id, label] of Object.entries(domain.labels)) {
+        if (label) domainByNodeId.set(id, label);
+      }
+
+      const partition = partitionByView({
+        data: base,
+        temporalFiles,
+        attributedNodeIds,
+        domainByNodeId,
+      });
+
+      return toJsonValue({
+        ...serializeViewPartition(partition),
+        domain: { domainCount: domain.domainCount, domainNames: domain.domainNames },
+      });
+    },
+  });
+
   return {
     graphStatus,
     graphData,
@@ -1381,6 +1512,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     graphQuery,
     graphIntegrity,
     graphSlice,
+    graphViews,
     dispose: () => {
       xuanjiPool.dispose();
       graphCache.clear();

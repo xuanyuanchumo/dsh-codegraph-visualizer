@@ -332,7 +332,7 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 13 tools with correct names', async () => {
+  it('should create 14 tools with correct names', async () => {
     const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
@@ -352,8 +352,10 @@ describe('createGraphTools', () => {
     expect(tools.graphPathPattern.name).toBe('graph_path_pattern');
     // cycle-135：多维视图切片（研究方案 §4 的 T / Π 维 + §7.1 统一接口）
     expect(tools.graphSlice.name).toBe('graph_slice');
+    // cycle-138：Π 视图划分函数（研究方案 §4 的 Π 维——每个节点/边属于哪些视图）
+    expect(tools.graphViews.name).toBe('graph_views');
     // 数量也要钉住：只断言「每个名字对」时，漏掉一个工具不会有任何断言变红。
-    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(14);
+    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(15);
   });
 
   // ── graph_integrity ──────────────────────────────────────────────────
@@ -540,6 +542,108 @@ describe('createGraphTools', () => {
     expect(result.paths).toEqual([]);
     expect(result.temporal.available).toBe(false);
     expect(result.reason).toContain('commit 历史为空');
+  });
+
+  // ── cycle-138：Π 视图划分函数（graph_views） ───────────────────────────
+
+  it('graph_views 无外部事实时：所有节点只属结构视图', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n-a', label: 'a', type: 'function', filePath: 'src/a.ts', lineNumber: 1, properties: {} },
+        { id: 'n-b', label: 'b', type: 'function', filePath: 'src/b.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [{ id: 'e-ab', source: 'n-a', target: 'n-b', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphViews.execute({ repoId: 'w1' }, mockExec)) as {
+      nodes: Array<{ id: string; views: string[] }>;
+      edges: Array<{ id: string; views: string[] }>;
+      viewCounts: Record<string, number>;
+      edgeViewCounts: Record<string, number>;
+      domain: { domainCount: number; domainNames: string[] };
+    };
+    expect(result.nodes).toHaveLength(2);
+    // 结构视图恒属；领域视图由 Louvain 社区检测计算，所有节点都会被分配到一个社区，
+    // 因此也恒属（这正是 §4 的「多向自洽连接」：同一节点属于多个视图）。
+    for (const node of result.nodes) {
+      expect(node.views).toEqual(['domain', 'structural']);
+    }
+    expect(result.edges[0]!.views).toEqual(['domain', 'structural']);
+    expect(result.viewCounts.structural).toBe(2);
+    expect(result.viewCounts.domain).toBe(2);
+    expect(result.viewCounts.temporal).toBe(0);
+    expect(result.viewCounts.ownership).toBe(0);
+    expect(result.edgeViewCounts.structural).toBe(1);
+    expect(typeof result.domain.domainCount).toBe('number');
+  });
+
+  it('graph_views 带 commitLog：被触及的文件标为时序视图', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n-a', label: 'a', type: 'function', filePath: 'src/a.ts', lineNumber: 1, properties: {} },
+        { id: 'n-b', label: 'b', type: 'function', filePath: 'src/b.ts', lineNumber: 1, properties: {} },
+        { id: 'n-c', label: 'c', type: 'function', filePath: 'src/c.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [{ id: 'e-ab', source: 'n-a', target: 'n-b', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphViews.execute(
+      { repoId: 'w1', commitLog: 'abc1234\x1f1000\nsrc/a.ts\n\x1edef5678\x1f2000\nsrc/b.ts\n' },
+      mockExec,
+    )) as {
+      nodes: Array<{ id: string; views: string[] }>;
+      viewCounts: Record<string, number>;
+    };
+    const aViews = result.nodes.find((n) => n.id === 'n-a')!.views;
+    const bViews = result.nodes.find((n) => n.id === 'n-b')!.views;
+    const cViews = result.nodes.find((n) => n.id === 'n-c')!.views;
+    expect(aViews).toContain('temporal');
+    expect(bViews).toContain('temporal');
+    expect(cViews).not.toContain('temporal');
+    expect(result.viewCounts.temporal).toBe(2);
+  });
+
+  it('graph_views 带 blameLog：有 blame 记录的节点标为所有权视图', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n-a', label: 'a', type: 'function', filePath: 'src/a.ts', lineNumber: 1, properties: {} },
+        { id: 'n-b', label: 'b', type: 'function', filePath: 'src/b.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    // `git blame --porcelain` 的合法片段（头部 + author + filename + 空行 + 行内容）
+    const blameLog = [
+      '1111111 1 1 1',
+      'author Alice',
+      'author-mail <alice@example.com>',
+      'author-time 123',
+      'author-tz +0000',
+      'filename src/a.ts',
+      '',
+      'content of line 1',
+      '2222222 1 1 1',
+      'author Bob',
+      'author-mail <bob@example.com>',
+      'author-time 124',
+      'author-tz +0000',
+      'filename src/b.ts',
+      '',
+      'content of line 1',
+    ].join('\n');
+    const result = (await tools.graphViews.execute({ repoId: 'w1', blameLog }, mockExec)) as {
+      nodes: Array<{ id: string; views: string[] }>;
+      viewCounts: Record<string, number>;
+    };
+    const aViews = result.nodes.find((n) => n.id === 'n-a')!.views;
+    expect(aViews).toContain('ownership');
+    expect(result.viewCounts.ownership).toBeGreaterThan(0);
   });
 
   it('graph_integrity 已装载后报告图规模与休眠态（经 fetchMergedGraph 同链路）', async () => {
@@ -1819,6 +1923,7 @@ const VALID_ARGS: Record<PresentableKey, Record<string, unknown>> = {
   graphIntegrity: { repoId: 'repo-1' },
   graphPathPattern: { repoId: 'repo-1', pattern: 'call+' },
   graphSlice: { repoId: 'repo-1', view: 'structural', granularity: 'file' },
+  graphViews: { repoId: 'repo-1' },
 };
 
 const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawInput: unknown }> = [
@@ -1834,6 +1939,7 @@ const CALL_VIEWS: Array<{ key: PresentableKey; title: string; kind: string; rawI
   { key: 'graphFocus', title: 'Focus on symbol', kind: 'search', rawInput: { symbolId: 'sym-1' } },
   { key: 'graphQuery', title: 'Query graph', kind: 'search', rawInput: { repoId: 'repo-1', query: 'graphStore' } },
   { key: 'graphIntegrity', title: 'Check graph integrity', kind: 'other', rawInput: { repoId: 'repo-1' } },
+  { key: 'graphViews', title: 'Report view partition Π', kind: 'other', rawInput: { repoId: 'repo-1' } },
 ];
 
 const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = [
@@ -1849,6 +1955,7 @@ const RESULT_TITLES: Array<{ key: PresentableKey; ok: string; fail: string }> = 
   { key: 'graphFocus', ok: 'Symbol neighborhood', fail: 'Focus failed' },
   { key: 'graphQuery', ok: 'Graph query result', fail: 'Graph query failed' },
   { key: 'graphIntegrity', ok: 'Graph integrity', fail: 'Integrity check failed' },
+  { key: 'graphViews', ok: 'View partition Π', fail: 'View partition failed' },
 ];
 
 describe('createGraphTools presentation callbacks', () => {

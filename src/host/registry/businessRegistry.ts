@@ -53,6 +53,7 @@ export const TOOL_ENTRIES: RegistryEntry[] = [
   // 一个入口收敛四个正交视图：structural / temporal（commit 切片 + 边挥发度）/
   // ownership（blame 作者 + bus factor）/ domain（Louvain 社区 → 领域标签）。
   { id: 'graph_slice', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: '按视图×粒度的图切片 + 视图专属标注（时序/作者/领域）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/graphSlice.test.ts'], guardTest: 'graphSlice.test.ts', lifecycle: 'consuming' },
+  { id: 'graph_views', face: 'tools', registeredAt: 'src/index.ts (ctx.tools.register)', produces: 'Π 视图划分函数：每个节点/边属于哪些正交视图（结构恒属，时序/所有权/领域按事实叠加）', consumers: ['LLM 会话', 'tests/unit/tools.test.ts', 'tests/unit/views.test.ts'], guardTest: 'views.test.ts', lifecycle: 'consuming' },
 ];
 
 /** HTTP 路由（19 条）——tree-sitter/health 的消费面是测试与 E2E（外部消费）。 */

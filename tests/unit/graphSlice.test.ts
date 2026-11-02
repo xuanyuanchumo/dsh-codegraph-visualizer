@@ -65,10 +65,10 @@ function makeMockCtx(): MockCtx {
 const NO_OP_INVOKE = async () => null;
 
 describe('graph_slice tool factory', () => {
-  it('createGraphTools 返回名为 graph_slice 的第 14 个工具', async () => {
+  it('createGraphTools 返回名为 graph_slice 的第 15 个工具', async () => {
     const tools = await createGraphTools(makeMockCtx());
     expect(tools.graphSlice.name).toBe('graph_slice');
-    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(14);
+    expect(Object.keys(tools).filter((key) => key !== 'dispose')).toHaveLength(15);
   });
 
   it('view / granularity 参数枚举与单一真源一致（不复制字面量）', async () => {
