@@ -425,9 +425,20 @@
       "phase": "plan",
       "exitedAt": "2026-11-02T05:20:08.847Z",
       "note": "cycle-init"
+    },
+    {
+      "phase": "plan",
+      "exitedAt": "2026-11-02T17:15:24.738Z",
+      "note": "cycle-init"
+    },
+    {
+      "cycle": "cycle-138",
+      "phase": "complete",
+      "exitedAt": "2026-11-02T17:19:29.625Z",
+      "result": "cycle-138 清偿 cycle-137 §80.8 流转的两个核心缺口（研究方案 §4 最后两维）：(1) T1 Π 视图划分函数正式化（commit f1db100）——src/shared/views.ts 正式化 Π: V∪E→2^V_view（结构恒属基图/时序按 commit 触及文件/所有权按 blame/领域按 Louvain；跨社区边是桥不属任何单一领域视图）；graph_views 第 15 工具（registry/skills/计数三处同步，routes.test.ts 漏改被首轮全量跑抓住）；tests/unit/views.test.ts 11 用例。(2) T2 边级时序谓词（commit 3ba1348）——fileLevelEdgeFacts 文件级边事实（firstSeenAt=首次同时触及两端文件的提交时刻，引入时间的健全下界；双向键；volatility 刻意缺省不凑假数据）；filterEdgesByTemporalPredicate 图级切片后枚举前的边级过滤（做成枚举回调会吞 cursor 语义——cycle-86 同族）；三态：未请求 meta:null / 不可用原图保留+reason / 可用则无事实边一律移除；挥发度显式拒绝（数据面只有文件级事实）——拒绝态可达可测而非静默缺失；graph_path_pattern 暴露 since/minVolatility/maxVolatility + edgeTemporal 元信息。(3) 变异探针 3 条全红→绿：A 无事实改保留 4 failed / B min→max 1 failed / C 删显式拒绝 3 failed；恢复后 184/184。(4) 途中抓到并修复 3 个真实缺陷：重写丢失图级降级分支（既有守卫当场转红——守卫价值现场证明）、测试夹具控制字符转义被工具二次转义成字面量反斜杠（5 例齐红根因全同，教训入测试体系 §2.36）、routes.test.ts 计数过期。(5) 文档族：研究方案 §15（Π+边级谓词实施记录+§4 最终对齐度：全字段 ✅）+ §11.5 勾选 + 需求分析 §81 + 测试体系 §2.36。(6) 门禁：typecheck 3×0 / lint 0-0@310 / 全量 278 文件 6778 用例 0 失败（+14）/ build 0 / perf-gate 3 PASS（client 2.72MB、host 465KB、tests 6778≥5347）/ gate-check --gate all --quality --record 全 PASS（G0-G3+Q1-Q5/Q7，Q6 显式 SKIP）。诚实披露：E2E/真机未跑（零客户端改动）；Q6 SKIP；Π 客户端可视化与挥发度数据面流转后续轮。流转 cycle-139+：Π 叠加渲染（可视化轮）、边级采集渠道（挥发度点亮）、Σ chips 插入（UX 轮）。"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-11-02T05:20:08.847Z"
+  "updatedAt": "2026-11-02T17:19:29.627Z"
 }
