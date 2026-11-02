@@ -24,8 +24,25 @@
  */
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+
+// 被测面板与 store 切片都从 `api/pathPattern.ts` 取数。cycle-136 的 Σ 取数与逐键
+// 语法预检都走这条通道，因此在这里统一 mock：既能控制预检的返回，又能消除
+// 「jsdom 没有 fetch」导致的 `fetchPathPatternSyntax failed` 日志噪音。
+const apiMocks = vi.hoisted(() => ({
+  fetchPathsByPattern: vi.fn(),
+  fetchPathPatternSyntax: vi.fn(),
+}));
+
+vi.mock('../../src/client/api/pathPattern.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/client/api/pathPattern.ts')>();
+  return {
+    ...actual,
+    fetchPathsByPattern: apiMocks.fetchPathsByPattern,
+    fetchPathPatternSyntax: apiMocks.fetchPathPatternSyntax,
+  };
+});
 
 import { PathPatternPanel } from '../../src/client/components/PathPatternPanel.tsx';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
@@ -77,6 +94,8 @@ function primeStore(overrides: Record<string, unknown> = {}): void {
     pathPatternResult: null,
     pathPatternError: null,
     pathPatternSeq: 0,
+    pathPatternEdgeTypes: [],
+    pathPatternEdgeTypesStatus: 'idle',
     ...overrides,
   });
 }
@@ -96,6 +115,11 @@ beforeEach(() => {
   clearPathPattern = vi.fn();
   runPathPatternNextPage = vi.fn().mockResolvedValue(true);
   primeStore({ runPathPattern, clearPathPattern, runPathPatternNextPage });
+
+  apiMocks.fetchPathsByPattern.mockReset();
+  apiMocks.fetchPathPatternSyntax.mockReset();
+  // 默认 Σ 取数成功但列表为空：Σ chips 的用例会显式覆盖 edgeTypes。
+  apiMocks.fetchPathPatternSyntax.mockResolvedValue({ ok: true, pattern: '', edgeTypes: [] });
 });
 
 afterEach(() => {
@@ -320,5 +344,94 @@ describe('a11y: aria-live announces terminal states', () => {
     const live = document.querySelector('.cg-pathpattern-live')!;
     expect(live.textContent).toContain('枚举完成');
     expect(live.textContent).toContain('2 条路径');
+  });
+});
+
+describe('cycle-136: Σ chips (dynamic) + syntax precheck', () => {
+  it('renders Σ chips from the store (host-provided edgeTypes), not a hardcoded list', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type', 'beta-type'],
+    });
+    renderPanel();
+    const chips = document.querySelectorAll('.cg-pathpattern-sigma-chip');
+    expect(chips).toHaveLength(2);
+    expect(chips[0]!.textContent).toBe('alpha-type');
+    expect(chips[1]!.textContent).toBe('beta-type');
+  });
+
+  it('does NOT render Σ chips when the fetch is still pending or failed', () => {
+    primeStore({ pathPatternEdgeTypesStatus: 'idle' });
+    renderPanel();
+    expect(document.querySelector('.cg-pathpattern-sigma')).toBeNull();
+
+    cleanup();
+    primeStore({ pathPatternEdgeTypesStatus: 'failed', pathPatternEdgeTypes: [] });
+    renderPanel();
+    expect(document.querySelector('.cg-pathpattern-sigma')).toBeNull();
+  });
+
+  it('unknown-types hint lists the dynamic Σ (not the hardcoded nine)', () => {
+    primeStore({
+      pathPatternStatus: 'unknown-types',
+      pathPattern: 'calls+',
+      pathPatternResult: UNKNOWN_RESULT,
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type', 'beta-type'],
+    });
+    renderPanel();
+    const hint = document.querySelector('.cg-pathpattern-unknown-hint')!;
+    expect(hint.textContent).toContain('alpha-type / beta-type');
+    // 反向：不得出现硬编码九类型列表里的任何一个（用 import 作探针）。
+    expect(hint.textContent).not.toContain('import');
+  });
+
+  it('unknown-types hint degrades honestly when Σ fetch failed', () => {
+    primeStore({
+      pathPatternStatus: 'unknown-types',
+      pathPattern: 'calls+',
+      pathPatternResult: UNKNOWN_RESULT,
+      pathPatternEdgeTypesStatus: 'failed',
+      pathPatternEdgeTypes: [],
+    });
+    renderPanel();
+    expect(document.querySelector('.cg-pathpattern-unknown-hint')!.textContent).toContain('无法获取可用的边类型列表');
+  });
+
+  it('syntax precheck disables submit and shows the caret diagnostic', async () => {
+    apiMocks.fetchPathPatternSyntax.mockResolvedValue({
+      ok: false, pattern: 'call|', error: 'invalid-pattern',
+      diagnostic: 'unexpected "|"\n  call|\n        ^', edgeTypes: [],
+    });
+    renderPanel();
+    fireEvent.change(input(), { target: { value: 'call|' } });
+
+    const submit = document.querySelector('.cg-pathpattern-submit') as HTMLButtonElement;
+    await waitFor(() => expect(submit.disabled).toBe(true), { timeout: 2000 });
+    const err = document.querySelector('.cg-pathpattern-syntax-error');
+    expect(err).not.toBeNull();
+    expect(err!.textContent).toContain('^');
+  });
+
+  it('syntax precheck keeps submit enabled for a valid pattern', async () => {
+    apiMocks.fetchPathPatternSyntax.mockResolvedValue({ ok: true, pattern: 'call+', edgeTypes: [] });
+    renderPanel();
+    fireEvent.change(input(), { target: { value: 'call+' } });
+
+    const submit = document.querySelector('.cg-pathpattern-submit') as HTMLButtonElement;
+    await waitFor(() => expect(submit.disabled).toBe(false), { timeout: 2000 });
+    expect(document.querySelector('.cg-pathpattern-syntax-error')).toBeNull();
+  });
+
+  it('clicking submit with invalid syntax does NOT issue a ρ enumeration request', async () => {
+    apiMocks.fetchPathPatternSyntax.mockResolvedValue({
+      ok: false, pattern: 'call|', error: 'invalid-pattern', diagnostic: 'boom ^', edgeTypes: [],
+    });
+    renderPanel();
+    fireEvent.change(input(), { target: { value: 'call|' } });
+    const submit = document.querySelector('.cg-pathpattern-submit') as HTMLButtonElement;
+    await waitFor(() => expect(submit.disabled).toBe(true), { timeout: 2000 });
+    fireEvent.click(submit);
+    expect(runPathPattern).not.toHaveBeenCalled();
   });
 });

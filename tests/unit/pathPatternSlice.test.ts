@@ -25,12 +25,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // --- Hoisted mock references shared with vi.mock factories -------------------
 const mocks = vi.hoisted(() => ({
   fetchPathsByPattern: vi.fn(),
+  fetchPathPatternSyntax: vi.fn(),
 }));
 
 // 只覆盖被测的取数函数，其余导出（类型 + normalize）保持真实。
 vi.mock('../../src/client/api/pathPattern.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/client/api/pathPattern.ts')>();
-  return { ...actual, fetchPathsByPattern: mocks.fetchPathsByPattern };
+  return { ...actual, fetchPathsByPattern: mocks.fetchPathsByPattern, fetchPathPatternSyntax: mocks.fetchPathPatternSyntax };
 });
 
 // --- Imports under test (after mocks are in place) ---------------------------
@@ -66,7 +67,10 @@ function makeData(overrides: Partial<PathPatternData> = {}): PathPatternData {
   };
 }
 
-type SliceMethods = Pick<GraphState, 'runPathPattern' | 'clearPathPattern' | 'runPathPatternNextPage'>;
+type SliceMethods = Pick<
+  GraphState,
+  'runPathPattern' | 'clearPathPattern' | 'runPathPatternNextPage' | 'fetchPathPatternEdgeTypes'
+>;
 
 interface SliceHarness {
   set: ReturnType<typeof vi.fn>;
@@ -83,6 +87,8 @@ function makeState(overrides: Partial<GraphState> = {}): GraphState {
     pathPatternResult: null,
     pathPatternError: null,
     pathPatternSeq: 0,
+    pathPatternEdgeTypes: [],
+    pathPatternEdgeTypesStatus: 'idle',
     ...overrides,
   } as unknown as GraphState;
 }
@@ -100,10 +106,12 @@ function makeSlice(initial: Partial<GraphState> = {}): SliceHarness {
 
 beforeEach(() => {
   mocks.fetchPathsByPattern.mockReset();
+  mocks.fetchPathPatternSyntax.mockReset();
 });
 
 afterEach(() => {
   mocks.fetchPathsByPattern.mockReset();
+  mocks.fetchPathPatternSyntax.mockReset();
 });
 
 describe('PATH_PATTERN_KEYS', () => {
@@ -113,11 +121,68 @@ describe('PATH_PATTERN_KEYS', () => {
     expect(PATH_PATTERN_KEYS).toContain('pathPatternResult');
     expect(PATH_PATTERN_KEYS).toContain('pathPatternError');
     expect(PATH_PATTERN_KEYS).toContain('pathPatternSeq');
+    expect(PATH_PATTERN_KEYS).toContain('pathPatternEdgeTypes');
+    expect(PATH_PATTERN_KEYS).toContain('pathPatternEdgeTypesStatus');
     expect(PATH_PATTERN_KEYS).toContain('runPathPattern');
     expect(PATH_PATTERN_KEYS).toContain('clearPathPattern');
     expect(PATH_PATTERN_KEYS).toContain('runPathPatternNextPage');
+    expect(PATH_PATTERN_KEYS).toContain('fetchPathPatternEdgeTypes');
     // 防空转：键表本身必须非空。
     expect(PATH_PATTERN_KEYS.length).toBeGreaterThan(5);
+  });
+});
+
+describe('fetchPathPatternEdgeTypes（cycle-136：Σ 取自宿主）', () => {
+  it('取到 Σ 后落到 ready，并写入 edgeTypes', async () => {
+    const h = makeSlice();
+    mocks.fetchPathPatternSyntax.mockResolvedValue({ ok: true, pattern: '', edgeTypes: ['call', 'import'] });
+
+    await h.slice.fetchPathPatternEdgeTypes();
+
+    expect(mocks.fetchPathPatternSyntax).toHaveBeenCalledWith('');
+    expect(h.state.pathPatternEdgeTypesStatus).toBe('ready');
+    expect(h.state.pathPatternEdgeTypes).toEqual(['call', 'import']);
+  });
+
+  it('**不**硬编码 Σ：空 pattern 取的就是宿主回显的那一份（本用例的断言不依赖任何具体类型名）', async () => {
+    // 用一组**与任何实现都无关**的符号名，证明列表是「宿主给的」而不是「客户端写的」。
+    const synthetic = ['alpha-type', 'beta-type'];
+    const h = makeSlice();
+    mocks.fetchPathPatternSyntax.mockResolvedValue({ ok: true, pattern: '', edgeTypes: synthetic });
+
+    await h.slice.fetchPathPatternEdgeTypes();
+
+    expect(h.state.pathPatternEdgeTypes).toEqual(synthetic);
+    expect(h.state.pathPatternEdgeTypes).not.toEqual(['call', 'import', 'extend']);
+  });
+
+  it('取失败 ⇒ status=failed 且列表为空（**不**假装 Σ 为空继续渲染）', async () => {
+    const h = makeSlice();
+    mocks.fetchPathPatternSyntax.mockResolvedValue({ ok: false, kind: 'failed', pattern: '', edgeTypes: [] });
+
+    await h.slice.fetchPathPatternEdgeTypes();
+
+    expect(h.state.pathPatternEdgeTypesStatus).toBe('failed');
+    expect(h.state.pathPatternEdgeTypes).toEqual([]);
+  });
+
+  it('幂等：已 ready 时不重复取（Σ 是宿主侧事实，不随会话变化）', async () => {
+    const h = makeSlice({ pathPatternEdgeTypesStatus: 'ready', pathPatternEdgeTypes: ['call'] });
+
+    await h.slice.fetchPathPatternEdgeTypes();
+
+    expect(mocks.fetchPathPatternSyntax).not.toHaveBeenCalled();
+    expect(h.state.pathPatternEdgeTypes).toEqual(['call']);
+  });
+
+  it('failed 状态可以重试（下一次调用会重新取）', async () => {
+    const h = makeSlice({ pathPatternEdgeTypesStatus: 'failed' });
+    mocks.fetchPathPatternSyntax.mockResolvedValueOnce({ ok: true, pattern: '', edgeTypes: ['call'] });
+
+    await h.slice.fetchPathPatternEdgeTypes();
+
+    expect(mocks.fetchPathPatternSyntax).toHaveBeenCalledTimes(1);
+    expect(h.state.pathPatternEdgeTypesStatus).toBe('ready');
   });
 });
 

@@ -1,5 +1,5 @@
 import type { GraphState } from '../types.ts';
-import { fetchPathsByPattern } from '../../api/pathPattern.ts';
+import { fetchPathsByPattern, fetchPathPatternSyntax } from '../../api/pathPattern.ts';
 import type { PathPatternData, PathPatternPath } from '../../api/pathPattern.ts';
 import { log } from '../internals.ts';
 
@@ -80,6 +80,16 @@ export interface PathPatternState {
   pathPatternError: string | null;
   /** 单调令牌：只有最新一次请求可以写结果。 */
   pathPatternSeq: number;
+  /**
+   * Σ（`GraphEdge.type` 取值域）全集——**宿主回显**，客户端不复制一份。
+   *
+   * cycle-136：cycle-135 的面板把 Σ 列表硬编码进了 i18n 文案，违反了「Σ 是宿主侧事实、
+   * 客户端复制会静默分叉」这条纪律。本字段是修法：打开面板时向
+   * `/path-pattern/syntax?pattern=`（空 pattern 合法）取一次 Σ，之后所有渲染都用它。
+   */
+  pathPatternEdgeTypes: string[];
+  /** Σ 的取数状态：`idle` 未取 / `ready` 已取 / `failed` 取失败。 */
+  pathPatternEdgeTypesStatus: 'idle' | 'ready' | 'failed';
 }
 
 /**
@@ -109,6 +119,16 @@ declare module '../types.ts' {
      * 返回 `false` 表示没有可翻的页（没有结果 / `nextCursor === null`）。
      */
     runPathPatternNextPage: () => Promise<boolean>;
+    /**
+     * 取一次 Σ 全集（cycle-136）。
+     *
+     * 走 `/path-pattern/syntax?pattern=`（空 pattern 合法，返回 `ok:true` + `edgeTypes`），
+     * **不是**一个新的端点：语法预检路由本来就回显 Σ，复用它避免「Σ 有两条来源」。
+     *
+     * 为什么放进 store 而不是面板的 `useState`：Σ 是**宿主侧事实**，面板关闭再打开
+     * 不应该重新付一次网络成本；放进 store 后它随图状态一起存活。
+     */
+    fetchPathPatternEdgeTypes: () => Promise<void>;
   }
 }
 
@@ -119,9 +139,12 @@ export const PATH_PATTERN_KEYS = Object.freeze([
   'pathPatternResult',
   'pathPatternError',
   'pathPatternSeq',
+  'pathPatternEdgeTypes',
+  'pathPatternEdgeTypesStatus',
   'runPathPattern',
   'clearPathPattern',
   'runPathPatternNextPage',
+  'fetchPathPatternEdgeTypes',
 ] as const);
 
 /** 把一次 `data` 分支的载荷转成快照；`basePaths` 非空时表示翻页，做追加。 */
@@ -213,6 +236,22 @@ export function createPathPatternSlice(_set: SetFn, _get: GetFn): Partial<GraphS
     pathPatternResult: null,
     pathPatternError: null,
     pathPatternSeq: 0,
+    pathPatternEdgeTypes: [],
+    pathPatternEdgeTypesStatus: 'idle',
+
+    fetchPathPatternEdgeTypes: async () => {
+      // 幂等：已取到就不重复取（Σ 是宿主侧事实，不会随会话变化）。
+      if (_get().pathPatternEdgeTypesStatus === 'ready') return;
+      _set({ pathPatternEdgeTypesStatus: 'idle' });
+      const outcome = await fetchPathPatternSyntax('');
+      if (outcome.ok) {
+        _set({ pathPatternEdgeTypes: outcome.edgeTypes, pathPatternEdgeTypesStatus: 'ready' });
+      } else {
+        // 取失败**不**静默：留一个空列表 + failed 状态，面板据此渲染「无法获取类型列表」
+        // 的降级提示，而不是假装 Σ 是空的（那会让 unknown-types 提示永远显示不出可用类型）。
+        _set({ pathPatternEdgeTypes: [], pathPatternEdgeTypesStatus: 'failed' });
+      }
+    },
 
     runPathPattern: async (pattern, options) => {
       const trimmed = pattern.trim();

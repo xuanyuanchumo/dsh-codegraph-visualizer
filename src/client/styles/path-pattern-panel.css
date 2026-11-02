@@ -202,7 +202,8 @@
 .cg-pathpattern-invalid,
 .cg-pathpattern-notfound,
 .cg-pathpattern-error,
-.cg-pathpattern-timeout {
+.cg-pathpattern-timeout,
+.cg-pathpattern-syntax-error {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -222,6 +223,46 @@
 
 .cg-pathpattern-invalid {
   border-color: var(--cg-error);
+}
+
+/*
+ * 逐键语法预检的诊断（cycle-136）。与 `invalid` 终态的诊断共用 `.cg-pathpattern-diagnostic`，
+ * 但它是一个**输入框下的即时提示**而不是一块终态，所以这里只给它边框色，布局由基类承担。
+ */
+.cg-pathpattern-syntax-error {
+  border-color: var(--cg-error);
+}
+
+/*
+ * Σ 提示条（cycle-136）：动态取自宿主的类型名 chips。
+ *
+ * 用次级文字色而不是正文色：它是**可选参考**（用户能从宿主拿到完整 Σ），
+ * 不是必须阅读的正文。chips 用 mono 字体与输入框里的类型名对齐，
+ * 让用户「看到 chip」就能直接照着打。
+ */
+.cg-pathpattern-sigma {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 0;
+  flex-shrink: 0;
+}
+
+.cg-pathpattern-sigma-label {
+  color: var(--cg-text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.cg-pathpattern-sigma-chip {
+  padding: 1px 5px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
 }
 
 .cg-pathpattern-notfound {

@@ -5,6 +5,7 @@ import { useGraphStore } from '../store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import { summarizePathPatternResult, pathHopsOf } from '../store/slices/pathPatternSlice.ts';
 import type { PathPatternOptions } from '../store/slices/pathPatternSlice.ts';
+import { fetchPathPatternSyntax } from '../api/pathPattern.ts';
 
 /**
  * 璇玑图 ρ（边类型序列正则）面板（cycle-135）。
@@ -65,17 +66,23 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
     pathPatternStatus,
     pathPatternResult,
     pathPatternError,
+    pathPatternEdgeTypes,
+    pathPatternEdgeTypesStatus,
     runPathPattern,
     clearPathPattern,
     runPathPatternNextPage,
+    fetchPathPatternEdgeTypes,
   } = useGraphStore(useShallow((s) => ({
     pathPattern: s.pathPattern,
     pathPatternStatus: s.pathPatternStatus,
     pathPatternResult: s.pathPatternResult,
     pathPatternError: s.pathPatternError,
+    pathPatternEdgeTypes: s.pathPatternEdgeTypes,
+    pathPatternEdgeTypesStatus: s.pathPatternEdgeTypesStatus,
     runPathPattern: s.runPathPattern,
     clearPathPattern: s.clearPathPattern,
     runPathPatternNextPage: s.runPathPatternNextPage,
+    fetchPathPatternEdgeTypes: s.fetchPathPatternEdgeTypes,
   })));
 
   const [draft, setDraft] = useState(pathPattern);
@@ -92,6 +99,52 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // cycle-136：Σ 是宿主侧事实，打开面板时取一次（store 里幂等：已 ready 就不重复取）。
+  // 放在 store 而不是本地 state：面板关闭再打开不应该重新付一次网络成本。
+  useEffect(() => {
+    void fetchPathPatternEdgeTypes();
+  }, [fetchPathPatternEdgeTypes]);
+
+  // cycle-136：ρ 的**逐键语法预检**（防抖 250ms）。
+  //
+  // 为什么必须有：提交按钮在语法非法时禁用，避免发出注定 400 的请求（本仓库反复记录过
+  // 「发注定失败的请求」家族）。为什么防抖：逐键调用 `/path-pattern/syntax` 会在每次击键
+  // 付一次网络往返；250ms 对打字足够连续、对网络足够收敛。
+  //
+  // `syntaxOk === null` 表示「还没查完」——此时**不禁用**提交按钮（用户可能输入完立刻
+  // 回车）；只有 `false`（确定语法非法）才禁用。这是刻意的：把「未查完」当成「非法」
+  // 会让用户在首次输入后无法提交，而服务端本来就会校验。
+  const [syntaxOk, setSyntaxOk] = useState<boolean | null>(null);
+  const [syntaxDiagnostic, setSyntaxDiagnostic] = useState('');
+  const syntaxTimer = useRef<number | undefined>(undefined);
+  const syntaxSeq = useRef(0);
+
+  useEffect(() => {
+    const value = draft.trim();
+    if (value.length === 0) {
+      setSyntaxOk(null);
+      setSyntaxDiagnostic('');
+      return;
+    }
+    window.clearTimeout(syntaxTimer.current);
+    syntaxTimer.current = window.setTimeout(() => {
+      const seq = syntaxSeq.current + 1;
+      syntaxSeq.current = seq;
+      void (async () => {
+        const outcome = await fetchPathPatternSyntax(value);
+        if (seq !== syntaxSeq.current) return; // 过期响应：用户已输入新内容
+        if (outcome.ok) {
+          setSyntaxOk(true);
+          setSyntaxDiagnostic('');
+        } else {
+          setSyntaxOk(false);
+          setSyntaxDiagnostic(outcome.diagnostic || outcome.error || '');
+        }
+      })();
+    }, 250);
+    return () => window.clearTimeout(syntaxTimer.current);
+  }, [draft]);
 
   // store 里的已提交 ρ 被外部清空（Esc / 清空按钮）时，把输入框同步回来。
   useEffect(() => {
@@ -194,7 +247,7 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
           <button
             type="submit"
             className="cg-pathpattern-submit"
-            disabled={isLoading || draft.trim().length === 0}
+            disabled={isLoading || draft.trim().length === 0 || syntaxOk === false}
             aria-busy={isLoading}
             title={t('pathPattern.submit')}
           >
@@ -294,6 +347,32 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
           </button>
         </form>
 
+        {/*
+          cycle-136：逐键语法预检的诊断。
+          `role="alert"` 而非 `aria-live`：它是「用户输入导致的错误」，需要立刻读出，
+          而 `aria-live` 的播报时机在实现间不一致。空串时元素不渲染（见下面的判据）。
+        */}
+        {syntaxOk === false && syntaxDiagnostic.length > 0 && (
+          <div className="cg-pathpattern-syntax-error" role="alert">
+            <pre className="cg-pathpattern-diagnostic">{syntaxDiagnostic}</pre>
+          </div>
+        )}
+
+        {/*
+          cycle-136：Σ 提示条——**动态**取自宿主（`pathPatternEdgeTypes`），不硬编码。
+          它让面板自文档化（用户不用猜边类型名是什么），同时把「Σ 是宿主侧事实」这条
+          不变量变成**可见的界面**：宿主改了 Σ，这里立刻跟着变。
+          取失败时不渲染（避免显示空条或假列表）。
+        */}
+        {pathPatternEdgeTypesStatus === 'ready' && pathPatternEdgeTypes.length > 0 && (
+          <div className="cg-pathpattern-sigma" role="list" aria-label={t('pathPattern.sigmaLabel')}>
+            <span className="cg-pathpattern-sigma-label">{t('pathPattern.sigmaLabel')}</span>
+            {pathPatternEdgeTypes.map((type) => (
+              <span key={type} className="cg-pathpattern-sigma-chip" role="listitem">{type}</span>
+            ))}
+          </div>
+        )}
+
         {/* 播报区：终态变化时说一次，`loading` 静默。 */}
         <div className="cg-pathpattern-live" role="status" aria-live="polite" aria-atomic="true">
           {announcement}
@@ -324,7 +403,16 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
             <div className="cg-pathpattern-unknown-title">
               {t('pathPattern.unknownTypes', { types: unknownTypes.join(', ') })}
             </div>
-            <div className="cg-pathpattern-unknown-hint">{t('pathPattern.unknownHint')}</div>
+            <div className="cg-pathpattern-unknown-hint">
+              {/*
+                Σ 列表**动态**取自宿主（`pathPatternEdgeTypes`），不硬编码在 i18n 里——
+                cycle-135 曾把 Σ 写进文案，违反「Σ 是宿主侧事实、复制会静默分叉」这条纪律。
+                取失败时退化为「无法获取类型列表」的诚实降级，而不是假装 Σ 为空。
+              */}
+              {pathPatternEdgeTypes.length > 0
+                ? t('pathPattern.unknownHint', { types: pathPatternEdgeTypes.join(' / ') })
+                : t('pathPattern.unknownHintNoList')}
+            </div>
           </div>
         )}
 
