@@ -544,6 +544,74 @@ describe('createGraphTools', () => {
     expect(result.reason).toContain('commit 历史为空');
   });
 
+  it('graph_path_pattern 边级 since ⇒ 只保留首次共同触及 ≥ since 的路径（cycle-138）', async () => {
+    // 一个提交（ts=3000）同时触及 main.ts 与 svc.ts ⇒ h→s 有事实，firstSeenAt=3_000_000ms。
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} },
+        { id: 's', label: 'service', type: 'function', filePath: 'svc.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [{ id: 'e1', source: 'h', target: 's', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const log = 'abc1234\x1f3000\nmain.ts\nsvc.ts\n';
+    const kept = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', maxHops: 1, commitLog: log, since: 2_000_000 },
+      mockExec,
+    )) as { paths: string[][]; edgeTemporal?: { kept: number; filtered: number } };
+    expect(kept.paths).toEqual([['h', 's']]);
+    expect(kept.edgeTemporal?.kept).toBe(1);
+    const dropped = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', maxHops: 1, commitLog: log, since: 3_000_001 },
+      mockExec,
+    )) as { paths: string[][]; edgeTemporal?: { kept: number } };
+    expect(dropped.paths).toEqual([]);
+    expect(dropped.edgeTemporal?.kept).toBe(0);
+  });
+
+  it('graph_path_pattern 边级 minVolatility ⇒ 显式拒绝（挥发度需边级事实）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} },
+        { id: 's', label: 'service', type: 'function', filePath: 'svc.ts', lineNumber: 1, properties: {} },
+      ],
+      edges: [{ id: 'e1', source: 'h', target: 's', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    // minVolatility 是**已声明但当前被显式拒绝**的参数：请求即得诚实降级，
+    // 而不是静默忽略（拼错 ≠ 缺失纪律的参数面版本）。
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', commitLog: 'abc1234\x1f3000\nmain.ts\nsvc.ts\n', minVolatility: 0.5 },
+      mockExec,
+    )) as { paths: string[][]; edgeTemporal?: { available: boolean; reason?: string }; reason?: string };
+    expect(result.paths).toEqual([]);
+    expect(result.edgeTemporal?.available).toBe(false);
+    expect(result.reason).toContain('挥发度');
+  });
+
+  it('graph_path_pattern 边级 since 但历史为空 ⇒ 图级降级先触发（同一份空历史）', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'h', label: 'handler', type: 'function', filePath: 'main.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: Date.now(),
+    });
+    const tools = await createGraphTools(ctx);
+    const result = (await tools.graphPathPattern.execute(
+      { repoId: 'w1', pattern: 'call', commitLog: '', since: 0 },
+      mockExec,
+    )) as { paths: string[][]; temporal: { available: boolean; reason?: string }; reason?: string };
+    // 历史为空时**图级降级先触发**（图切片与边级谓词同根因：同一份空历史），
+    // 响应携带 temporal.available:false + reason；边级过滤不会到达。
+    expect(result.paths).toEqual([]);
+    expect(result.temporal.available).toBe(false);
+    expect(result.reason).toContain('commit 历史为空');
+  });
+
   // ── cycle-138：Π 视图划分函数（graph_views） ───────────────────────────
 
   it('graph_views 无外部事实时：所有节点只属结构视图', async () => {

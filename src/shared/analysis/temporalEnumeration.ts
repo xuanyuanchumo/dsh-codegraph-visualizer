@@ -25,7 +25,9 @@
 import type { GraphData } from '../../types/index.ts';
 import {
   commitSliceGraph,
+  fileLevelEdgeFacts,
   parseCommitLog,
+  temporalPredicate,
   type CommitRange,
   type CommitHistory,
 } from '../temporal.ts';
@@ -155,6 +157,149 @@ export function sliceGraphForTemporal(
       to: slice.to,
       truncated: slice.truncated,
       ...(slice.reason ? { reason: slice.reason } : {}),
+    },
+  };
+}
+
+/**
+ * 边级时序过滤的请求参数（cycle-138 / 研究方案 §4 的边级时序谓词）。
+ *
+ * 语义：在 commit 切片（图级）**之后**，再按「边的引入时间」做**边级**
+ * 过滤。两者是正交的两刀：切片决定「哪些文件存在」，谓词决定「哪些关系够新」。
+ */
+export interface EdgeTemporalFilterRequest {
+  /** 原始 `git log --name-only --format=%x1e%H%x1f%ct` 输出（与图级切片同一份）。 */
+  commitLog?: string;
+  /**
+   * 挥发度下限（含）。**当前被显式拒绝**：挥发度需要边级事实（每个切片里边的
+   * 存在性），raw `--name-only` 只有文件级事实 ⇒ 请求即返回 `available: false`
+   * + reason（见 `filterEdgesByTemporalPredicate` 头注）。
+   */
+  minVolatility?: number;
+  /** 挥发度上限（含）。同上，当前被显式拒绝。 */
+  maxVolatility?: number;
+  /** 只保留首次共同触及时刻（引入时刻的**下界**）≥ since 的边（unix 毫秒）。 */
+  since?: number;
+  /** 参考时间（unix 毫秒）；测试注入固定值，透传给 `temporalPredicate` 的 `days` 判定。 */
+  now?: number;
+}
+
+/** 边级时序过滤的元信息（未请求时为 `null`）。 */
+export interface EdgeTemporalMeta {
+  /** 调用方是否请求了边级过滤（给了 commitLog 且给了任一谓词参数）。 */
+  requested: boolean;
+  /** 文件级事实是否可用（不可用时**全图保留**，不做静默清空）。 */
+  available: boolean;
+  /** 有事实的边数。 */
+  factCount: number;
+  /** 被谓词过滤掉的边数。 */
+  filtered: number;
+  /** 过滤后剩余的边数。 */
+  kept: number;
+  /** 不可用/未过滤时的人类可读原因。 */
+  reason?: string;
+}
+
+/** 边级时序过滤的结果。 */
+export interface EdgeTemporalOutcome {
+  data: GraphData;
+  meta: EdgeTemporalMeta | null;
+}
+
+/**
+ * 按**边级时序谓词**过滤图（cycle-138）。
+ *
+ * ## 为什么放在图级切片之后、枚举之前
+ *
+ * 与 §14.3 的「切片是图级操作」同构：谓词是**边级**操作，ρ 是**图级**操作。
+ * 把谓词放在枚举之前，等于先把不满足时序约束的边从图里**摘掉**再枚举——ρ 的
+ * 长度区间、分页游标、截断预算全部按过滤后的图工作，语义不与分页纠缠。
+ * （若把谓词做成枚举中的每步回调，`cursor` 的「第 k 条」语义会被过滤吞掉：
+ * 同一游标翻页两次可能因过滤顺序产生不同结果——那正是 cycle-86 边聚合要修的
+ * 「聚合与分页顺序」同族缺陷。）
+ *
+ * ## 三种状态（调用方——工具层——按 meta 分流）
+ *
+ * - 未请求（无 commitLog 或无谓词参数）⇒ 原图原样返回 + `meta: null`；
+ * - 请求了但不可用 ⇒ **原图原样返回** + `available: false` + reason。这里刻意
+ *   **不**在函数内清空边：过滤函数只负责诚实报告，「请求了但不可用 ⇒ 诚实空结果」
+ *   的裁决权在工具层（与图级切片的既有契约同形，两处共用同一个早退分支）；
+ * - 事实可用 ⇒ 只保留「有事实且通过谓词」的边；**无事实的边一律移除**
+ *   （不知道 ≠ 符合，`temporalPredicate` 自己的语义就是缺事实判不符合）。
+ *
+ * ## `volatility` 谓词当前被显式拒绝（不是静默缺失）
+ *
+ * raw `git log --name-only` 只有文件级事实；挥发度需要**每个 commit 切片里这条边
+ * 是否真的存在**（边级事实），当前没有任何数据面提供它。因此请求了
+ * `minVolatility`/`maxVolatility` 时返回 `available: false` + 指明原因——这是一个
+ * **可达且可测**的降级态，而不是「参数存在但永远产出空结果」的陷阱（那会让下一个
+ * 调用方把「数据面缺失」误读成「图上没有稳定关系」）。等将来有边级采集渠道
+ * （逐 commit 的边存在性），在 `fileLevelEdgeFacts` 的产出端点亮 `volatility`
+ * 字段即可，谓词与工具面零改动。
+ */
+export function filterEdgesByTemporalPredicate(
+  data: GraphData,
+  request: EdgeTemporalFilterRequest = {},
+): EdgeTemporalOutcome {
+  const hasPredicate =
+    request.minVolatility !== undefined ||
+    request.maxVolatility !== undefined ||
+    request.since !== undefined;
+  if (typeof request.commitLog !== 'string' || request.commitLog.trim() === '' || !hasPredicate) {
+    return { data, meta: null };
+  }
+
+  // 挥发度谓词需要边级事实：当前数据面（--name-only，文件级）不提供 ⇒ 显式拒绝。
+  if (request.minVolatility !== undefined || request.maxVolatility !== undefined) {
+    return {
+      data,
+      meta: {
+        requested: true,
+        available: false,
+        factCount: 0,
+        filtered: 0,
+        kept: data.edges.length,
+        reason: '挥发度过滤需要边级事实（每个 commit 切片里边的存在性）；当前数据面只有文件级事实（--name-only），挥发度谓词被显式拒绝',
+      },
+    };
+  }
+
+  const range: CommitRange = {
+    ...(request.now !== undefined && Number.isFinite(request.now) ? { now: request.now } : {}),
+  };
+  const report = fileLevelEdgeFacts(data.nodes, data.edges, request.commitLog, range);
+  if (!report.available) {
+    return {
+      data,
+      meta: {
+        requested: true,
+        available: false,
+        factCount: 0,
+        filtered: 0,
+        kept: data.edges.length,
+        reason: report.reason ?? 'commit 历史不可用',
+      },
+    };
+  }
+
+  const predicate = temporalPredicate({
+    ...(request.since !== undefined ? { since: request.since } : {}),
+    ...(request.now !== undefined ? { now: request.now } : {}),
+  });
+
+  const keptEdges = data.edges.filter((edge) => {
+    const fact = report.facts.get(`${String(edge.source)}->${String(edge.target)}`);
+    if (!fact) return false; // 无事实 ≠ 符合（与 temporalPredicate 的缺字段语义一致）。
+    return predicate(fact);
+  });
+  return {
+    data: { nodes: data.nodes, edges: keptEdges, metadata: { ...data.metadata } },
+    meta: {
+      requested: true,
+      available: true,
+      factCount: report.facts.size / 2, // 双向键指向同一事实。
+      filtered: data.edges.length - keptEdges.length,
+      kept: keptEdges.length,
     },
   };
 }

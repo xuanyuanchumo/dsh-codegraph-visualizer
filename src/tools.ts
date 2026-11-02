@@ -34,6 +34,7 @@ import {
 import { parseCommitLog, filterSlices, type CommitRange } from './shared/temporal.ts';
 import { parseGitBlamePorcelain, groupBlameByFile, buildOwnershipMap } from './shared/ownership.ts';
 import { partitionByView, serializeViewPartition } from './shared/views.ts';
+import { filterEdgesByTemporalPredicate } from './shared/analysis/temporalEnumeration.ts';
 import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
 import { CACHE, PATH_FINDER, TOOL_MESSAGES, API } from './shared/constants.ts';
 import {
@@ -800,6 +801,35 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         type: 'string',
         description: 'Temporal slice: keep commits up to this hash (inclusive). Combined with commitLog.',
       },
+      /**
+       * 边级时序谓词（cycle-138 / 研究方案 §4 的边级时序事实）。
+       *
+       * 与 `days`/`from`/`to`（**图级** commit 切片：决定哪些文件存在）正交：
+       * `since` 是**边级**过滤（决定哪些关系够新）——只保留「首次有提交同时触及
+       * 两端文件」的时刻 ≥ since 的边。该时刻是边引入时间的**下界**（引入提交必然
+       * 同时触及两端文件），因此保留的边保证真正新；无事实的边一律不返回
+       * （不知道 ≠ 符合）。
+       */
+      since: {
+        type: 'number',
+        description: 'Edge-level temporal predicate (unix ms): keep only edges whose first co-touched commit time (lower bound of the introduction time) is >= since. Requires commitLog. Edges without a temporal fact are excluded.',
+      },
+      /**
+       * 挥发度谓词（研究方案 §4 的 vol(u,v)）。**当前被显式拒绝**：挥发度需要
+       * 边级事实（每个 commit 切片里这条边是否真的存在），raw `--name-only`
+       * 只有文件级事实 ⇒ 请求即返回 `paths: []` + `edgeTemporal.available: false`
+       * + reason。参数仍声明的原因：把「这个维度现在拿不到」变成**可达且可测**
+       * 的诚实降级，而不是让模型静默忽略一个无效参数（拼错 ≠ 缺失纪律）。
+       * 边级采集渠道到位后此参数直接生效，工具面零改动。
+       */
+      minVolatility: {
+        type: 'number',
+        description: 'Minimum edge volatility (0-1). Currently EXPLICITLY REJECTED: volatility requires per-commit edge-existence facts that the --name-only log does not carry; the response reports edgeTemporal.available=false with a reason instead of pretending.',
+      },
+      maxVolatility: {
+        type: 'number',
+        description: 'Maximum edge volatility (0-1). Same explicit-rejection contract as minVolatility.',
+      },
     },
     output: {
       schema: { type: 'json' },
@@ -870,13 +900,16 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         days?: number;
         from?: string;
         to?: string;
+        since?: number;
+        minVolatility?: number;
+        maxVolatility?: number;
       };
       const merged = await fetchMergedGraph(invoke, a.repoId);
       if (merged.nodes.length === 0) return null;
 
       // cycle-137：ρ 的 commit 切片（研究方案 §4 的 𝒯 维）。
       // 未提供 commitLog ⇒ temporal === null，行为与既有调用逐字节一致。
-      const { data, temporal } = sliceGraphForTemporal(merged, {
+      const sliced = sliceGraphForTemporal(merged, {
         ...(a.commitLog !== undefined ? { commitLog: a.commitLog } : {}),
         ...(a.days !== undefined ? { days: a.days } : {}),
         ...(a.from ? { from: a.from } : {}),
@@ -885,20 +918,48 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
 
       // 时序请求但切片不可用 ⇒ 诚实降级，不拿原图冒充切片（研究方案 §4：没有 𝒯
       // 就没有时序切片，把它渲染成「整个仓库」比渲染成「空图」更远离事实）。
-      if (temporal?.requested && !temporal.available) {
+      if (sliced.temporal?.requested && !sliced.temporal.available) {
         return toJsonValue({
           pattern: a.pattern,
           paths: [] as string[][],
           truncated: false,
           total: 0,
-          temporal,
-          reason: temporal.reason ?? 'commit 切片不可用',
+          temporal: sliced.temporal,
+          reason: sliced.temporal.reason ?? 'commit 切片不可用',
         });
+      }
+
+      // 边级时序谓词（cycle-138）：在图级切片**之后**对切片数据做边级过滤。
+      // 请求了但不可用（含挥发度被显式拒绝）⇒ 与图级降级同一形态的诚实空结果。
+      let data = sliced.data;
+      const edgeFilter = filterEdgesByTemporalPredicate(data, {
+        ...(a.commitLog !== undefined ? { commitLog: a.commitLog } : {}),
+        ...(a.since !== undefined ? { since: a.since } : {}),
+        ...(a.minVolatility !== undefined ? { minVolatility: a.minVolatility } : {}),
+        ...(a.maxVolatility !== undefined ? { maxVolatility: a.maxVolatility } : {}),
+      });
+      let temporal = sliced.temporal;
+      let edgeTemporal: ReturnType<typeof filterEdgesByTemporalPredicate>['meta'] = null;
+      if (edgeFilter.meta) {
+        if (!edgeFilter.meta.available) {
+          return toJsonValue({
+            pattern: a.pattern,
+            paths: [] as string[][],
+            truncated: false,
+            total: 0,
+            temporal,
+            edgeTemporal: edgeFilter.meta,
+            reason: edgeFilter.meta.reason ?? '边级时序谓词不可用',
+          });
+        }
+        data = edgeFilter.data;
+        edgeTemporal = edgeFilter.meta;
       }
 
       // 切片图是原图的子集；把它 sync 进主池会让下一次不带 commitLog 的 ρ 调用静默少查。
       // 因此时序路径用**独立**的时序池（temporalXuanjiPool，见 temporalEnumeration.ts）。
-      const adapter = temporal ? temporalXuanjiPool.get(a.repoId) : xuanjiPool.get(a.repoId);
+      // 边级过滤产生了（可能更小的）子集 ⇒ 同样走时序池，绝不污染主池。
+      const adapter = temporal || edgeTemporal ? temporalXuanjiPool.get(a.repoId) : xuanjiPool.get(a.repoId);
       adapter.syncGraph(data);
 
       const limit = clampInt(a.limit, 1, 50, 20);
@@ -915,7 +976,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
             ? { truncation: a.truncation }
             : {}),
         });
-        return toJsonValue({ ...result, temporal: temporal ?? null });
+        return toJsonValue({ ...result, temporal: temporal ?? null, ...(edgeTemporal ? { edgeTemporal } : {}) });
       } catch (e) {
         // 只有 ρ 语法错误走这里（其余异常照常上抛，保持响亮失败）。
         const diagnostic = formatPatternError(a.pattern, e);
@@ -926,6 +987,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
           truncated: false,
           total: 0,
           temporal: temporal ?? null,
+          ...(edgeTemporal ? { edgeTemporal } : {}),
           error: `Invalid path pattern: ${e instanceof Error ? e.message : String(e)}`,
           diagnostic,
         });

@@ -382,3 +382,90 @@ export function temporalPredicate(spec: TemporalPredicateSpec = {}): TemporalPre
     return true;
   };
 }
+
+// ── cycle-138：文件级边事实（firstSeenAt 的健全下界推导） ──────────────────
+
+/** `fileLevelEdgeFacts` 的结果。 */
+export interface FileLevelEdgeFactsReport {
+  /** 是否真的解析出了非空切片（false 时 `facts` 为空且 `reason` 说明）。 */
+  available: boolean;
+  /**
+   * 边事实表。**双向键**：`${source}->${target}` 与 `${target}->${source}` 指向
+   * 同一个事实对象（与 `edgeVolatility` 的双向 present 匹配同一口径——路径可以
+   * 顺走也可以逆走，关系的时序不因方向改变）。
+   *
+   * `volatility` **刻意缺省**：raw `git log --name-only` 没有边级事实，把它凑成
+   * 1.0 正是本文件头「拒绝假数据」拒绝的那种看似正常、实则无信息的数。
+   */
+  facts: ReadonlyMap<string, TemporalEdgeFact>;
+  /** 不可用/空区间时的人类可读原因。 */
+  reason?: string;
+}
+
+/**
+ * 从 raw commit log 推导**文件级**的边时序事实（cycle-138）。
+ *
+ * ## 语义与健全性方向（为什么这是下界而不是猜测）
+ *
+ * 一条边 (u,v) 的**引入提交**必然同时触及两端文件（不改两个文件就无法在它们之间
+ * 建立关系）。因此「首次有提交同时触及 u 与 v 所在文件」的时刻
+ * `firstSeenAt_file` 满足 `firstSeenAt_file ≤ 引入时刻`——它是引入时间的**下界**。
+ * 把它喂给 `temporalPredicate` 的 `since`/`days` 过滤时：
+ *
+ * - `firstSeenAt_file ≥ T` ⇒ 真实引入时刻 ≥ T，**保留的边保证真正新**（无误留）；
+ * - `firstSeenAt_file < T` ⇒ 真实引入时刻可能任一侧，丢弃可能错杀新边
+ *   （偏少返回）。这与 `temporalPredicate` 自己的「缺少事实 ⇒ 不符合」是同一
+ *   安全方向：宁可少返回，也不把旧关系当成新的放出来。
+ *
+ * ## `volatility` 为什么不给
+ *
+ * 挥发度需要**边级事实**（每个切片里这条边是否真的存在）；`--name-only` 只有
+ * 文件级事实，用「两端文件都被触及」凑分子会让挥发度恒为 1。因此本函数产出的
+ * 事实只有 `firstSeenAt`——挥发度过滤由调用方显式拒绝（`filterEdgesByTemporalPredicate`
+ * 对 `minVolatility`/`maxVolatility` 返回 `available: false` + reason），等将来有
+ * 边级采集渠道时在事实产出端点亮 `volatility` 即可，谓词与调用方零改动。
+ */
+export function fileLevelEdgeFacts(
+  nodes: readonly Pick<GraphNode, 'id' | 'filePath'>[],
+  edges: readonly Pick<GraphEdge, 'id' | 'source' | 'target'>[],
+  commitLog: string,
+  range?: CommitRange,
+): FileLevelEdgeFactsReport {
+  const facts = new Map<string, TemporalEdgeFact>();
+  if (typeof commitLog !== 'string' || commitLog.trim() === '') {
+    return { available: false, facts, reason: '未提供 commit 历史' };
+  }
+  const allSlices = parseCommitLog(commitLog);
+  const slices = range
+    ? filterSlices({ slices: allSlices, head: null, available: true }, range).slices
+    : allSlices;
+  if (slices.length === 0) {
+    return { available: false, facts, reason: '区间内没有提交' };
+  }
+
+  // nodeId → 归一化文件路径（与 commitSliceGraph 的节点过滤同一口径）。
+  const nodeFiles = new Map<string, string>();
+  for (const node of nodes) nodeFiles.set(String(node.id), normalizeChurnPath(node.filePath));
+
+  for (const edge of edges) {
+    const fileU = nodeFiles.get(String(edge.source));
+    const fileV = nodeFiles.get(String(edge.target));
+    if (!fileU || !fileV) continue; // 端点不在已知文件里：不猜。
+
+    let firstSeenAt: number | undefined;
+    for (const slice of slices) {
+      if (!slice.files.includes(fileU) || !slice.files.includes(fileV)) continue;
+      // 取 min 而不是「第一条命中」：parseCommitLog 保留 git log 的输出序（新→旧），
+      // 「首次共同触及」必须与遍历方向无关（顺序独立性有测试钉住）。
+      const ts = slice.timestamp * 1000;
+      if (firstSeenAt === undefined || ts < firstSeenAt) firstSeenAt = ts;
+    }
+    if (firstSeenAt === undefined) continue; // 两端文件从未同时被触及：无事实（不猜）。
+
+    const fact: TemporalEdgeFact = { firstSeenAt };
+    facts.set(`${String(edge.source)}->${String(edge.target)}`, fact);
+    facts.set(`${String(edge.target)}->${String(edge.source)}`, fact);
+  }
+
+  return { available: true, facts };
+}
