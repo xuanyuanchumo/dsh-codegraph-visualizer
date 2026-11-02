@@ -143,4 +143,16 @@ describe('executeGraphSlice', () => {
     );
     expect(result.nodes.map((n) => n.id)).toEqual(['n3']);
   });
+
+  it('工具 execute 面直接返回切片（走 defineTool 的执行门，不只看 executeGraphSlice）', async () => {
+    const tools = await createGraphTools(makeMockCtx());
+    const exec = { deferContext: () => {}, concludeTurn: () => {} } as unknown as Parameters<
+      Awaited<ReturnType<typeof createGraphTools>>['graphSlice']['execute']
+    >[1];
+    // defineTool 会在 execute 前做参数校验；这里传 schema-valid 参数，确保走的是真执行面。
+    const raw = await tools.graphSlice.execute({ repoId: 'r', view: 'structural' }, exec);
+    const slice = raw as unknown as { available: boolean; nodes: Array<{ id: string }> };
+    expect(slice.available).toBe(true);
+    expect(slice.nodes.map((n) => n.id)).toEqual(['n1', 'n2', 'n3']);
+  });
 });
