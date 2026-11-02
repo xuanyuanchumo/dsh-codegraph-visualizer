@@ -938,7 +938,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         ...(a.minVolatility !== undefined ? { minVolatility: a.minVolatility } : {}),
         ...(a.maxVolatility !== undefined ? { maxVolatility: a.maxVolatility } : {}),
       });
-      let temporal = sliced.temporal;
+      const temporal = sliced.temporal;
       let edgeTemporal: ReturnType<typeof filterEdgesByTemporalPredicate>['meta'] = null;
       if (edgeFilter.meta) {
         if (!edgeFilter.meta.available) {

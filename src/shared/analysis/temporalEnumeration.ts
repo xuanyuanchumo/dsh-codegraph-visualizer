@@ -264,10 +264,12 @@ export function filterEdgesByTemporalPredicate(
     };
   }
 
-  const range: CommitRange = {
-    ...(request.now !== undefined && Number.isFinite(request.now) ? { now: request.now } : {}),
-  };
-  const report = fileLevelEdgeFacts(data.nodes, data.edges, request.commitLog, range);
+  // now 是 CommitRange 的可选字段：给就带上（测试注入固定值），不给则让
+  // temporalPredicate 用自己的 Date.now() 缺省（与既有行为一致）。
+  const range: CommitRange = request.now !== undefined && Number.isFinite(request.now)
+    ? { now: request.now }
+    : {};
+  const report = fileLevelEdgeFacts(data.nodes, data.edges, request.commitLog as string, range);
   if (!report.available) {
     return {
       data,
