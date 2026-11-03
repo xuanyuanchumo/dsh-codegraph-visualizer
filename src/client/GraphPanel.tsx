@@ -68,6 +68,7 @@ import './styles/runtime-panel.css';
 import './styles/diff-panel.css';
 import './styles/keyword-query-panel.css';
 import './styles/path-pattern-panel.css';
+import './styles/graph-manage-panel.css';
 
 const log = scoped('panel');
 

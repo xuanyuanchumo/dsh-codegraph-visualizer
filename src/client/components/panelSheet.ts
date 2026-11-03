@@ -32,11 +32,12 @@ export interface SheetPanelState {
   showPathFind: boolean;
   showFilterPanel: boolean;
   showImport: boolean;
+  showManage: boolean;
 }
 
 /** 会改写窄档版式（抽屉式全宽）的面板键，顺序与界面层级一致。 */
 export const SHEET_PANEL_KEYS = Object.freeze([
-  'detail', 'search', 'pathFind', 'filter', 'import',
+  'detail', 'search', 'pathFind', 'filter', 'import', 'manage',
 ] as const);
 
 export type SheetPanelKey = (typeof SHEET_PANEL_KEYS)[number];
@@ -49,6 +50,7 @@ export function openSheetPanels(state: SheetPanelState): SheetPanelKey[] {
   if (state.showPathFind) open.push('pathFind');
   if (state.showFilterPanel) open.push('filter');
   if (state.showImport) open.push('import');
+  if (state.showManage) open.push('manage');
   return open;
 }
 

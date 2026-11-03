@@ -31,7 +31,7 @@
  * 所有写函数不抛出：失败 log.warn 并返回 false。索引写失败不阻塞图返回
  * （图来自内存 batchScan；索引只是缓存层）。
  */
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, normalize } from 'node:path';
 import { createRequire } from 'node:module';
 import { scoped } from '../shared/Logger.ts';
@@ -342,6 +342,40 @@ export function updateFilesForNativeIndex(
     }
   } catch (e) {
     log.warn('native index targeted update failed', { error: String(e) });
+    return false;
+  }
+}
+
+/**
+ * 删除原生索引（cycle-141 管理面板）。
+ *
+ * 删除索引 DB 文件本身（.codegraph-visualizer/native-index.db），
+ * 让下次构建重新生成。幂等：DB 不存在时返回 false 而非抛错。
+ *
+ * 注意：只删原生索引，不删上游 DB（.codegraph/codegraph.db）——
+ * 上游 DB 是 codegraph 工具的产物，由 codegraph 自己管理。
+ */
+export function deleteNativeIndex(workspacePath: string): boolean {
+  let indexPath: string;
+  try {
+    indexPath = resolveNativeIndexPath(workspacePath);
+  } catch (e) {
+    log.warn('native index path rejected', { error: String(e) });
+    return false;
+  }
+  if (!existsSync(indexPath)) return false;
+  try {
+    // 先关闭写连接（如果池里有），再删文件。
+    const db = writePool.get(indexPath);
+    if (db) {
+      try { db.close(); } catch { /* 已关闭 */ }
+      writePool.delete(indexPath);
+    }
+    rmSync(indexPath);
+    log.info('native index deleted', { indexPath });
+    return true;
+  } catch (e) {
+    log.warn('native index delete failed', { error: String(e) });
     return false;
   }
 }

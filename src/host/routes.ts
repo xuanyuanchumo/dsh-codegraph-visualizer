@@ -28,6 +28,8 @@ import {
   registerInitRoute,
   registerWatchRoute,
   registerEventsRoute,
+  registerManageDeleteRoute,
+  registerManageMetricsRoute,
 } from './routes/controlRoutes.ts';
 import {
   registerDependenciesRoute,
@@ -88,6 +90,8 @@ export function registerRoutes(deps: RouteDeps): void {
   registerSymbolASTRoute(rc);
   registerEdgesRoute(rc);
   registerEventsRoute(rc);
+  registerManageDeleteRoute(rc);
+  registerManageMetricsRoute(rc);
   registerLayoutWorkerRoute(rc);
   // 变更频率（研究报告 §六 #11）刻意注册在**最后**：`registerRoutes` 的调用顺序
   // 就是 `webServer.register` 的调用顺序，而既有测试大量用「第 N 次注册」定位路由

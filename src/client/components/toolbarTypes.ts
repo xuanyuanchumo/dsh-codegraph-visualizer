@@ -22,6 +22,7 @@ export interface ToolbarVisibilityState {
   showMiniMap: boolean;
   showLegend: boolean;
   showImport: boolean;
+  showManage: boolean;
   showPathFind: boolean;
   showHealthScore: boolean;
   showRules: boolean;
@@ -69,6 +70,7 @@ export interface ToolbarToggleHandlers {
   onToggleMiniMap: () => void;
   onToggleLegend: () => void;
   onToggleImport: () => void;
+  onToggleManage: () => void;
   onTogglePathFind: () => void;
   onToggleHealthScore: () => void;
   onToggleRules: () => void;

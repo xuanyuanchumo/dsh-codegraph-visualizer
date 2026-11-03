@@ -1,0 +1,292 @@
+/**
+ * GraphManagePanel 样式（cycle-141）。
+ *
+ * 只使用 tokens.css 中已定义的 token（`--cg-bg` / `--cg-bg-elevated` /
+ * `--cg-text` / `--cg-text-secondary` / `--cg-accent` / `--cg-border` /
+ * `--cg-border-strong` / `--cg-success` / `--cg-warning` / `--cg-error`）。
+ * 不引入颜色 fallback（tokensContract 禁止 stylesheets 中出现带颜色字面量的 var() 调用）。
+ */
+
+/* ── 面板容器 ────────────────────────────────────────────────────────────── */
+
+.cg-manage-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--cg-bg-elevated);
+  color: var(--cg-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── 头部 ────────────────────────────────────────────────────────────────── */
+
+.cg-manage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cg-manage-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cg-manage-header .cg-close-btn {
+  background: none;
+  border: none;
+  color: var(--cg-text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.cg-manage-header .cg-close-btn:hover {
+  color: var(--cg-text);
+}
+
+/* ── 工作区信息 ──────────────────────────────────────────────────────────── */
+
+.cg-manage-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+}
+
+.cg-manage-label {
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cg-manage-path {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--cg-accent);
+  word-break: break-all;
+}
+
+/* ── 操作按钮 ────────────────────────────────────────────────────────────── */
+
+.cg-manage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cg-manage-actions .cg-btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+
+.cg-manage-actions .cg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cg-manage-actions .cg-btn-primary {
+  background: var(--cg-accent);
+  color: var(--cg-bg);
+  border-color: var(--cg-accent);
+}
+
+.cg-manage-actions .cg-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.cg-manage-actions .cg-btn-secondary {
+  background: var(--cg-bg);
+  color: var(--cg-text);
+  border-color: var(--cg-border);
+}
+
+.cg-manage-actions .cg-btn-secondary:hover:not(:disabled) {
+  border-color: var(--cg-accent);
+}
+
+.cg-manage-actions .cg-btn-danger {
+  background: transparent;
+  color: var(--cg-error);
+  border-color: var(--cg-error);
+}
+
+.cg-manage-actions .cg-btn-danger:hover:not(:disabled) {
+  background: var(--cg-bg);
+}
+
+.cg-manage-actions .cg-btn-ghost {
+  background: transparent;
+  color: var(--cg-text-secondary);
+  border: 1px dashed var(--cg-border);
+}
+
+.cg-manage-actions .cg-btn-ghost:hover:not(:disabled) {
+  color: var(--cg-text);
+  border-color: var(--cg-text-secondary);
+}
+
+/* ── 状态卡片 ────────────────────────────────────────────────────────────── */
+
+.cg-manage-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+}
+
+.cg-manage-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cg-manage-status-value {
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.cg-manage-status-value.cg-status-ready { color: var(--cg-success); }
+.cg-manage-status-value.cg-status-building { color: var(--cg-warning); }
+.cg-manage-status-value.cg-status-error { color: var(--cg-error); }
+.cg-manage-status-value.cg-status-idle { color: var(--cg-text-secondary); }
+
+/* ── 指标卡片 ────────────────────────────────────────────────────────────── */
+
+.cg-manage-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+}
+
+.cg-manage-metrics-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.cg-manage-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cg-manage-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--cg-bg-elevated);
+  border: 1px solid var(--cg-border);
+  border-radius: 3px;
+}
+
+.cg-manage-metric-label {
+  font-size: 10px;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cg-manage-metric-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cg-accent);
+}
+
+/* ── Top 列表 ────────────────────────────────────────────────────────────── */
+
+.cg-manage-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cg-manage-top-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cg-manage-top-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.cg-manage-top-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.cg-manage-top-item:hover {
+  background: var(--cg-bg-elevated);
+}
+
+.cg-manage-top-rank {
+  color: var(--cg-text-secondary);
+  min-width: 24px;
+}
+
+.cg-manage-top-id {
+  flex: 1;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: var(--cg-text);
+  word-break: break-all;
+}
+
+.cg-manage-top-value {
+  color: var(--cg-accent);
+  font-weight: 600;
+  min-width: 50px;
+  text-align: right;
+}
+
+/* ── Loading & Warning ────────────────────────────────────────────────────── */
+
+.cg-manage-loading {
+  padding: 8px;
+  color: var(--cg-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.cg-manage-warning {
+  padding: 8px 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-warning);
+  border-radius: 4px;
+  color: var(--cg-warning);
+  font-size: 12px;
+}

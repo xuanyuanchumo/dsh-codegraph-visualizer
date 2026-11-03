@@ -123,6 +123,11 @@ describe('面板抽屉标记', () => {
               for (const key of openSheetPanels({ hasSelectedNode, showSearch, showPathFind, showFilterPanel, showImport })) {
                 producible.add(key);
               }
+          for (const showManage of [true, false]) {
+            for (const key of openSheetPanels({ hasSelectedNode, showSearch, showPathFind, showFilterPanel, showImport, showManage })) {
+              producible.add(key);
+            }
+          }
             }
           }
         }

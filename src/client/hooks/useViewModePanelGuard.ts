@@ -15,6 +15,7 @@ interface PanelGuardApi {
   showHealthScore: boolean; setShowHealthScore: (v: boolean) => void;
   showRules: boolean; setShowRules: (v: boolean) => void;
   showImport: boolean; setShowImport: (v: boolean) => void;
+  showManage: boolean; setShowManage: (v: boolean) => void;
   showFilterPanel: boolean; setShowFilterPanel: (v: boolean) => void;
   showSearch: boolean; setShowSearch: (v: boolean) => void;
   showPathFind: boolean; setShowPathFind: (v: boolean) => void;
@@ -79,6 +80,8 @@ export function useViewModePanelGuard(opts: UseViewModePanelGuardOpts): void {
       ['showHealthScore', opts.panel.showHealthScore, () => opts.panel.setShowHealthScore(false)],
       ['showRules', opts.panel.showRules, () => opts.panel.setShowRules(false)],
       ['showImport', opts.panel.showImport, () => opts.panel.setShowImport(false)],
+      // showManage is a full-screen overlay, not an analysis panel — skip guard
+      // ['showManage', opts.panel.showManage, () => opts.panel.setShowManage(false)],
       ['showFilterPanel', opts.panel.showFilterPanel, () => opts.panel.setShowFilterPanel(false)],
       ['showSearch', opts.panel.showSearch, () => opts.panel.setShowSearch(false)],
       ['showPathFind', opts.panel.showPathFind, () => opts.panel.setShowPathFind(false)],

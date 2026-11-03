@@ -284,14 +284,14 @@ describe('registerRoutes', () => {
     });
   });
 
-  it('registers all 23 routes', () => {
+  it('registers all 25 routes', () => {
     registerRoutes(deps);
-    // 23 = 升级前的 18 条 + `/churn` + `/query` + `/registry`
+    // 25 = 升级前的 18 条 + `/churn` + `/query` + `/registry` + 2 条管理路由 (delete + metrics)
     //   + cycle-124 的 `/paths`（路径枚举的用户侧出口）
     //   + cycle-135 的 `/path-pattern/syntax`（ρ 语法预检）。
     // 这条断言的价值不在数字本身，而在「新增一条路由必须显式面对它」——
     // 否则漏注册一条路由不会有任何测试变红（`ctx.effect` 的 disposer 一样能过）。
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(23);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(25);
 
     // 计数不能替代成员：23 次调用里少一条多一条同样能过，因此再断言
     // 「每条路径存在且唯一」（漏注册 / 重复注册两种失败都会被看见）。
@@ -305,7 +305,7 @@ describe('registerRoutes', () => {
     // The browser loads a Worker from a URL, and DSH exposes no asset route for plugin files, so
     // this path has to be served by the plugin itself (see workerRoutes.ts).
     registerRoutes(deps);
-    const registration = ctx.webServer.register.mock.calls[17]![0];
+    const registration = ctx.webServer.register.mock.calls[19]![0];
     expect(registration.kind).toBe('exact');
     expect(registration.path).toBe('/api/v1/codegraph/worker/layoutWorker.js');
 
@@ -350,7 +350,7 @@ describe('registerRoutes', () => {
         // cycle-138：→ 15（+graph_views，Π 视图划分函数）。
         // 这个数字是「矩阵登记数」，与「真实注册数」的一致性由 registryContract.test.ts
         // 的集合相等守卫负责。
-        byFace: expect.objectContaining({ tools: 15, routes: 21, entries: 4, skill: 1 }),
+        byFace: expect.objectContaining({ tools: 15, routes: 23, entries: 4, skill: 1 }),
         brokenLinks: [],
       }),
     });
@@ -1468,10 +1468,10 @@ describe('GET /churn (研究报告 §六 #11)', () => {
   let config: VisualizerConfig;
   let deps: ReturnType<typeof makeDeps>;
 
-  // `/churn` 注册在 `registerRoutes` 的最后一条（索引 18）。
+  // `/churn` 注册在 `registerRoutes` 的最后一条（索引 20）。
   // 这条索引断言本身就是一道守卫：若有人把它挪到中间，会连带影响所有
   // 「第 N 次注册」的用例——那种红一片的改动无法自证正确，所以这里显式钉住。
-  const CHURN_INDEX = 18;
+  const CHURN_INDEX = 20;
 
   beforeEach(() => {
     ctx = makeMockCtx();
@@ -1491,7 +1491,7 @@ describe('GET /churn (研究报告 §六 #11)', () => {
     });
   });
 
-  it('注册在最后一个位置（索引 18）', () => {
+  it('注册在最后一个位置（索引 20）', () => {
     registerRoutes(deps);
     const calls = ctx.webServer.register.mock.calls;
     expect(calls[CHURN_INDEX]![0].path).toBe('/api/v1/codegraph/churn');

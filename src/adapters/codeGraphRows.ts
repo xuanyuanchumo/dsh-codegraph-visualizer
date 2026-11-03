@@ -115,6 +115,13 @@ export const FILTERED_EDGE_KINDS = new Set([
 const NOISE_PATH_SEGMENTS = [
   'node_modules', '.git', 'vendor', '__pycache__', '.venv', 'dist', 'build',
   '.next', '.nuxt', '.cache', '.turbo', 'coverage', '.pytest_cache',
+  // cycle-141：.cycles/ 是 AI 迭代循环的归档目录（测试报告、规划文档、
+  // 审计日志等），不是源码。不加入噪音列表会导致 bootstrap 的 LIMIT 50
+  // 选出的顶层节点全是 .cycles/ 内容（字母序 . < s），用户看到的图谱
+  // 只有归档目录而没有 src/ 源码。
+  '.cycles',
+  // cycle-141：.codegraph-visualizer/ 是插件自己的索引目录，不应出现在图谱中。
+  '.codegraph-visualizer',
 ];
 
 export function isNoisePath(filePath: string): boolean {
@@ -124,6 +131,9 @@ export function isNoisePath(filePath: string): boolean {
   }
   return false;
 }
+
+/** 导出噪音段列表——供 SQL 侧预过滤（readTopLevelNodesFromDb 的 LIMIT 前过滤）。 */
+export const NOISE_PATH_SEGMENTS_EXPORT = NOISE_PATH_SEGMENTS;
 
 /**
  * 索引行 → 图节点。这是**唯一**的节点映射实现：全量路径（`toAdapterResult`）与增量路径

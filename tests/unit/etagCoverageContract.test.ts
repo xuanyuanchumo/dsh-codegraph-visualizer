@@ -95,12 +95,14 @@ const DECISION_MATRIX: MatrixEntry[] = [
   { method: 'POST', path: '/api/v1/codegraph/scan', routeClass: 'post', rationale: '触发动作非资源获取' },
   { method: 'POST', path: '/api/v1/codegraph/init', routeClass: 'post', rationale: '触发动作非资源获取' },
   { method: 'POST', path: '/api/v1/codegraph/watch', routeClass: 'post', rationale: '触发动作非资源获取' },
+  { method: 'POST', path: '/api/v1/codegraph/manage/delete', routeClass: 'post', rationale: '删除索引是触发动作，非资源获取' },
   // ---- sse（1 条：流式响应不结束，304 判定无从发生） ----
   { method: 'GET', path: '/api/v1/codegraph/events', routeClass: 'sse', rationale: 'text/event-stream 长连接' },
   // ---- diagnostic（3 条：实时探测端点，缓存主动有害） ----
   { method: 'GET', path: '/api/v1/codegraph/status', routeClass: 'diagnostic', rationale: '能力探测，每次都该拿实时状态' },
   { method: 'GET', path: '/api/v1/codegraph/health', routeClass: 'diagnostic', rationale: '存活探测，stale 304 会让 LB 误判存活' },
   { method: 'GET', path: '/api/v1/codegraph/workspace', routeClass: 'diagnostic', rationale: '工作区列表观测端点' },
+  { method: 'GET', path: '/api/v1/codegraph/manage/metrics', routeClass: 'diagnostic', rationale: '图指标按需计算，非缓存资源，不需要 304 语义' },
   // ---- static-worker（1 条：构建产物，cache-control 管理） ----
   { method: 'GET', path: WORKER_ROUTE_PATH, routeClass: 'static-worker', rationale: 'layoutWorker.js 构建产物，cache-control: no-cache' },
 ];

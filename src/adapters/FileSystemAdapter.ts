@@ -18,6 +18,8 @@ const IGNORED_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', 'target',
   '__pycache__', '.venv', 'venv', '.next',
   'coverage', '.cache', '.codegraph',
+  // cycle-141：.codegraph-visualizer/ 是插件自己的索引目录，不应出现在图谱中。
+  '.codegraph-visualizer',
 ]);
 
 

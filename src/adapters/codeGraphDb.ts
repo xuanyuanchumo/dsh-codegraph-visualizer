@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { scoped } from '../shared/Logger.ts';
 import { SQLITE } from '../shared/constants.ts';
-import { EDGE_ROW_COLUMNS, type DbNodeRow, type DbEdgeRow } from './codeGraphRows.ts';
+import { EDGE_ROW_COLUMNS, type DbNodeRow, type DbEdgeRow, NOISE_PATH_SEGMENTS_EXPORT } from './codeGraphRows.ts';
 
 const log = scoped('codegraph-adapter');
 
@@ -230,13 +230,24 @@ export function readGraphFromDbPaged(
   }
 }
 
+// cycle-141：噪音路径 SQL 过滤——在 LIMIT 之前排除非源码目录。
+// 必须在 SQL 侧过滤而非映射侧：LIMIT 50 会选出前 50 行，如果 .cycles/
+// 归档目录（字母序 . < s）先被索引，映射阶段再过滤就只剩不到 50 个节点。
+function buildNoiseWhereClause(): string {
+  const segments = NOISE_PATH_SEGMENTS_EXPORT;
+  const filters = segments.map((seg) => "REPLACE(file_path, '\\', '/') NOT LIKE '%/" + seg + "%'");
+  return filters.join(' AND ');
+}
 export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes: DbNodeRow[]; total: number } | null {
   const db = getDbConnection(dbPath);
   if (!db) return null;
   try {
-    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE kind IN (\'file\', \'module\', \'import\')').get() as { cnt: number }).cnt;
+    const noiseWhere = buildNoiseWhereClause();
+    const kindWhere = "kind IN ('file', 'module', 'import')";
+    const whereClause = noiseWhere ? kindWhere + ' AND ' + noiseWhere : kindWhere;
+    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE ' + whereClause).get() as { cnt: number }).cnt;
     const nodes = validateNodeRows(db.prepare(
-      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE kind IN (\'file\', \'module\', \'import\') LIMIT ?',
+      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE ' + whereClause + ' LIMIT ?',
     ).all(limit));
     return { nodes, total };
   } catch (e) {

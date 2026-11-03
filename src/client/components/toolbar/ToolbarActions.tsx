@@ -28,9 +28,9 @@ export const ToolbarActions = memo(function ToolbarActions({
 
   const {
     showSearch, showCycles, cycleIsolation,
-    showImport, showFilterPanel,
+    showImport, showManage, showFilterPanel,
     onToggleSearch, onToggleCycleIsolation,
-    onToggleImport, onToggleFilterPanel,
+    onToggleImport, onToggleManage, onToggleFilterPanel,
   } = panelControls;
 
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
@@ -72,6 +72,11 @@ export const ToolbarActions = memo(function ToolbarActions({
                 onClick={() => { onToggleImport(); close(); }}
                 role="menuitemcheckbox" aria-checked={showImport} title={t('toolbar.import')}>
                 <UploadIcon size={14} /><span>{t('toolbar.import')}</span>
+              </button>
+              <button className={`cg-dropdown-item cg-manage-btn ${showManage ? 'cg-active' : ''}`}
+                onClick={() => { onToggleManage(); close(); }}
+                role="menuitemcheckbox" aria-checked={showManage} title={t('toolbar.manage')}>
+                <span>{t('toolbar.manage')}</span>
               </button>
               <button className={`cg-dropdown-item cg-filter-panel-btn ${showFilterPanel ? 'cg-active' : ''}`}
                 onClick={() => { onToggleFilterPanel(); close(); }}

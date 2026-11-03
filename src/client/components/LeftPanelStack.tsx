@@ -2,6 +2,7 @@ import type { GraphNode, GraphEdge, ViewMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { NodeId } from '../../types/index.ts';
 import { ImportPanel } from './ImportPanel.tsx';
+import { GraphManagePanel } from './GraphManagePanel.tsx';
 import { Legend } from './Legend.tsx';
 import { SearchBar, type SearchResultItem } from './SearchBar.tsx';
 import { NodeDetail } from './NodeDetail.tsx';
@@ -98,6 +99,11 @@ export function LeftPanelStack(props: LeftPanelStackProps) {
         prerequisites={props.prerequisites} initStatus={props.initStatus} watchEnabled={props.watchEnabled}
         onSetGraphData={props.onSetGraphData} onSetLoading={props.onSetLoading} onSetError={props.onSetError}
         onSetInitStatus={props.onSetInitStatus} onSetWatchEnabled={props.onSetWatchEnabled} />,
+    },
+    {
+      visible: panel.showManage,
+      children: <GraphManagePanel onClose={() => panel.setShowManage(false)} workspacePath={props.currentWorkspace}
+        prerequisites={props.prerequisites} onSetLoading={props.onSetLoading} onSetError={props.onSetError} />,
     },
   ];
 

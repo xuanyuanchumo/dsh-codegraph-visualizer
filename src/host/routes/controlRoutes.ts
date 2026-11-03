@@ -1,13 +1,15 @@
+import { existsSync } from 'node:fs';
 import { VALIDATION, ERROR_CODES, ERROR_MESSAGES, API } from '../../shared/constants.ts';
 import { RepoId } from '../../types/index.ts';
 import { fetchMergedGraph } from '../../tools.ts';
+import { resolveDbPath } from '../../adapters/CodeGraphAdapter.ts';
 import {
   readBody, parseJsonBody, extractStringField, extractBooleanField,
   buildCorsHeaders, sendJson, sendError, requireMethod, logRequest,
   handleCorsPreflight,
 } from '../HttpHelpers.ts';
 import {
-  withRouteMiddleware, resolveAndValidatePath, slimGraphData,
+  withRouteMiddleware, resolveAndValidatePath, slimGraphData, resolveWorkspaceFromRequest,
   type RouteContext, log,
 } from './shared.ts';
 
@@ -254,4 +256,106 @@ export function registerEventsRoute(rc: RouteContext): void {
       req.on('error', cleanup);
     },
   }), 'codegraph: events SSE route');
+}
+// ── cycle-141：管理面板路由 ──────────────────────────────────────────────
+
+/** POST /api/v1/codegraph/manage/delete — 删除原生索引 */
+export function registerManageDeleteRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx, config } = deps;
+  const routePath = '/api/v1/codegraph/manage/delete';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: routePath,
+    handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
+      try {
+        const body = await readBody(req, config.maxBodyBytes);
+        const parsed = parseJsonBody(body);
+        const pathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
+        const deletePath = await resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig);
+        if (deletePath === null) return;
+
+        const { deleteNativeIndex } = await import('../../adapters/nativeIndex.ts');
+        const deleted = deleteNativeIndex(deletePath);
+
+        sendJson(res, 200, {
+          success: true,
+          deleted,
+          message: deleted ? 'Native index deleted' : 'Native index not found',
+        }, req, corsConfig);
+      } catch (e) {
+        log.error('manage delete failed', e);
+        sendJson(res, 200, { success: false, error: String(e) }, req, corsConfig);
+      }
+    }),
+  }), 'codegraph: manage delete route');
+}
+
+/** GET /api/v1/codegraph/manage/metrics — 图指标（数学模型） */
+export function registerManageMetricsRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/manage/metrics';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: routePath,
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
+      try {
+        const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+        if (!workspacePath) {
+          sendJson(res, 200, { success: true, metrics: null }, req, corsConfig);
+          return;
+        }
+
+        // 内联 DB 路径解析：优先上游 DB，不存在则回落原生索引
+        const upstreamDbPath = resolveDbPath(workspacePath);
+        let dbPath: string;
+        if (existsSync(upstreamDbPath)) {
+          dbPath = upstreamDbPath;
+        } else {
+          const { resolveNativeIndexPath } = await import('../../adapters/nativeIndex.ts');
+          dbPath = resolveNativeIndexPath(workspacePath);
+        }
+        const { readGraphFromDbPaged } = await import('../../adapters/codeGraphDb.ts');
+        const { mapRowsToGraphNodes, mapRowsToGraphEdges } = await import('../../adapters/codeGraphRows.ts');
+
+        const PAGE = 500;
+        let cursor = null;
+        const allDbNodes = [];
+        const allDbEdges = [];
+        do {
+          const page = readGraphFromDbPaged(dbPath, cursor, PAGE);
+          if (!page) break;
+          allDbNodes.push(...page.nodes);
+          allDbEdges.push(...page.edges);
+          cursor = page.nextCursor;
+        } while (cursor !== null && allDbNodes.length < 10000);
+
+        const nodes = mapRowsToGraphNodes(allDbNodes);
+        const validNodeIds = new Set(nodes.map((n) => n.id));
+        const edges = mapRowsToGraphEdges(allDbEdges, validNodeIds);
+
+        const { computeGraphMetrics } = await import('../../xuanji/analysis/graphMetrics.ts');
+        const metrics = computeGraphMetrics(nodes, edges);
+
+        sendJson(res, 200, {
+          success: true,
+          metrics: {
+            nodeCount: metrics.nodeCount,
+            edgeCount: metrics.edgeCount,
+            density: metrics.density,
+            avgClustering: metrics.avgClustering,
+            degreeDistribution: metrics.degreeDistribution,
+            topBetweenness: metrics.topBetweenness,
+            topPageRank: metrics.topPageRank,
+          },
+        }, req, corsConfig);
+      } catch (e) {
+        log.error('manage metrics failed', e);
+        sendJson(res, 200, { success: false, error: String(e) }, req, corsConfig);
+      }
+    }),
+  }), 'codegraph: manage metrics route');
 }
