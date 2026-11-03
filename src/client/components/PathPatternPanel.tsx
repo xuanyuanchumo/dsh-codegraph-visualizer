@@ -168,6 +168,46 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
     void runPathPattern(value, options);
   }, [startDraft, endDraft, minHopsDraft, maxHopsDraft, limitDraft, runPathPattern, clearPathPattern]);
 
+  /**
+   * cycle-139：Σ chip 点击插入。
+   *
+   * 语义：把类型名插入输入框的**当前光标处**（替换选区，如有），而不是追加到末尾
+   * ——追加会在用户改过中间内容后把新类型放到错误位置；替换选区是文本编辑器的
+   * 通用约定。插入后焦点回输入框（键盘流不断）。
+   *
+   * 边界：`inputRef` 未挂载（面板刚打开尚未渲染）⇒ 退化为「追加 + 空格分隔」——
+   * 点击本身发生在渲染后的 DOM 上，这条路径实践中不可达，但守卫式的退化比抛错好。
+   */
+  const insertSigmaToken = useCallback((type: string) => {
+    const input = inputRef.current;
+    if (!input) {
+      setDraft((prev) => (prev.length === 0 ? type : `${prev} ${type}`));
+      inputRef.current?.focus();
+      return;
+    }
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    const value = input.value;
+    // 插入点前需要空格分隔（避免 `callimport` 这种粘连）；行首/选区替换时不加。
+    const needsSpaceBefore = start > 0 && value[start - 1] !== ' ' && start === end;
+    const needsSpaceAfter = end < value.length && value[end] !== ' ' && start === end;
+    const next =
+      value.slice(0, start) +
+      (needsSpaceBefore ? ' ' : '') +
+      type +
+      (needsSpaceAfter ? ' ' : '') +
+      value.slice(end);
+    setDraft(next);
+    // 焦点回输入框并把光标放到插入 token 之后（下一次点击的插入点自然衔接）。
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      const caret = start + (needsSpaceBefore ? 1 : 0) + type.length;
+      el.setSelectionRange(caret, caret);
+    });
+  }, []);
+
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     // Esc 关闭面板。`stopPropagation` 是必需的：`usePanelKeyboard` 的全局 Esc 会
     // `panel.closeAll()` 一口气关掉所有面板，用户按一次 Esc 期望只关这一个。
@@ -363,12 +403,26 @@ export const PathPatternPanel = memo(function PathPatternPanel({ onClose, label 
           它让面板自文档化（用户不用猜边类型名是什么），同时把「Σ 是宿主侧事实」这条
           不变量变成**可见的界面**：宿主改了 Σ，这里立刻跟着变。
           取失败时不渲染（避免显示空条或假列表）。
+          cycle-139：chip 可点击——把类型名**插入**输入框（光标处替换选区），而不是
+          追加到末尾。追加会在用户改过中间内容后把新类型放到错误位置；替换选区是
+          文本编辑器的通用约定。插入后焦点回到输入框（键盘流不断）。
         */}
         {pathPatternEdgeTypesStatus === 'ready' && pathPatternEdgeTypes.length > 0 && (
           <div className="cg-pathpattern-sigma" role="list" aria-label={t('pathPattern.sigmaLabel')}>
             <span className="cg-pathpattern-sigma-label">{t('pathPattern.sigmaLabel')}</span>
             {pathPatternEdgeTypes.map((type) => (
-              <span key={type} className="cg-pathpattern-sigma-chip" role="listitem">{type}</span>
+              <button
+                key={type}
+                type="button"
+                className="cg-pathpattern-sigma-chip"
+                role="listitem"
+                disabled={isLoading}
+                title={t('pathPattern.sigmaInsertTitle', { type })}
+                aria-label={t('pathPattern.sigmaInsertTitle', { type })}
+                onClick={() => insertSigmaToken(type)}
+              >
+                {type}
+              </button>
             ))}
           </div>
         )}

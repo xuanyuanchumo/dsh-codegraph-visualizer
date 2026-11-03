@@ -3104,6 +3104,75 @@ describe('edges route (index 15)', () => {
     expect(body.edges.length).toBe(25);
   });
 
+  it('GET /edges file 域按 kind 分组排序（cycle-139）：call 段在前、import 段在后、组内稳定', async () => {
+    // 内存回落路径（DB 缺席 ⇒ 走 lastGraphData）。故意**乱序**插入：
+    // import → call → dependency → call → import，断言返回按组重排。
+    const n1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const n2 = makeNode('n2', 'B', 'function', 'src/main.ts', 2);
+    const n3 = makeNode('n3', 'C', 'function', 'src/main.ts', 3);
+    const edges = [
+      makeEdge('e-import-1', 'n1', 'n2', 'import'),
+      makeEdge('e-call-1', 'n1', 'n2', 'call'),
+      makeEdge('e-dep-1', 'n2', 'n3', 'dependency'),
+      makeEdge('e-call-2', 'n1', 'n3', 'call'),
+      makeEdge('e-import-2', 'n1', 'n3', 'import'),
+    ];
+    deps.setLastGraphData(makeScopedGraphData([n1, n2, n3], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.map((e: { id: string }) => e.id)).toEqual([
+      'e-call-1', 'e-call-2',       // call 组（组内按 source,target 排序）
+      'e-import-1', 'e-import-2',   // import 组
+      'e-dep-1',                    // dependency 组殿后
+    ]);
+  });
+
+  it('GET /edges file 域分组排序跨页稳定：第二页接着第一页的组序', async () => {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 6; i++) {
+      nodes.push(makeNode(`n${i}`, `N${i}`, 'function', 'src/main.ts', i));
+    }
+    // 3 条 import（先插）+ 3 条 call（后插）：乱序源。
+    for (let i = 0; i < 3; i++) edges.push(makeEdge(`imp-${i}`, `n${i}`, 'n5', 'import'));
+    for (let i = 0; i < 3; i++) edges.push(makeEdge(`cal-${i}`, `n${i}`, 'n4', 'call'));
+    deps.setLastGraphData(makeScopedGraphData(nodes, edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const page1 = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&cursor=0&limit=4'), page1.res);
+    const b1 = JSON.parse(page1.state.body);
+    expect(b1.edges.map((e: { id: string }) => e.id)).toEqual(['cal-0', 'cal-1', 'cal-2', 'imp-0']);
+    const page2 = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&cursor=4&limit=4'), page2.res);
+    const b2 = JSON.parse(page2.state.body);
+    expect(b2.edges.map((e: { id: string }) => e.id)).toEqual(['imp-1', 'imp-2']);
+  });
+
+  it('GET /edges symbol 域保持 id 序（分组刻意只作用于 file 域）', async () => {
+    const n1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const n2 = makeNode('n2', 'B', 'function', 'src/main.ts', 2);
+    const edges = [
+      makeEdge('e-imp', 'n1', 'n2', 'import'),
+      makeEdge('e-cal', 'n1', 'n2', 'call'),
+    ];
+    deps.setLastGraphData(makeScopedGraphData([n1, n2], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.map((e: { id: string }) => e.id)).toEqual(['e-imp', 'e-cal']);
+  });
+
   it('GET /edges returns empty when fromId matches no nodes (scope=file)', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'lib/util.ts', 5);

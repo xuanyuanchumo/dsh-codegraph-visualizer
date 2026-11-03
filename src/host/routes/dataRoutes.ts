@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import type { GraphEdge, GraphNode, GraphData } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import {
-  resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readIncidentEdgesWithFilePathsFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS,
+  resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readIncidentEdgesWithFilePathsFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS, sortEdgesByKindGroup,
 } from '../../adapters/CodeGraphAdapter.ts';
 import { mapDbNodesToGraphNodes, mapDbEdgesToGraphEdges } from '../DbMapper.ts';
 import { computeGraphEtag } from '../../shared/graphFingerprint.ts';
@@ -505,9 +505,11 @@ export function registerEdgesRoute(rc: RouteContext): void {
         if (mayAggregate) {
           // 聚合必须在分页之前完成：同一个文件对会被拆到多页里，逐页聚合必然算错。
           // 因此聚合路径一次性取回全集（含端点文件映射），再决定聚合还是切片。
+          // cycle-139：未切片全集先分组排序——聚合摘要与翻页明细共享同一确定序
+          //（聚合与排序都发生在分页之前，「聚合是序契约」纪律的延伸）。
           const full = readIncidentEdgesWithFilePathsFromDb(dbPath, fromId, scope as 'file' | 'symbol');
           if (full) {
-            const allEdges = full.edges;
+            const allEdges = sortEdgesByKindGroup(full.edges);
             if (allEdges.length > EDGES_AGGREGATION.THRESHOLD) {
               const aggregatedEdges = buildFilePairAggregate(
                 fromId, allEdges, (id) => full.filePathByNodeId.get(id),
@@ -593,7 +595,10 @@ export function registerEdgesRoute(rc: RouteContext): void {
         }
 
         const total = filteredEdges.length;
-        const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
+        // cycle-139：内存回落与 DB-first 共享同一确定序（file 域分组排序；symbol 域
+        // 刻意保持原序）。两条路径各写一份必然静默漂移（buildFilePairAggregate 先例）。
+        const orderedEdges = scope === 'file' ? sortEdgesByKindGroup(filteredEdges) : filteredEdges;
+        const pagedEdges = orderedEdges.slice(cursor, cursor + limit);
         const hasMore = cursor + limit < total;
 
         sendJson(res, 200, { edges: pagedEdges, total, cursor: cursor + limit, hasMore }, req, corsConfig, etagHeader);

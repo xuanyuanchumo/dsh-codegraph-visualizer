@@ -781,6 +781,7 @@ export const zh: Record<string, string> = {
   'pathPattern.idle': '输入 ρ 后回车开始枚举',
   'pathPattern.idleHint': '输入边类型序列正则，可用 | 分组与 + * ? {n,m} 量词',
   'pathPattern.sigmaLabel': '可用边类型（Σ，取自宿主）',
+  'pathPattern.sigmaInsertTitle': '点击把 {type} 插入到输入框光标处',
   'pathPattern.loading': '枚举中…',
   'pathPattern.empty': '没有匹配的路径',
   'pathPattern.emptyHint': '确认 ρ 语法，或图上是否存在这些边类型',

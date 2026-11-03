@@ -435,3 +435,83 @@ describe('cycle-136: Σ chips (dynamic) + syntax precheck', () => {
     expect(runPathPattern).not.toHaveBeenCalled();
   });
 });
+
+describe('cycle-139: Σ chips 点击插入', () => {
+  it('点击 chip 把类型名插入空输入框（并回到输入框焦点）', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type', 'beta-type'],
+    });
+    renderPanel();
+    const chips = document.querySelectorAll('.cg-pathpattern-sigma-chip');
+    expect(chips.length).toBe(2);
+    fireEvent.click(chips[0]!);
+    expect(input().value).toBe('alpha-type');
+  });
+
+  it('空输入框连续点击两个 chip ⇒ 空格分隔追加（不粘连）', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type', 'beta-type'],
+    });
+    renderPanel();
+    const chips = document.querySelectorAll('.cg-pathpattern-sigma-chip');
+    fireEvent.click(chips[0]!);
+    fireEvent.click(chips[1]!);
+    expect(input().value).toBe('alpha-type beta-type');
+  });
+
+  it('中间内容：chip 插入到光标处（selectionStart 语义），不是追加到末尾', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type'],
+    });
+    renderPanel();
+    fireEvent.change(input(), { target: { value: 'call+' } });
+    const el = input();
+    // 光标放在 "call" 与 "+" 之间（index 4）。
+    el.setSelectionRange(4, 4);
+    const chip = document.querySelector('.cg-pathpattern-sigma-chip')!;
+    fireEvent.click(chip);
+    // 插入点前后都补空格分隔（`+` 前加空格是防粘连的正确行为——`call alpha-type+`
+    // 会被解析成 `alpha-type` 带 `+` 量词，语义完全不同）。
+    expect(el.value).toBe('call alpha-type +');
+  });
+
+  it('选区替换：拖选文本后点击 chip ⇒ 选区被类型名替换', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['beta-type'],
+    });
+    renderPanel();
+    fireEvent.change(input(), { target: { value: 'callxx' } });
+    const el = input();
+    el.setSelectionRange(4, 6); // 选中 "xx"
+    const chip = document.querySelector('.cg-pathpattern-sigma-chip')!;
+    fireEvent.click(chip);
+    expect(el.value).toBe('callbeta-type');
+  });
+
+  it('isLoading 时 chip 禁用（不与枚举竞争输入框）', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type'],
+      pathPatternStatus: 'loading',
+    });
+    renderPanel();
+    const chip = document.querySelector('.cg-pathpattern-sigma-chip') as HTMLButtonElement;
+    expect(chip.disabled).toBe(true);
+  });
+
+  it('chip 是 button（可键盘到达），带 title/aria-label 说明插入行为', () => {
+    primeStore({
+      pathPatternEdgeTypesStatus: 'ready',
+      pathPatternEdgeTypes: ['alpha-type'],
+    });
+    renderPanel();
+    const chip = document.querySelector('.cg-pathpattern-sigma-chip') as HTMLButtonElement;
+    expect(chip.tagName).toBe('BUTTON');
+    expect(chip.getAttribute('title')).toContain('alpha-type');
+    expect(chip.getAttribute('aria-label')).toContain('alpha-type');
+  });
+});

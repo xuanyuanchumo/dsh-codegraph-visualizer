@@ -58,6 +58,7 @@ export {
   readIncidentEdgesWithFilePathsFromDb,
   readEdgesForNodesFromDb,
   readFilesFromDb,
+  sortEdgesByKindGroup,
 } from './codeGraphEdgeReads.ts';
 
 /**

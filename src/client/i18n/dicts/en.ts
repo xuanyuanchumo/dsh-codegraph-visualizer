@@ -786,6 +786,7 @@ export const en: Record<string, string> = {
   'pathPattern.idle': 'Enter a ρ and press Enter',
   'pathPattern.idleHint': 'Type an edge-type sequence pattern; supports | grouping and + * ? {n,m} quantifiers',
   'pathPattern.sigmaLabel': 'Available edge types (Σ, from host)',
+  'pathPattern.sigmaInsertTitle': 'Click to insert {type} at the cursor',
   'pathPattern.loading': 'Enumerating…',
   'pathPattern.empty': 'No matching paths',
   'pathPattern.emptyHint': 'Check the ρ syntax or whether the graph has these edge types',

@@ -15,10 +15,65 @@
  */
 import { scoped } from '../shared/Logger.ts';
 import { SQLITE, INCREMENTAL } from '../shared/constants.ts';
-import { EDGE_ROW_COLUMNS, FILTERED_EDGE_KINDS, normalizeRepoPath, type DbNodeRow, type DbEdgeRow } from './codeGraphRows.ts';
+import { EDGE_ROW_COLUMNS, FILTERED_EDGE_KINDS, mapEdgeKind, normalizeRepoPath, type DbNodeRow, type DbEdgeRow } from './codeGraphRows.ts';
 import { getDbConnection, validateNodeRows, validateEdgeRows } from './codeGraphDb.ts';
 
 const log = scoped('codegraph-adapter');
+
+/**
+ * file 域边列表的 kind 分组排序（cycle-139 / 需求分析 §82）。
+ *
+ * ## 它解决什么
+ *
+ * `/edges` 的 file 域返回「某文件的全部邻接边」。SQLite 无 ORDER BY（id 序返回），
+ * 客户端拿到的边顺序是**索引插入序**——call/import/contains 混排，用户在边列表里
+ * 找「谁调用了这个文件」要在几百条杂序边里翻。分组排序后同 kind 的边相邻，
+ * 边列表呈现为可扫读的段（call 段 → import 段 → …）。
+ *
+ * ## 契约
+ *
+ * - **组序**：call → import → extend → implement → contains → dependency，
+ *   未知/其他 kind 按 `mapEdgeKind` 归并后的字母序殿后（新 kind 不需要改本表，
+   *   但会排到已知段之后——确定、可预期）。
+ * - **组内序**：`(source, target, id)` 字典序——纯确定序，与 DB 返回序无关。
+ * - **排序在过滤之后、切片之前**：与「先过滤再切片」既有契约同位（total 是过滤后
+ *   计数；排序改变的是序不是集合，不改变 total）。
+ * - **两条数据路径共用**：DB-first（`readEdgesFromDb` file 域 / 聚合路径的未切片全集）
+ *   与内存回退各自调用本函数，不各写一份（「同语义共享一份实现」纪律）。
+ *   组键兼容 `DbEdgeRow.kind` 与 `GraphEdge.type` 两种来源（见函数注）。
+ */
+const EDGE_KIND_GROUP_ORDER: readonly string[] = ['call', 'import', 'extend', 'implement', 'contains', 'dependency'];
+
+/**
+ * 组键取值：`DbEdgeRow.kind`（DB 侧原始 kind）**或** `GraphEdge.type`（内存回落侧
+ * 已映射的图类型）。两条路径的字段名不同——只读其一会让另一条路径的全部边落进
+ * dependency 组、排序静默退化为坐标序（本轮实测踩坑：测试当场抓住）。
+ */
+export function sortEdgesByKindGroup<T extends { source: string; target: string; id: string | number; kind?: string; type?: string }>(edges: readonly T[]): T[] {
+  const groupOf = (e: T): string => mapEdgeKind(e.kind ?? e.type ?? 'dependency');
+  const groupRank = new Map<string, number>();
+  EDGE_KIND_GROUP_ORDER.forEach((kind, i) => groupRank.set(kind, i));
+  return [...edges].sort((a, b) => {
+    const ga = groupOf(a);
+    const gb = groupOf(b);
+    if (ga !== gb) {
+      const ra = groupRank.get(ga);
+      const rb = groupRank.get(gb);
+      // 已知组按表序；未知组殿后并按字母序（两者都缺省时字典序兜底）。
+      if (ra !== undefined || rb !== undefined) return (ra ?? EDGE_KIND_GROUP_ORDER.length) - (rb ?? EDGE_KIND_GROUP_ORDER.length);
+      return ga < gb ? -1 : ga > gb ? 1 : 0;
+    }
+    const sa = String(a.source);
+    const sb = String(b.source);
+    if (sa !== sb) return sa < sb ? -1 : 1;
+    const ta = String(a.target);
+    const tb = String(b.target);
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    const ia = String(a.id);
+    const ib = String(b.id);
+    return ia < ib ? -1 : ia > ib ? 1 : 0;
+  });
+}
 
 /**
  * Paged read of a node's incident edges, already filtered by the shared edge
@@ -35,6 +90,8 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
   const keep = (e: DbEdgeRow): boolean => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind);
   try {
     if (scope === 'symbol') {
+      // symbol 域保持 id 序（节点邻接边数量小，kind 混排可读性问题不突出；
+      // 引入分组会改变既有消费方的翻页快照序——刻意不动，契约变化最小化）。
       const allEdges = validateEdgeRows(db.prepare(
         `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source = ? OR target = ?`,
       ).all(nodeId, nodeId)).filter(keep);
@@ -44,7 +101,9 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
     }
     const fileResult = readIncidentEdgesWithFilePathsFromDb(dbPath, nodeId, 'file');
     if (!fileResult) return null;
-    const allEdges = fileResult.edges;
+    // cycle-139：file 域全集先分组排序再切片——同 kind 相邻，且翻页序稳定
+    //（与 DB 返回序解耦：索引重排/重扫后同一请求翻出的页序不变）。
+    const allEdges = sortEdgesByKindGroup(fileResult.edges);
     const total = allEdges.length;
     const pagedEdges = allEdges.slice(cursor, cursor + limit);
     return { edges: pagedEdges, total };

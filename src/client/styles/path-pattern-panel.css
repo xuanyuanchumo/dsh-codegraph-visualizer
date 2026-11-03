@@ -255,6 +255,11 @@
   font-weight: 600;
 }
 
+/*
+ * cycle-139：chip 从 span 变成 button（点击插入）。
+ * 按钮默认样式全部复位（border/background/font 继承既有 chip 观感），
+ * hover/active/focus-visible 给出可点击反馈；disabled（枚举进行中）降透明度。
+ */
 .cg-pathpattern-sigma-chip {
   padding: 1px 5px;
   border: 1px solid var(--cg-border);
@@ -263,6 +268,27 @@
   color: var(--cg-text);
   font-family: var(--cg-font-mono);
   font-size: 9px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.cg-pathpattern-sigma-chip:hover:not(:disabled) {
+  border-color: var(--cg-accent);
+  color: var(--cg-accent);
+}
+
+.cg-pathpattern-sigma-chip:active:not(:disabled) {
+  background: var(--cg-surface-hover, var(--cg-surface));
+}
+
+.cg-pathpattern-sigma-chip:focus-visible {
+  outline: 1px solid var(--cg-accent);
+  outline-offset: 1px;
+}
+
+.cg-pathpattern-sigma-chip:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .cg-pathpattern-notfound {
