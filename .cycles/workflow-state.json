@@ -441,9 +441,15 @@
       "phase": "plan",
       "exitedAt": "2026-11-03T00:03:09.634Z",
       "note": "cycle-init"
+    },
+    {
+      "cycle": "cycle-139",
+      "phase": "complete",
+      "exitedAt": "2026-11-03T00:32:57.318Z",
+      "result": "cycle-139 ρ 人机闭环收尾（清偿 cycle-136 §79.6 与 cycle-137 §80.8 两个流转项）：(1) T1 Σ chips 点击插入（commit c7f35e0）——chip 从 span 变 button：插入到输入框光标处（替换选区），前后防粘连空格（粘连会改变量词语义：call alpha-type+ ≠ call alpha-type +），requestAnimationFrame 焦点回输入框、光标落 token 后；isLoading 禁用；i18n sigmaInsertTitle 双语；CSS hover/focus-visible/disabled；组件测试 +6。(2) T2 /edges file 域按 kind 分组排序（定调并落地）——sortEdgesByKindGroup 纯函数：组序 call→import→extend→implement→contains→dependency、未知组殿后字母序、组内 (source,target,id) 确定序（与 DB 返回序/索引重扫解耦，翻页快照稳定）；双来源组键（DbEdgeRow.kind ?? GraphEdge.type）；三条数据路径共用一份实现（readEdgesFromDb file 域 / 聚合未切片全集 / 内存回落）；symbol 域刻意保持原序（契约变化最小化）。新单测 8 + 路由 +3。(3) 测试驱动闭环抓到 2 个真实缺陷：内存回落路径排序未接线（首版只改 DB 路径，路由测试当场转红）；组键只认 kind 让内存路径排序静默退化为坐标序（GraphEdge 无 kind 字段）。修复 + 探针 A（丢 type 兼容 5 failed）钉住。(4) 变异探针 2 条全红→绿：A 组键丢 type 兼容 5 failed / B 未知组不殿后 2 failed；恢复后 228/228。(5) 文档族：需求分析 §82（两节 + D1-D5 裁决 + 量化账）+ 测试体系 §2.37（三层测试架构 + jsdom 光标语义备忘）+ cycle-137 §80.8 流转勾销。(6) 门禁：typecheck 3×0 / lint 0-0@310 / 全量 279 文件 6795 用例 0 失败（+17）/ build 0 / perf-gate 3 PASS / gate-check --gate all --quality --record 全 PASS（G0-G3 + Q1-Q5/Q7/Q8，Q6 PASS 本轮有客户端改动）。诚实披露：真机 J0 未执行（组件/单测/路由三层已覆盖面板内交互；Σ chips 真机点击可下轮 E2E 顺带）；/edges 排序不改 ETag 请求键但载荷序变——304 只服务旧载荷持有者，无错序风险。流转 cycle-140+：Π 客户端叠加渲染（可视化轮，cycle-138 流转）、挥发度边级采集渠道、原生 call 召回率 / 模块顶层调用产边（待定调）。"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-11-03T00:03:09.634Z"
+  "updatedAt": "2026-11-03T00:32:57.319Z"
 }
