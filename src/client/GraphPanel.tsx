@@ -105,7 +105,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
   } | null>(null);
 
 
-  const { nodes, edges, rawNodes, rawEdges } = useGraphData();
+  const { nodes, edges, rawNodes, rawEdges, repoId } = useGraphData();
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData, hierarchyLevel } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
   const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible, indexStatus, graphLayer } = useGraphStatus();
@@ -189,7 +189,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
   });
 
   const renderer = useGraphRenderer({
-    data: { nodes, edges, rawNodes },
+    data: { nodes, edges, rawNodes, repoId },
     display: { layout, dagreRankDir, theme, clusterDepth, heatmapMode, todoMarkerMode },
     interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch },
     filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude },

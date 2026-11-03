@@ -4,6 +4,9 @@ import { useShallow } from 'zustand/shallow';
 export function useGraphData() {
   return useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
+    // cycle-140：repoId 是「当前图属于哪个工作区」的身份维度——布局判据用它
+    // 识别换工作区（同名文件在不同工作区的节点 id 会重叠，只有 repoId 能区分）。
+    repoId: s.repoId,
   })));
 }
 

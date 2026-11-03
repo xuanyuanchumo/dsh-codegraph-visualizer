@@ -28,6 +28,11 @@ export interface GraphRendererData {
   nodes: (GraphNode | ClusterNode)[];
   edges: (GraphEdge | ClusterEdge)[];
   rawNodes: GraphNode[];
+  /**
+   * cycle-140：当前图所属的 repoId（工作区身份）。布局判据用它识别「换工作区」
+   * ——节点 id 在不同工作区间可能重叠（同名文件），只有 repoId 能区分「同 id 不同图」。
+   */
+  repoId: string | null;
 }
 
 export interface GraphRendererDisplay {
@@ -89,7 +94,7 @@ export interface UseGraphRendererResult {
 
 export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererResult {
   const { data, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
-  const { nodes, edges, rawNodes } = data;
+  const { nodes, edges, rawNodes, repoId } = data;
   const { layout, dagreRankDir, theme, clusterDepth, heatmapMode, todoMarkerMode } = display;
   const { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch } = interaction;
   const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude } = filters;
@@ -191,6 +196,8 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
 
   const prevNodeCountRef = useRef(0);
   const prevNodeIdsRef = useRef<Set<string>>(new Set());
+  const lastAppliedLayoutRef = useRef<LayoutType | null>(null);
+  const prevRepoIdRef = useRef<string | null>(null);
   const isWorkerInProgressRef = useRef(false);
 
   useEffect(() => {
@@ -198,12 +205,51 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     if (!r) return;
     const currentCount = nodes.length;
     const prevCount = prevNodeCountRef.current;
+    const prevIds = prevNodeIdsRef.current;
+    const currentIds = new Set(nodes.map((n) => n.id));
+    // cycle-140 布局稳定性：判据从「数量变化」改为「节点集合语义」。
+    // 用户期望「位置相对固定，只有展开才移动」。旧判据下折叠（子集）、
+    // 同集合刷新、LOD 过渡都走全量重排（cose/fcose randomize:true）⇒ 全图跳变。
+    // 新判据：
+    // - 布局类型变化 / 换工作区 / 新数据集 / 完全不相交 ⇒ 全量重排（显式意图或全新图）；
+    // - 子集（折叠/同集合刷新）⇒ 不重排（updateData 只做增删，位置保持）；
+    // - 有新增且新增量 ≤ 阈值 ⇒ 增量布局（只有新节点获得位置）；
+    // - 有新增但新增量超阈值 / 混变 ⇒ 全量重排（结构性大变，一次性重排更合理）。
+    const layoutChanged = lastAppliedLayoutRef.current !== layout;
+    const repoChanged = prevRepoIdRef.current !== null && prevRepoIdRef.current !== repoId;
+
+    let action: 'full' | 'incremental' | 'none';
+    if (layoutChanged || repoChanged) {
+      action = 'full';
+    } else if (prevCount === 0 && currentCount > 0) {
+      action = 'full';
+    } else if (currentCount === 0) {
+      action = 'none';
+    } else {
+      const overlapCount = [...currentIds].filter((id) => prevIds.has(id)).length;
+      if (overlapCount === 0) {
+        action = 'full';
+      } else if (overlapCount === currentIds.size) {
+        action = 'none';
+      } else {
+        const newCount = currentIds.size - overlapCount;
+        action = newCount <= RENDERER.INCREMENTAL_LAYOUT_THRESHOLD ? 'incremental' : 'full';
+      }
+    }
+
+    if (action === 'none') {
+      // 折叠/同集合刷新：不重排。当前集即「已布局集」（位置未变），同步落基线。
+      prevNodeCountRef.current = currentCount;
+      prevNodeIdsRef.current = currentIds;
+      prevRepoIdRef.current = repoId;
+      return;
+    }
+
     const isNewDataSet = prevCount === 0 && currentCount > 0;
-    const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < RENDERER.INCREMENTAL_LAYOUT_THRESHOLD;
-    const shouldUseWorker = currentCount > RENDERER.WORKER_NODE_THRESHOLD && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
+    const shouldUseWorker = action === 'full' && !isNewDataSet && currentCount > RENDERER.WORKER_NODE_THRESHOLD && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
 
     const timer = setTimeout(async () => {
-      if (shouldUseWorker && !isNewDataSet) {
+      if (shouldUseWorker) {
         isWorkerInProgressRef.current = true;
         try {
           const positions = await r.applyLayoutWithWorker(
@@ -219,21 +265,22 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
         } finally {
           isWorkerInProgressRef.current = false;
         }
-      } else if (isIncremental) {
-        const currentNodeIds = new Set(nodes.map((n) => n.id));
+      } else if (action === 'full') {
+        r.applyLayout(layout);
+      } else {
         const newNodeIds = new Set<string>();
-        for (const id of currentNodeIds) {
-          if (!prevNodeIdsRef.current.has(id)) newNodeIds.add(id);
+        for (const id of currentIds) {
+          if (!prevIds.has(id)) newNodeIds.add(id);
         }
         r.applyIncrementalLayout(layout, newNodeIds);
-      } else {
-        r.applyLayout(layout);
       }
       prevNodeCountRef.current = currentCount;
-      prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
-    }, isIncremental ? RENDERER.INCREMENTAL_LAYOUT_DELAY_MS : RENDERER.FULL_LAYOUT_DELAY_MS);
+      prevNodeIdsRef.current = currentIds;
+      lastAppliedLayoutRef.current = layout;
+      prevRepoIdRef.current = repoId;
+    }, action === 'incremental' ? RENDERER.INCREMENTAL_LAYOUT_DELAY_MS : RENDERER.FULL_LAYOUT_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [layout, clusterDepth, nodes, edges]);
+  }, [layout, clusterDepth, nodes, edges, repoId]);
 
   useEffect(() => {
     const r = rendererRef.current;

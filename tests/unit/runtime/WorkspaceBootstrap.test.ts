@@ -46,6 +46,9 @@ function createStore(overrides: Record<string, unknown> = {}) {
     isLoading: false,
     panelVisible: true,
     workspaceList: [] as Array<{ path: string }>,
+    // cycle-140：首扫竞态防护读 currentWorkspace（fetchBootstrap 期间工作区是否
+    // 被会话跟随切换）。mock 缺省 '/ws' 与 fetchWorkspace 的返回一致。
+    currentWorkspace: '/ws',
     // 会话跟随新增字段（sessionFollow 机制）：pin 缺省 null = 跟随态。
     // 此键缺席会让 `pinnedWorkspace === null` 判 false 而误入「pin 抑制」分支。
     pinnedWorkspace: null as string | null,
@@ -356,5 +359,79 @@ describe('setupWorkspaceBootstrap', () => {
     await vi.advanceTimersByTimeAsync(30000);
     await flush();
     expect(mocks.fetchWorkspace).not.toHaveBeenCalled();
+  });
+
+  // ── cycle-140：会话跟随优先于宿主注册序 ──────────────────────────────────────
+
+  it('polling suppressed by session-follow: 不覆盖会话工作区', async () => {
+    // 会话工作区已知且与宿主 /workspace 不同 ⇒ 轮询不得覆盖 currentWorkspace
+    // （宿主 /workspace 返回 registry[0]（注册序），多会话宿主里它不等于当前对话）。
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws-host', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const cap = captureWorkspaceEvent();
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    const baseline = cap.received.length;
+
+    // 会话工作区已知且与宿主不同
+    mocks.getState.mockReturnValue(createStore({ sessionWorkspace: '/ws-session' }));
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws-host2', list: [] });
+    mocks.setCurrentWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+
+    expect(mocks.setCurrentWorkspace).not.toHaveBeenCalled();
+    expect(cap.received.length).toBe(baseline); // 轮询期间零新增事件
+    cap.stop();
+  });
+
+  it('polling follows host when sessionWorkspace unknown (desktop fallback)', async () => {
+    // sessionWorkspace 未知（桌面/旧代宿主）⇒ 回落到宿主 /workspace（保持旧行为）
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws-host', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const cap = captureWorkspaceEvent();
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws-host2', list: [] });
+    mocks.setCurrentWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+
+    expect(mocks.setCurrentWorkspace).toHaveBeenCalledWith('/ws-host2');
+    cap.stop();
+  });
+
+  it('initial scan discarded when workspace changes during fetch (race guard)', async () => {
+    // 首扫 fetchBootstrap 期间会话跟随已切换工作区 ⇒ 丢弃 registry[0] 的载荷
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws-host', list: [] });
+    let resolveBootstrap: (v: any) => void;
+    mocks.fetchBootstrap.mockImplementation(() => new Promise((r) => { resolveBootstrap = r; }));
+
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+
+    // fetchBootstrap 尚未 resolve，会话跟随把 currentWorkspace 切到 /ws-session
+    mocks.getState.mockReturnValue(createStore({ currentWorkspace: '/ws-session' }));
+    resolveBootstrap!({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    await flush();
+
+    // 载荷被丢弃：setBootstrapData 不应被调用（竞态防护生效）
+    expect(mocks.setBootstrapData).not.toHaveBeenCalled();
   });
 });

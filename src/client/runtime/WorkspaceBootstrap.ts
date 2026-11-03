@@ -18,10 +18,17 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
       const { path: workspacePath, list: wsList } = await fetchWorkspace();
       lastDshWorkspace = workspacePath;
       const s = useGraphStore.getState();
+      // cycle-140：会话跟随优先。sessionWorkspace 已知时，它是「当前对话」的真相源；
+      // 宿主 /workspace 返回 registry[0]（注册序），多会话宿主里它不等于当前对话。
+      // 首扫在面板挂载前运行（sessionWorkspace 通常为 null ⇒ 沿用宿主值），
+      // 但重连复用会话形态下 sessionWorkspace 可能已就位 ⇒ 首扫直接加载会话工作区，
+      // 避免「先加载 registry[0] 的图、会话跟随再切换」的竞态窗口。
+      const sessionKnown = s.sessionWorkspace !== null && s.sessionWorkspace !== '';
+      const scanTarget = sessionKnown ? s.sessionWorkspace! : workspacePath;
       // 启动首扫：pin 不可能已存在（store 刚建、pin 仅驻内存），但守卫放在这里
       // 让「重连复用会话」形态同样被覆盖——一致性优先于当前不可达性。
       if (s.pinnedWorkspace === null) {
-        s.setCurrentWorkspace(workspacePath);
+        s.setCurrentWorkspace(scanTarget);
       }
       if (wsList.length > 0) {
         const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p, lastUsed: Date.now() }));
@@ -30,14 +37,24 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
         }
       }
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
+        window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: scanTarget } }));
       }
-      log.info('auto-import requested', { path: workspacePath });
+      log.info('auto-import requested', { path: scanTarget });
 
-      const bootstrap = await fetchBootstrap(undefined, workspacePath);
+      const bootstrap = await fetchBootstrap(undefined, scanTarget);
+      // cycle-140 竞态防护：fetchBootstrap 是异步的，期间会话跟随（面板挂载后
+      // sessionFollow 生效）可能已把 currentWorkspace 切到会话工作区。若此刻
+      // currentWorkspace 已不等于 scanTarget，这份 registry[0] 的载荷是过期的——
+      // 应用它会把会话工作区的画布覆盖回注册序工作区（正是用户报的不一致）。
+      // 丢弃它，让 useWorkspaceCache 的 loadBootstrap 路径完成正确的加载。
+      if (useGraphStore.getState().currentWorkspace !== scanTarget) {
+        log.info('initial scan discarded — workspace changed during fetch', { scanTarget, current: useGraphStore.getState().currentWorkspace });
+        useGraphStore.getState().setLoading(false);
+        return;
+      }
       if (bootstrap && bootstrap.topLevelNodes.length > 0) {
         const s2 = useGraphStore.getState();
-        s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
+        s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, scanTarget, {
           totalNodeCount: bootstrap.metadata.totalNodeCount,
           totalEdgeCount: bootstrap.metadata.totalEdgeCount,
           timestamp: bootstrap.metadata.timestamp,
@@ -79,14 +96,22 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
           // 已消费，解除 pin 后 `dshCurrent === lastDshWorkspace` 恒真，恢复跟随永远
           // 追不上宿主的真实工作区（待应用的变化必须保持 pending）。
           // pinnedWorkspace 每次读取最新值——解除 pin 后下一轮轮询自然恢复跟随。
-          if (s.pinnedWorkspace === null) {
+          //
+          // cycle-140：会话跟随优先于宿主注册序。sessionWorkspace 已知（面板已挂载、
+          // 宿主注入了会话 scope）时，会话 cwd 是「当前对话」的真相源；宿主 /workspace
+          // 返回 registry[0]（注册序），多会话宿主里它不等于当前对话 ⇒ 不覆盖。
+          // sessionWorkspace 未知（桌面/旧代宿主/面板未挂载）时才回落到宿主值。
+          const sessionKnown = s.sessionWorkspace !== null && s.sessionWorkspace !== '';
+          if (s.pinnedWorkspace === null && !(sessionKnown && s.sessionWorkspace !== dshCurrent)) {
             lastDshWorkspace = dshCurrent;
             s.setCurrentWorkspace(dshCurrent);
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
             }
-          } else {
+          } else if (s.pinnedWorkspace !== null) {
             log.info('workspace poll suppressed by user pin', { dsh: dshCurrent, pinned: s.pinnedWorkspace });
+          } else {
+            log.info('workspace poll suppressed by session-follow', { dsh: dshCurrent, session: s.sessionWorkspace });
           }
         }
         for (const p of dshList) {
@@ -99,6 +124,5 @@ export function setupWorkspaceBootstrap(ctx: Context): { scanInProgress: { value
     }, POLLING.WORKSPACE_INTERVAL_MS);
     return () => clearInterval(workspacePoll);
   }, 'codegraph: workspace polling');
-
   return { scanInProgress };
 }

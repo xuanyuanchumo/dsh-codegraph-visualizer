@@ -115,6 +115,7 @@ function makeConfig(overrides: Record<string, any> = {}) {
     nodes: [] as GraphNode[],
     edges: [] as GraphEdge[],
     rawNodes: [] as GraphNode[],
+    repoId: null as string | null,
     layout: 'cose' as const,
     dagreRankDir: 'TB' as const,
     theme: 'dark' as const,
@@ -146,7 +147,7 @@ function makeConfig(overrides: Record<string, any> = {}) {
   };
   const p = { ...defaults, ...overrides };
   return {
-    data: { nodes: p.nodes, edges: p.edges, rawNodes: p.rawNodes },
+    data: { nodes: p.nodes, edges: p.edges, rawNodes: p.rawNodes, repoId: p.repoId },
     display: { layout: p.layout, dagreRankDir: p.dagreRankDir, theme: p.theme, clusterDepth: p.clusterDepth, heatmapMode: p.heatmapMode, todoMarkerMode: p.todoMarkerMode },
     interaction: { highlightedNodeIds: p.highlightedNodeIds, selectedNodeId: p.selectedNodeId, focusNodeId: p.focusNodeId, focusModeActive: p.focusModeActive, focusModeNodeId: p.focusModeNodeId, focusDepth: p.focusDepth, debouncedSearch: p.debouncedSearch },
     filters: { filterType: p.filterType, graphType: p.graphType, fanInThreshold: p.fanInThreshold, fanOutThreshold: p.fanOutThreshold, visibleNodeTypes: p.visibleNodeTypes, visibleEdgeTypes: p.visibleEdgeTypes, pathFilterInclude: p.pathFilterInclude, pathFilterExclude: p.pathFilterExclude },
@@ -701,6 +702,121 @@ describe('useGraphRenderer', () => {
       rerender({ layout: 'breadthfirst' });
       vi.advanceTimersByTime(1000);
       expect(mockRenderer.applyLayout).toHaveBeenCalledWith('breadthfirst');
+      vi.useRealTimers();
+    });
+
+    // ── cycle-140：布局稳定性——判据从「数量变化」改为「节点集合语义」 ──────
+    // 注意：renderWithRenderer helper 在挂载后才设置 rendererRef.current，
+    // 挂载时布局 effect 因 r=null 提前返回，基线（prevNodeCountRef/prevNodeIdsRef/
+    // lastAppliedLayoutRef）从未建立。因此每个测试先做一次「基线 rerender」
+    // （新数组引用触发 effect），让 timer 回调落基线，再做实际断言。
+
+    it('折叠（子集）⇒ 不重排：applyLayout 与 applyIncrementalLayout 都不调用', () => {
+      vi.useFakeTimers();
+      const big = Array.from({ length: 30 }, (_, i) => makeNode(`n${i}`));
+      const small = big.slice(0, 5);
+      const { rerender } = renderWithRenderer(
+        { nodes: big },
+        ({ nodes }: { nodes: GraphNode[] }) => useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [...big] }); // 基线：建立已布局集
+      vi.advanceTimersByTime(1000);
+      mockRenderer.applyLayout.mockClear();
+      mockRenderer.applyIncrementalLayout.mockClear();
+      rerender({ nodes: small });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).not.toHaveBeenCalled();
+      expect(mockRenderer.applyIncrementalLayout).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('同集合刷新（新数组引用、同 id 集）⇒ 不重排', () => {
+      vi.useFakeTimers();
+      const nodes = [makeNode('a'), makeNode('b')];
+      const { rerender } = renderWithRenderer(
+        { nodes },
+        ({ nodes }: { nodes: GraphNode[] }) => useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [...nodes] }); // 基线
+      vi.advanceTimersByTime(1000);
+      mockRenderer.applyLayout.mockClear();
+      // 新数组引用（内容等价）——旧判据会全量重排，新判据识别为同集合。
+      rerender({ nodes: nodes.map((n) => ({ ...n })) });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('展开（小增量超集）⇒ 增量布局：只对新节点调用 applyIncrementalLayout', () => {
+      vi.useFakeTimers();
+      const base = [makeNode('a'), makeNode('b')];
+      const expanded = [...base, makeNode('c')];
+      const { rerender } = renderWithRenderer(
+        { nodes: base },
+        ({ nodes }: { nodes: GraphNode[] }) => useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [...base] }); // 基线
+      vi.advanceTimersByTime(1000);
+      mockRenderer.applyLayout.mockClear();
+      mockRenderer.applyIncrementalLayout.mockClear();
+      rerender({ nodes: expanded });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).not.toHaveBeenCalled();
+      expect(mockRenderer.applyIncrementalLayout).toHaveBeenCalledWith('cose', expect.any(Set));
+      const arg = mockRenderer.applyIncrementalLayout.mock.calls[0]![1] as Set<string>;
+      expect(arg.has('c')).toBe(true);
+      expect(arg.has('a')).toBe(false);
+      expect(arg.has('b')).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('换工作区（repoId 变化）⇒ 全量重排', () => {
+      vi.useFakeTimers();
+      const nodes = [makeNode('a')];
+      const { rerender } = renderWithRenderer(
+        { nodes, repoId: 'ws-a' },
+        ({ nodes, repoId }: { nodes: GraphNode[]; repoId: string | null }) =>
+          useGraphRenderer(makeConfig({ nodes, repoId }))
+      );
+      rerender({ nodes: [...nodes], repoId: 'ws-a' }); // 基线
+      vi.advanceTimersByTime(1000);
+      mockRenderer.applyLayout.mockClear();
+      // 同名节点 id 但不同 repoId——只有 repoId 能区分「同 id 不同图」。
+      rerender({ nodes, repoId: 'ws-b' });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).toHaveBeenCalledWith('cose');
+      vi.useRealTimers();
+    });
+
+    it('完全不相交的节点集（视图切换）⇒ 全量重排', () => {
+      vi.useFakeTimers();
+      const { rerender } = renderWithRenderer(
+        { nodes: [makeNode('a'), makeNode('b')] },
+        ({ nodes }: { nodes: GraphNode[] }) => useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [makeNode('a'), makeNode('b')] }); // 基线（新数组引用）
+      vi.advanceTimersByTime(1000);
+      mockRenderer.applyLayout.mockClear();
+      rerender({ nodes: [makeNode('x'), makeNode('y')] });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).toHaveBeenCalledWith('cose');
+      vi.useRealTimers();
+    });
+
+    it('新增量超阈值（>50）⇒ 全量重排（结构性大变一次性重排）', () => {
+      vi.useFakeTimers();
+      const base = Array.from({ length: 10 }, (_, i) => makeNode(`n${i}`));
+      const big = [...base, ...Array.from({ length: 60 }, (_, i) => makeNode(`m${i}`))];
+      const { rerender } = renderWithRenderer(
+        { nodes: base },
+        ({ nodes }: { nodes: GraphNode[] }) => useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [...base] }); // 基线
+      vi.advanceTimersByTime(1000);
+      mockRenderer.applyLayout.mockClear();
+      rerender({ nodes: big });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).toHaveBeenCalledWith('cose');
       vi.useRealTimers();
     });
 
