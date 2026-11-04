@@ -30,6 +30,7 @@ import {
   registerEventsRoute,
   registerManageDeleteRoute,
   registerManageMetricsRoute,
+  registerManageUpdateRoute,
 } from './routes/controlRoutes.ts';
 import {
   registerDependenciesRoute,
@@ -107,6 +108,11 @@ export function registerRoutes(deps: RouteDeps): void {
   registerPathsRoute(rc);
   // cycle-116 可观测性主轴：注册-生产-消费矩阵看板（四面全量清单 + 断链判定）。
   registerRegistryRoute(rc);
+  // cycle-141：管理面板「更新」路由（codegraph_sync → 重扫）。
+  // 刻意追加在**最后**：既有测试大量用「第 N 次注册」定位路由（`getHandler(ctx, N)`），
+  // 插在中间会让一大片无关用例整体错位一格。所有路由都是 `kind: 'exact'` 的精确路径，
+  // 注册顺序不影响匹配语义。代价是本路由的索引（24）依赖前面所有路由先注册。
+  registerManageUpdateRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');

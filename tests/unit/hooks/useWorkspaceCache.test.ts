@@ -18,11 +18,11 @@ import { useWorkspaceCache } from '../../../src/client/hooks/useWorkspaceCache.t
 import type { GraphNode, GraphEdge } from '../../../src/types/index.ts';
 
 function makeNode(id: string): GraphNode {
-  return { id: `file:${id}.ts` as any, label: id, type: 'file', filePath: `/src/${id}.ts`, properties: {} };
+  return { id: `file:${id}.ts` as any, label: id, type: 'module' as any, filePath: `/src/${id}.ts`, properties: {} };
 }
 
 function makeEdge(id: string, source: string, target: string): GraphEdge {
-  return { id: `${source}->${target}` as any, source, target, type: 'call', properties: {} };
+  return { id: `${source}->${target}` as any, source: source as any, target: target as any, type: 'call', properties: {} };
 }
 
 function createCache() {

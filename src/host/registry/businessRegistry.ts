@@ -69,7 +69,10 @@ export const ROUTE_ENTRIES: RegistryEntry[] = [
   { id: '/diff', face: 'routes', registeredAt: 'src/host/routes/analysisRoutes.ts:201', produces: '版本对比', consumers: ['client diff panel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
   { id: '/ast', face: 'routes', registeredAt: 'src/host/routes/analysisRoutes.ts:281', produces: '符号 AST（分页+预算）', consumers: ['client AST panel', 'graph_symbol tool'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
   { id: '/manage/delete', face: 'routes', registeredAt: 'src/host/routes/controlRoutes.ts:262', produces: '删除原生索引', consumers: ['client GraphManagePanel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
-  { id: '/manage/metrics', face: 'routes', registeredAt: 'src/host/routes/controlRoutes.ts:295', produces: '图指标（密度/聚类/PageRank）', consumers: ['client GraphManagePanel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
+  { id: '/manage/metrics', face: 'routes', registeredAt: 'src/host/routes/controlRoutes.ts:369', produces: '图指标（密度/聚类/Brandes 介数/PageRank + 连通性/关节点/直径/模块度/圈复杂度/k-core）', consumers: ['client GraphManagePanel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
+  // cycle-141：/manage/update 曾只注册不登记——正是本矩阵要抓住的「注册了但矩阵不知道」
+  // 形态（cycle-134 真机 /status 报 byFace.tools=12 而实际 13 的同族缺陷）。
+  { id: '/manage/update', face: 'routes', registeredAt: 'src/host/routes/controlRoutes.ts:519', produces: '增量更新（codegraph_sync → 重扫）', consumers: ['client GraphManagePanel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
   { id: '/tree-sitter', face: 'routes', registeredAt: 'src/host/routes/analysisRoutes.ts:320', produces: 'tree-sitter 解析对照', consumers: ['tests/unit/pathParityAndRevealContract.test.ts（外部消费）'], guardTest: 'pathParityAndRevealContract.test.ts', lifecycle: 'consuming' },
   { id: '/status', face: 'routes', registeredAt: 'src/host/routes/statusRoutes.ts:10', produces: '能力位 + 索引状态', consumers: ['client 空态判定', '本 registry 路由'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
   { id: '/health', face: 'routes', registeredAt: 'src/host/routes/statusRoutes.ts:37', produces: '健康度（503 语义）', consumers: ['E2E diff-and-integration.spec', 'dev-server.mjs（外部消费）'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },

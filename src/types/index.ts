@@ -305,6 +305,18 @@ export interface GraphDataEvent {
 }
 
 /**
+ * 原生索引被删除（cycle-141 管理面板）。
+ *
+ * 删除成功后 host 会失效 `scanCache` / `scanInFlightMap` 并广播本事件，客户端据此
+ * **丢弃陈旧状态**（清空图槽、重置 ETag 校验值）。只删文件不广播 = 用户看到一张死图。
+ */
+export interface GraphDeletedEvent {
+  repoId: RepoId;
+  path: string;
+  timestamp: number;
+}
+
+/**
  * P2-21 targeted update: only the entries that actually changed since the consumer's revision.
  *
  * Consumers apply this with `applyGraphDelta()` and must check `canApplyGraphDelta()` first — a
@@ -464,6 +476,11 @@ declare module '@deepseek-ai/cordis' {
      * @param event Full graph data payload for rendering
      */
     'codegraph-visualizer/graph/data'(event: GraphDataEvent): void;
+    /**
+     * @mode serial
+     * @param event Native index deleted; consumers must drop stale graph state
+     */
+    'codegraph-visualizer/graph/deleted'(event: GraphDeletedEvent): void;
     /**
      * @mode serial
      * @param event Targeted graph update carrying only the entries that changed (P2-21)

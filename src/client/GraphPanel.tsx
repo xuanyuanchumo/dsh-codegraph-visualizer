@@ -460,6 +460,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
         showPathFind: panel.showPathFind,
         showFilterPanel: panel.showFilterPanel,
         showImport: panel.showImport,
+        showManage: panel.showManage,
       })}>
       <button className="cg-collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')} aria-expanded={!panel.collapsed}>
         <GraphIcon size={22} />

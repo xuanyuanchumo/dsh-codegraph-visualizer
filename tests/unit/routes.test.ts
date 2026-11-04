@@ -117,6 +117,64 @@ vi.mock('../../src/adapters/CodeGraphAdapter.ts', async (importOriginal) => {
   };
 });
 
+// ── cycle-141 管理面板路由：四个动态 import 的 mock ───────────────────────
+//
+// 管理路由在 handler 内部 `await import(...)`，所以必须在这个文件顶部用 `vi.mock`
+// 拦截；`importOriginal` 保留其余导出，避免把 `tools.ts` / `nativeIndex.ts` 里
+// 其它消费方（如 `EDGE_ROW_COLUMNS`）一起打成 undefined。
+
+const mockDeleteNativeIndex = vi.fn();
+const mockResolveNativeIndexPath = vi.fn();
+vi.mock('../../src/adapters/nativeIndex.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/adapters/nativeIndex.ts')>();
+  return {
+    ...actual,
+    deleteNativeIndex: mockDeleteNativeIndex,
+    resolveNativeIndexPath: mockResolveNativeIndexPath,
+  };
+});
+
+const mockReadGraphFromDbPaged = vi.fn();
+vi.mock('../../src/adapters/codeGraphDb.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/adapters/codeGraphDb.ts')>();
+  return { ...actual, readGraphFromDbPaged: mockReadGraphFromDbPaged };
+});
+
+const mockMapRowsToGraphNodes = vi.fn();
+const mockMapRowsToGraphEdges = vi.fn();
+vi.mock('../../src/adapters/codeGraphRows.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/adapters/codeGraphRows.ts')>();
+  return {
+    ...actual,
+    mapRowsToGraphNodes: mockMapRowsToGraphNodes,
+    mapRowsToGraphEdges: mockMapRowsToGraphEdges,
+  };
+});
+
+const mockComputeGraphMetrics = vi.fn();
+vi.mock('../../src/xuanji/analysis/graphMetrics.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/xuanji/analysis/graphMetrics.ts')>();
+  return { ...actual, computeGraphMetrics: mockComputeGraphMetrics };
+});
+
+// 管理面板路由需要精确控制「索引 DB 是否存在」。`existsSync` 同时被 worker / data /
+// paths 等路由使用，所以用 `importOriginal` 保留真实实现，只在本 describe 内覆盖返回值。
+//
+// `node:fs` 在本文件里被**静态** import（`mkdtempSync` / `rmSync`），因此 mock 工厂会在
+// 模块体之前执行——引用模块级 `const` 会踩 TDZ。`vi.hoisted` 把 mock 与真实实现持有者
+// 一起提到工厂之前（与既有 `vi.mock('node:fs/promises')` 同型）。
+const { mockExistsSync, realExistsSyncHolder } = vi.hoisted(() => ({
+  mockExistsSync: vi.fn(),
+  realExistsSyncHolder: { real: undefined as ((p: string) => boolean) | undefined },
+}));
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  realExistsSyncHolder.real = actual.existsSync;
+  // 默认委托真实实现：本 mock 对**所有** describe 生效，管理面板用例只覆盖返回值。
+  mockExistsSync.mockImplementation((p: string) => actual.existsSync(p));
+  return { ...actual, existsSync: mockExistsSync };
+});
+
 const { registerRoutes, registerService, slimGraphData } = await import('../../src/host/routes.ts');
 const { fetchMergedGraph, createInvoke } = await import('../../src/tools.ts');
 const { SecurityManager } = await import('../../src/host/security.ts');
@@ -133,7 +191,8 @@ import { makeNode, makeEdge, makeGraphData, makePrerequisiteStatus } from '../he
 import type { VisualizerConfig } from '../../src/host/config.ts';
 import { isSafeRelativePath, triggerBackgroundBuild } from '../../src/host/routes/shared.ts';
 import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
-import { FINGERPRINT, VALIDATION, SYMBOL_AST, EDGES_AGGREGATION } from '../../src/shared/constants.ts';
+import { FINGERPRINT, VALIDATION, SYMBOL_AST, EDGES_AGGREGATION, METRICS } from '../../src/shared/constants.ts';
+import type { UpstreamInvoker } from '../../src/adapters/IAdapter.ts';
 import {
   computeGraphEtag,
   etagKeyForOutline,
@@ -237,6 +296,12 @@ function getHandler(ctx: MockCtx, index: number): (req: IncomingMessage, res: Se
   return calls[index]![0].handler;
 }
 
+/** 按路由路径取 handler（管理面板路由的注册顺序依赖前面所有路由，用路径定位更稳）。 */
+function getHandlerByPath(ctx: MockCtx, routePath: string): ((req: IncomingMessage, res: ServerResponse) => Promise<void> | void) | undefined {
+  const call = ctx.webServer.register.mock.calls.find((c) => (c[0] as { path: string }).path === routePath);
+  return call?.[0].handler;
+}
+
 function makeDeps(ctx: MockCtx, config: VisualizerConfig) {
   const lastGraphData: { value: GraphData | null } = { value: null };
   const lastInitResult: { value: { success: boolean; path: string; message: string; timestamp: number } | null } = { value: null };
@@ -254,6 +319,9 @@ function makeDeps(ctx: MockCtx, config: VisualizerConfig) {
     getScanCache: () => scanCache,
     getScanInFlight: (p: string) => scanInFlight.get(p) ?? null,
     setScanInFlight: (p: string, promise: Promise<GraphData> | null) => { scanInFlight.set(p, promise); },
+    // 可选的上游调用器：管理面板 update 路由直接用它调 `codegraph_sync`。
+    // 默认 undefined ⇒ `registerRoutes` 回落到 `createInvokeUpstream`（与生产一致）。
+    invokeUpstream: undefined as UpstreamInvoker | undefined,
     // Optional persistence hook. Tests that assert snapshot/fingerprint behaviour inject a real repo.
     graphRepo: undefined as GraphRepository | undefined,
     isDestroyed: () => false,
@@ -284,14 +352,15 @@ describe('registerRoutes', () => {
     });
   });
 
-  it('registers all 25 routes', () => {
+  it('registers all 26 routes', () => {
     registerRoutes(deps);
-    // 25 = 升级前的 18 条 + `/churn` + `/query` + `/registry` + 2 条管理路由 (delete + metrics)
+    // 26 = 升级前的 18 条 + `/churn` + `/query` + `/registry` + 2 条管理路由 (delete + metrics)
     //   + cycle-124 的 `/paths`（路径枚举的用户侧出口）
-    //   + cycle-135 的 `/path-pattern/syntax`（ρ 语法预检）。
+    //   + cycle-135 的 `/path-pattern/syntax`（ρ 语法预检）
+    //   + cycle-141 的 `/manage/update`（增量更新：codegraph_sync → 重扫）。
     // 这条断言的价值不在数字本身，而在「新增一条路由必须显式面对它」——
     // 否则漏注册一条路由不会有任何测试变红（`ctx.effect` 的 disposer 一样能过）。
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(25);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(26);
 
     // 计数不能替代成员：23 次调用里少一条多一条同样能过，因此再断言
     // 「每条路径存在且唯一」（漏注册 / 重复注册两种失败都会被看见）。
@@ -350,7 +419,7 @@ describe('registerRoutes', () => {
         // cycle-138：→ 15（+graph_views，Π 视图划分函数）。
         // 这个数字是「矩阵登记数」，与「真实注册数」的一致性由 registryContract.test.ts
         // 的集合相等守卫负责。
-        byFace: expect.objectContaining({ tools: 15, routes: 23, entries: 4, skill: 1 }),
+        byFace: expect.objectContaining({ tools: 15, routes: 24, entries: 4, skill: 1 }),
         brokenLinks: [],
       }),
     });
@@ -3765,6 +3834,325 @@ describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
     await settle();
 
     expect(ctx.emit.mock.calls.map(([name]) => name)).toContain('codegraph-visualizer/graph/data');
+  });
+});
+
+// ── cycle-141：管理面板路由（此前 ZERO 覆盖，registry 却声称 guardTest） ──────
+describe('manage routes (cycle-141)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  const DELETE_PATH = '/api/v1/codegraph/manage/delete';
+  const METRICS_PATH = '/api/v1/codegraph/manage/metrics';
+  const UPDATE_PATH = '/api/v1/codegraph/manage/update';
+
+  const mockInvokeUpstream = vi.fn<UpstreamInvoker>();
+
+  /** `computeGraphMetrics` 的契约 fixture（workstream A 的扩展字段全部在场）。 */
+  function makeMetricsFixture() {
+    return {
+      nodeCount: 2,
+      edgeCount: 1,
+      density: 0.5,
+      avgClustering: 0.25,
+      betweenness: new Map([['n1', 0.1]]),
+      pageRank: new Map([['n1', 0.6]]),
+      degreeDistribution: { alpha: 2, isPowerLaw: false, maxDegree: 1, minDegree: 1, meanDegree: 1 },
+      topBetweenness: [{ id: 'n1', value: 0.1 }],
+      topPageRank: [{ id: 'n1', value: 0.6 }],
+      betweennessSampleSize: 2,
+      betweennessApproximate: false,
+      pageRankMass: 1,
+      components: { weaklyConnected: 1, stronglyConnected: 1 },
+      articulationPoints: 0,
+      diameter: 1,
+      avgShortestPath: 0.5,
+      modularity: 0.1,
+      cyclomaticNumber: 0,
+      kCore: 1,
+    };
+  }
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue(makePrerequisiteStatus({ codegraph: true, lens: true, astSource: true, graphSource: true }));
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeScopedGraphData([], []));
+
+    // existsSync 默认委托真实实现；单个用例再覆盖，避免污染其它 describe。
+    mockExistsSync.mockReset();
+    mockExistsSync.mockImplementation((p: string) => realExistsSyncHolder.real!(p));
+
+    mockDeleteNativeIndex.mockReset();
+    mockResolveNativeIndexPath.mockReset();
+    mockResolveNativeIndexPath.mockReturnValue('/test/workspace/.codegraph-visualizer/native-index.db');
+    mockReadGraphFromDbPaged.mockReset();
+    mockMapRowsToGraphNodes.mockReset();
+    mockMapRowsToGraphEdges.mockReset();
+    mockComputeGraphMetrics.mockReset();
+    mockInvokeUpstream.mockReset();
+  });
+
+  afterEach(() => {
+    mockExistsSync.mockReset();
+    mockExistsSync.mockImplementation((p: string) => realExistsSyncHolder.real!(p));
+  });
+
+  // ── POST /manage/delete ────────────────────────────────────────────────
+
+  it('deletes the index, invalidates scan caches and broadcasts graph/deleted', async () => {
+    mockDeleteNativeIndex.mockReturnValue(true);
+    // 预置陈旧缓存与在飞扫描，验证删除后二者都被清掉。
+    const stale = makeScopedGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    deps.getScanCache().set('/test/workspace', { data: stale, timestamp: Date.now() });
+    deps.setScanInFlight('/test/workspace', Promise.resolve(stale));
+
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, DELETE_PATH);
+    expect(handler).toBeDefined();
+
+    const { res, state } = makeRes();
+    await handler!(makeReq('POST', JSON.stringify({ path: '.' })), res);
+
+    expect(state.code).toBe(200);
+    expect(JSON.parse(state.body)).toEqual({ success: true, deleted: true, errorCode: null });
+    expect(mockDeleteNativeIndex).toHaveBeenCalledWith('/test/workspace');
+    // 缓存失效：否则 TTL 内的旧图会被下一次 /scan 重新展示。
+    expect(deps.getScanCache().has('/test/workspace')).toBe(false);
+    expect(deps.getScanInFlight('/test/workspace')).toBeNull();
+    // 广播：客户端据此丢弃陈旧状态。
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/deleted', {
+      repoId: '/test/workspace',
+      path: '/test/workspace',
+      timestamp: expect.any(Number),
+    });
+  });
+
+  it('returns INDEX_NOT_FOUND (HTTP 200) when there is nothing to delete', async () => {
+    mockDeleteNativeIndex.mockReturnValue(false);
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, DELETE_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('POST', JSON.stringify({ path: '.' })), res);
+
+    expect(state.code).toBe(200);
+    expect(JSON.parse(state.body)).toEqual({ success: false, deleted: false, errorCode: 'INDEX_NOT_FOUND' });
+    // 幂等删除不应广播「已删除」。
+    expect(ctx.emit).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 DELETE_FAILED when the deletion really fails', async () => {
+    mockDeleteNativeIndex.mockImplementation(() => { throw new Error('disk error'); });
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, DELETE_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('POST', JSON.stringify({ path: '.' })), res);
+
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body)).toEqual({ success: false, deleted: false, errorCode: 'DELETE_FAILED', error: 'disk error' });
+  });
+
+  // ── GET /manage/metrics ────────────────────────────────────────────────
+
+  it('returns INDEX_NOT_FOUND when neither DB exists', async () => {
+    mockExistsSync.mockReturnValue(false);
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, METRICS_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('GET', undefined, {}, undefined, `${METRICS_PATH}?workspace=/test/workspace`), res);
+
+    expect(state.code).toBe(200);
+    expect(JSON.parse(state.body)).toEqual({ success: false, errorCode: 'INDEX_NOT_FOUND', metrics: null, truncation: null });
+    // 关键回归：旧实现会回 success:true + 全零指标（假健康空图）。
+  });
+
+  it('returns the full metrics shape and every truncation field when data exists', async () => {
+    mockExistsSync.mockReturnValue(true);
+    const nodeRows = [
+      { id: 'n1', kind: 'function', name: 'a', file_path: 'src/a.ts', start_line: 1, signature: null, docstring: null, is_exported: 0 },
+      { id: 'n2', kind: 'function', name: 'b', file_path: 'src/b.ts', start_line: 2, signature: null, docstring: null, is_exported: 0 },
+    ];
+    const edgeRows = [{ id: 1, source: 'n1', target: 'n2', kind: 'call', metadata: null, line: null }];
+    mockReadGraphFromDbPaged.mockReturnValue({
+      nodes: nodeRows, edges: edgeRows, nextCursor: null, done: true,
+      stats: { nodeCount: 2, edgeCount: 1, phase: 'done' },
+    });
+    mockMapRowsToGraphNodes.mockReturnValue([
+      makeNode('n1', 'a', 'function', 'src/a.ts', 1),
+      makeNode('n2', 'b', 'function', 'src/b.ts', 2),
+    ]);
+    mockMapRowsToGraphEdges.mockReturnValue([makeEdge('e1', 'n1', 'n2', 'call')]);
+    mockComputeGraphMetrics.mockReturnValue(makeMetricsFixture());
+
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, METRICS_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('GET', undefined, {}, undefined, `${METRICS_PATH}?workspace=/test/workspace`), res);
+
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.success).toBe(true);
+    expect(body.errorCode).toBeNull();
+
+    // 契约要求的每个字段都必须在场——缺一个就让客户端静默读到 undefined。
+    for (const key of [
+      'nodeCount', 'edgeCount', 'density', 'avgClustering', 'degreeDistribution',
+      'topBetweenness', 'topPageRank', 'components', 'articulationPoints',
+      'diameter', 'avgShortestPath', 'modularity', 'cyclomaticNumber', 'kCore', 'pageRankMass',
+    ]) {
+      expect(body.metrics, `metrics.${key} missing`).toHaveProperty(key);
+    }
+    expect(body.metrics).toEqual(expect.objectContaining({
+      nodeCount: 2, edgeCount: 1, density: 0.5, avgClustering: 0.25,
+      components: { weaklyConnected: 1, stronglyConnected: 1 },
+      articulationPoints: 0, diameter: 1, avgShortestPath: 0.5,
+      modularity: 0.1, cyclomaticNumber: 0, kCore: 1, pageRankMass: 1,
+    }));
+
+    expect(body.truncation).toEqual(expect.objectContaining({
+      nodesTotal: 2, nodesSampled: 2, edgesTotal: 1, edgesSampled: 1,
+      truncated: false, sampled: false, computeMs: expect.any(Number),
+    }));
+    expect(body.computedAt).toEqual(expect.any(Number));
+  });
+
+  it('discloses truncated=true when the node bound stops the reader mid-index', async () => {
+    mockExistsSync.mockReturnValue(true);
+    // 正好达到 METRICS.MAX_NODES，且分页器仍报告还有下一页。
+    const bigRows = Array.from({ length: METRICS.MAX_NODES }, (_, i) => ({
+      id: `n${i}`, kind: 'function', name: `f${i}`, file_path: `src/f${i}.ts`,
+      start_line: 1, signature: null, docstring: null, is_exported: 0,
+    }));
+    mockReadGraphFromDbPaged.mockReturnValue({
+      nodes: bigRows, edges: [], nextCursor: 'more', done: false,
+      stats: { nodeCount: METRICS.MAX_NODES, edgeCount: 0, phase: 'nodes' },
+    });
+    mockMapRowsToGraphNodes.mockReturnValue(
+      bigRows.map((n) => makeNode(n.id, n.name, 'function', n.file_path, n.start_line)),
+    );
+    mockMapRowsToGraphEdges.mockReturnValue([]);
+    mockComputeGraphMetrics.mockReturnValue({ ...makeMetricsFixture(), nodeCount: METRICS.MAX_NODES });
+
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, METRICS_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('GET', undefined, {}, undefined, `${METRICS_PATH}?workspace=/test/workspace`), res);
+
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.success).toBe(true);
+    expect(body.truncation.nodesTotal).toBe(METRICS.MAX_NODES);
+    expect(body.truncation.nodesSampled).toBe(METRICS.MAX_NODES);
+    expect(body.truncation.truncated).toBe(true);
+    expect(body.truncation.sampled).toBe(true);
+  });
+
+  it('returns 500 METRICS_FAILED when the index is unreadable', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadGraphFromDbPaged.mockReturnValue(null);
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, METRICS_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('GET', undefined, {}, undefined, `${METRICS_PATH}?workspace=/test/workspace`), res);
+
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body)).toEqual(expect.objectContaining({ success: false, errorCode: 'METRICS_FAILED' }));
+    expect(typeof JSON.parse(state.body).error).toBe('string');
+  });
+
+  // ── POST /manage/update ────────────────────────────────────────────────
+
+  it('syncs upstream (codegraph_sync) then triggers a rescan', async () => {
+    deps.invokeUpstream = mockInvokeUpstream;
+    mockInvokeUpstream.mockResolvedValue({ synced: true });
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, UPDATE_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('POST', JSON.stringify({ path: '.' })), res);
+
+    expect(state.code).toBe(200);
+    expect(JSON.parse(state.body)).toEqual({ success: true, errorCode: null, synced: true, scanned: true });
+    expect(mockInvokeUpstream).toHaveBeenCalledWith('codegraph_sync', { path: '/test/workspace' });
+  });
+
+  it('reports SYNC_FAILED (HTTP 200) when upstream sync is unavailable, still rescanning', async () => {
+    deps.invokeUpstream = mockInvokeUpstream;
+    mockInvokeUpstream.mockResolvedValue(null);
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, UPDATE_PATH);
+    const { res, state } = makeRes();
+    await handler!(makeReq('POST', JSON.stringify({ path: '.' })), res);
+
+    expect(state.code).toBe(200);
+    expect(JSON.parse(state.body)).toEqual(expect.objectContaining({
+      success: false, errorCode: 'SYNC_FAILED', synced: false, scanned: true,
+    }));
+    expect(typeof JSON.parse(state.body).error).toBe('string');
+    expect(mockInvokeUpstream).toHaveBeenCalledWith('codegraph_sync', { path: '/test/workspace' });
+  });
+});
+
+// ── cycle-141：/events SSE 路由（registry 曾声称 routes.test.ts 覆盖却零覆盖） ──
+//
+// 为什么需要这条测试：`businessRegistry` 的 `/events` 条目声称 guardTest 是
+// `routes.test.ts`，但该文件此前**零处**提及 `/events`。旧守卫只查「文件存在」，
+// 所以这个谎完全不可见。本测试把 `/events` 的真实行为钉死，让守卫的「覆盖」判据
+// 有据可依（否则守卫会因字面量缺失而永久红，或因空转而永久绿）。
+describe('events SSE route (cycle-141 registry guard)', () => {
+  let ctx: MockCtx;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    deps = makeDeps(ctx, makeConfig());
+    mockIsPathAllowed.mockReturnValue(true);
+  });
+
+  it('opens an SSE stream and forwards the six graph events', () => {
+    registerRoutes(deps);
+    const handler = getHandlerByPath(ctx, '/api/v1/codegraph/events');
+    expect(handler).toBeDefined();
+
+    const writes: string[] = [];
+    const res = {
+      writeHead: vi.fn((code: number, headers?: Record<string, string>) => {
+        expect(code).toBe(200);
+        expect(headers?.['Content-Type']).toBe('text/event-stream');
+      }),
+      write: vi.fn((chunk: string) => { writes.push(chunk); }),
+      end: vi.fn(),
+    };
+
+    // 捕获 close 回调以便清理 heartbeat 与监听（避免定时器泄漏污染后续用例）。
+    const closeCbs: Array<() => void> = [];
+    const req = {
+      method: 'GET',
+      headers: {},
+      url: '/api/v1/codegraph/events',
+      socket: { remoteAddress: '127.0.0.1' },
+      on: vi.fn((event: string, cb: () => void) => { if (event === 'close') closeCbs.push(cb); }),
+      destroy: vi.fn(),
+    };
+
+    handler!(req as unknown as IncomingMessage, res as unknown as ServerResponse);
+
+    // 连接握手帧
+    expect(writes.join('')).toContain(': connected');
+    // 六个事件转发监听
+    const listened = ctx.on.mock.calls.map((c) => c[0]);
+    expect(listened).toContain('codegraph-visualizer/graph/updated');
+    expect(listened).toContain('codegraph-visualizer/graph/data');
+    expect(listened).toContain('codegraph-visualizer/graph/delta');
+    expect(listened).toContain('codegraph-visualizer/repo/imported');
+    expect(listened).toContain('codegraph-visualizer/repo/scanned');
+    expect(listened).toContain('codegraph-visualizer/graph/init-result');
+
+    for (const cb of closeCbs) cb();
   });
 });
 

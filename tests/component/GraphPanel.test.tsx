@@ -1811,6 +1811,7 @@ describe('GraphPanel uncovered handler tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any],
       edges: [], rawNodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any], rawEdges: [],
+      repoId: null,
     });
 
     render(React.createElement(GraphPanel));
@@ -2018,6 +2019,7 @@ describe('GraphPanel context menu callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [{ id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts' } as any],
       edges: [], rawNodes: [{ id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts' } as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -2038,6 +2040,7 @@ describe('GraphPanel context menu callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [clusterNode as any],
       edges: [], rawNodes: [clusterNode as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -2624,6 +2627,7 @@ describe('GraphPanel panel callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [clusterNode as any], edges: [],
       rawNodes: [clusterNode as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -2659,6 +2663,7 @@ describe('GraphPanel panel callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [funcNode as any], edges: [],
       rawNodes: [funcNode as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -2983,6 +2988,7 @@ describe('GraphPanel panel callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any],
       edges: [], rawNodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3408,6 +3414,7 @@ describe('GraphPanel onClose callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [funcNode as any], edges: [],
       rawNodes: [funcNode as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3440,6 +3447,7 @@ describe('GraphPanel onClose callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [clusterNode as any], edges: [],
       rawNodes: [clusterNode as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3588,6 +3596,7 @@ describe('GraphPanel onClose callback tests', () => {
     vi.mocked(useGraphData).mockReturnValue({
       nodes: [funcNode as any], edges: [],
       rawNodes: [funcNode as any], rawEdges: [],
+      repoId: null,
     });
 
     const { container } = render(React.createElement(GraphPanel));

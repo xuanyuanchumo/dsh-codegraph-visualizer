@@ -27,6 +27,24 @@ function findTestFile(name: string, dir: string): boolean {
   return false;
 }
 
+/** 递归定位 guardTest 文件并返回正文（找不到返回 null）。 */
+function readGuardTest(name: string, dir: string): string | null {
+  let entries: string[] = [];
+  try { entries = readdirSync(dir); } catch { return null; }
+  for (const d of entries) {
+    const full = join(dir, d);
+    let isDir = false;
+    try { isDir = statSync(full).isDirectory(); } catch { continue; }
+    if (isDir) {
+      const found = readGuardTest(name, full);
+      if (found !== null) return found;
+    } else if (d === name) {
+      try { return readFileSync(full, 'utf8'); } catch { return null; }
+    }
+  }
+  return null;
+}
+
 describe('business registry contract', () => {
   it('every guardTest points to a real test file', () => {
     const missing = allEntries()
@@ -34,6 +52,51 @@ describe('business registry contract', () => {
       .filter((e) => !findTestFile(e.guardTest!, join(ROOT, 'tests')))
       .map((e) => e.id);
     expect(missing).toEqual([]);
+  });
+
+  /**
+   * **守卫的守卫**（cycle-141）：guardTest 存在 ≠ guardTest 覆盖。
+   *
+   * 缺陷现场：`/manage/delete` 与 `/manage/metrics` 声称 `guardTest: 'routes.test.ts'`，
+   * 而 `routes.test.ts` 里**零处**提及这两个路由——清单说有守卫，实际没有任何用例
+   * 跑到它们。旧守卫只查「文件存在」，所以这个谎**完全不可见**。
+   *
+   * 修法：对每条登记项，读它的 guardTest 文件正文，断言正文里出现该 id。
+   * 「文件存在但没覆盖」与「文件不存在」从此都是红。
+   */
+  /**
+   * **守卫的守卫**（cycle-141）：guardTest 存在 ≠ guardTest 覆盖。
+   *
+   * 缺陷现场：`/manage/delete` 与 `/manage/metrics` 声称 `guardTest: 'routes.test.ts'`，
+   * 而 `routes.test.ts` 里**零处**提及这两个路由——清单说有守卫，实际没有任何用例
+   * 跑到它们。旧守卫只查「文件存在」，所以这个谎**完全不可见**。
+   *
+   * 精确缺陷类：只对 **guardTest === 'routes.test.ts'** 的路由生效——该共享路由测试
+   * 文件必须出现路由路径。其他 guardTest 文件（LayoutController.test.ts、
+   * *Integration.test.ts、hostSkillContribution.test.ts 等）测的是**消费方/行为**，
+   * 不要求出现路由 id 字面量；若把它们也纳入字面量匹配，会产生假阳性
+   * （「文件存在但正文不含 id」≠「没有覆盖」）。
+   */
+  it('routes claiming routes.test.ts must have their route path covered', () => {
+    const rt = readGuardTest('routes.test.ts', join(ROOT, 'tests'));
+    expect(rt).not.toBeNull();
+    const uncovered: string[] = [];
+    for (const e of ROUTE_ENTRIES) {
+      if (e.guardTest !== 'routes.test.ts') continue;
+      if (!rt!.includes(e.id)) uncovered.push(e.id);
+    }
+    expect(uncovered).toEqual([]);
+  });
+
+  it('reverse self-check: a route claiming routes.test.ts without coverage IS detected', () => {
+    // 合成一条「routes.test.ts 存在但正文不含该路由」的登记项。合成 id 必须用
+    // 字符串拼接构造，否则守卫会匹配到自己文件里的样本字面量（本仓第三次同因踩坑）。
+    const fakeId = '/' + 'synthetic_' + 'route_' + 'never_' + 'tested';
+    const rt = readGuardTest('routes.test.ts', join(ROOT, 'tests'));
+    expect(rt).not.toBeNull();
+    expect(rt!.includes(fakeId)).toBe(false);
+    const uncovered = rt!.includes(fakeId) ? [] : [fakeId];
+    expect(uncovered).toHaveLength(1);
   });
 
   it('no broken links (every business has at least one consumer)', () => {
@@ -114,7 +177,7 @@ describe('business registry contract', () => {
     // cycle-135：+graph_slice（多维视图切片：时序 / 所有权 / 领域 + 结构）。
     // cycle-138：+graph_views（Π 视图划分函数）。
     expect(TOOL_ENTRIES.length).toBe(15);
-    expect(ROUTE_ENTRIES.length).toBe(23);
+    expect(ROUTE_ENTRIES.length).toBe(24); // cycle-141 +/manage/update
     expect(ENTRY_ITEMS.length).toBe(4);
     expect(SKILL_ENTRIES.length).toBe(1);
   });

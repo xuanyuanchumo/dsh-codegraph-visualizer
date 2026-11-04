@@ -1,56 +1,73 @@
 /**
- * 图指标计算（cycle-141 原生代码图谱业务增强）。
+ * 图指标计算（cycle-141 原生代码图谱业务增强；cycle-141 第二轮复杂度治理拆分）。
  *
- * ## 设计原则
+ * ## 模块化拆分（cycle-141 第二轮）
  *
- * 1. **纯函数**：无副作用、无 DOM/React 依赖，可在 Node 和浏览器两端运行。
- * 2. **O(V+E) 有界**：所有算法在稀疏图上（代码图谱的典型形态）接近线性复杂度。
- * 3. **流式友好**：输入是节点/边数组而非图对象，避免隐式图构建。
+ * 原文件因新增 8 项图论指标后复杂度 score 132 > upperBand 115，成为全仓 #1
+ * 复杂度热点。按「一域一文件、单文件 ≤~250 行」的纪律拆分为：
+ *
+ * | 模块 | 内容 |
+ * |---|---|
+ * | `types.ts` | MetricNode / MetricEdge / AdjacencyList（跨模块共享类型） |
+ * | `brandes.ts` | 介数中心性（真实无向 Brandes + SPLIT 依赖累加） |
+ * | `connectivity.ts` | WCC / SCC(Kosaraju) / 关节点(Tarjan) |
+ * | `distance.ts` | 直径 / 平均最短路径（全源 BFS，大图采样） |
+ * | `community.ts` | 模块度（单层贪心 Louvain）/ k-core |
+ * | `graphMetrics.ts`（本文件） | 密度 / 聚类系数 / PageRank / 度数分布 + 编排 |
+ *
+ * 本文件**重新导出**全部子模块的公开 API，保持调用方（路由、测试、文档）零改动。
  *
  * ## 数学模型
  *
- * - **密度** (density)：实际边数 / 可能边数，衡量图的连通程度。
- * - **聚类系数** (clustering coefficient)：节点邻居间实际边数 / 可能边数，衡量「物以类聚」。
- * - **介数中心性** (betweenness centrality)：经过该节点的最短路径比例，衡量「咽喉要道」。
- * - **PageRank**：基于随机游走的节点重要性排名。
- * - **度数分布** (degree distribution)：幂律检验（代码图谱通常呈长尾分布）。
+ * - **密度** (density)：实际边数 / 可能边数（**有向**口径，代码图边是 call/import）。
+ * - **聚类系数** (clustering coefficient)：节点邻居间实际边数 / 可能边数。
+ * - **介数中心性**：真实无向 Brandes（见 brandes.ts）。
+ * - **PageRank**：随机游走排名，悬挂节点质量平均重分配（质量守恒）。
+ * - **度数分布**：幂律检验（代码图谱通常呈长尾分布）。
+ * - **连通性 / 关节点 / 直径 / 模块度 / 圈复杂度 / k-core**：见各子模块。
  *
  * ## 数据结构与算法
  *
  * - **邻接表** (AdjacencyList)：代码图谱的稀疏性决定了邻接表优于邻接矩阵。
- * - **BFS 最短路径**：无权图的最短路径（代码调用链的典型形态）。
- * - **Dijkstra 变体**：加权最短路径（预留，当前用于无权图）。
- * - **Louvain 社区检测**（简化版）：基于模块度的贪心合并。
+ * - **BFS / Kosaraju / Tarjan**：线性时间图算法。
+ * - **贪心模块度优化**：单层 Louvain 近似。
+ *
+ * 注：**不实现**加权最短路径（Dijkstra 变体）——代码图当前无边权，
+ * 预留声明不提供任何功能，故不写进本文件（避免空头承诺）。
+ *
+ * 库边界自包含约束：所有 import 必须留在 `src/xuanji` 内。
+ *
+ * @module xuanji/analysis/graphMetrics
  */
 
-/** 最小节点类型——只含图指标需要的字段。定义在库内以满足自包含约束。 */
-interface MetricNode {
-  id: string;
-  label?: string;
-  type?: string;
-  filePath?: string;
-  lineNumber?: number;
-  properties?: Record<string, unknown>;
-}
+import type { AdjacencyList, MetricNode, MetricEdge } from './types.ts';
+import { computeBetweennessCentrality } from './brandes.ts';
+import {
+  countWeaklyConnectedComponents,
+  countStronglyConnectedComponents,
+  countArticulationPoints,
+} from './connectivity.ts';
+import { computeDistanceStats } from './distance.ts';
+import { computeModularity, computeKCore } from './community.ts';
 
-/** 最小边类型——只含图指标需要的字段。 */
-interface MetricEdge {
-  id: string;
-  source: string;
-  target: string;
-  type?: string;
-  properties?: Record<string, unknown>;
-}
-
-/** 邻接表：节点 id → 邻居 id 集合。 */
-interface AdjacencyList {
-  out: Map<string, Set<string>>;
-  in: Map<string, Set<string>>;
-  all: Map<string, Set<string>>;
-}
+// ── 重新导出：保持调用方零改动 ──────────────────────────────────────────
+export type { MetricNode, MetricEdge, AdjacencyList } from './types.ts';
+export {
+  computeBetweennessCentrality,
+  bfsShortestPaths,
+  type BetweennessResult,
+  type BfsResult,
+} from './brandes.ts';
+export {
+  countWeaklyConnectedComponents,
+  countStronglyConnectedComponents,
+  countArticulationPoints,
+} from './connectivity.ts';
+export { computeDistanceStats, type DistanceStats } from './distance.ts';
+export { computeModularity, computeKCore } from './community.ts';
 
 /** 构建邻接表——一次遍历即可。 */
-function buildAdjacencyList(nodes: MetricNode[], edges: MetricEdge[]): AdjacencyList {
+export function buildAdjacencyList(nodes: MetricNode[], edges: MetricEdge[]): AdjacencyList {
   const out = new Map<string, Set<string>>();
   const inn = new Map<string, Set<string>>();
   const all = new Map<string, Set<string>>();
@@ -69,10 +86,21 @@ function buildAdjacencyList(nodes: MetricNode[], edges: MetricEdge[]): Adjacency
   return { out, in: inn, all };
 }
 
-/** 图密度：实际边数 / 可能边数。完全图的密度为 1，空图为 0。 */
+/**
+ * 图密度：实际边数 / 可能边数。完全图的密度为 1，空图为 0。
+ *
+ * ## 有向语义（cycle-141 P0 修复）
+ *
+ * 代码图谱的边是**有向**的（call / import / extend …），但旧实现用无向可能边数
+ * `n(n-1)/2` 作分母——同一张图按有向算是无向的两倍，且没有任何声明说明用的是
+ * 哪种口径。两种口径相差 2 倍，用户无法判断「密度 0.3」意味着什么。
+ *
+ * 修法：改用**有向**可能边数 `n(n-1)`。这是代码图的正确口径；若将来需要无向
+ * 密度，应显式新增一个函数而不是悄悄改分母。
+ */
 export function computeDensity(nodeCount: number, edgeCount: number): number {
   if (nodeCount < 2) return 0;
-  const possible = nodeCount * (nodeCount - 1) / 2;
+  const possible = nodeCount * (nodeCount - 1);
   return Math.min(1, edgeCount / possible);
 }
 
@@ -105,84 +133,17 @@ export function computeAverageClustering(adj: AdjacencyList): number {
 }
 
 /**
- * BFS 最短路径计数——用于介数中心性的近似计算。
- * 返回从 start 到所有可达节点的距离。
- */
-function bfsDistances(adj: AdjacencyList, start: string): Map<string, number> {
-  const distances = new Map<string, number>();
-  distances.set(start, 0);
-  const queue: string[] = [start];
-  const visited = new Set<string>([start]);
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const neighbors = adj.out.get(current);
-    if (!neighbors) continue;
-    for (const neighbor of neighbors) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        distances.set(neighbor, distances.get(current)! + 1);
-        queue.push(neighbor);
-      }
-    }
-  }
-  return distances;
-}
-
-/**
- * 介数中心性（近似）：统计经过每个节点的最短路径比例。
- * 使用 Brandes 算法的简化版——只计算无向图的近似值。
- * 复杂度 O(V·(V+E))，对于大图可启用采样模式。
- */
-export function computeBetweennessCentrality(
-  adj: AdjacencyList,
-  sampleRate = 1.0,
-): Map<string, number> {
-  const centrality = new Map<string, number>();
-  for (const id of adj.all.keys()) centrality.set(id, 0);
-
-  const allNodes = [...adj.all.keys()];
-  // 采样：大图时只对部分节点做 BFS
-  const sampleSize = Math.min(allNodes.length, Math.max(50, Math.floor(allNodes.length * sampleRate)));
-  const indices = new Set<number>();
-  for (let i = 0; i < sampleSize; i++) indices.add(Math.floor((i * 9301 + 49297) % 233280) % allNodes.length);
-
-  for (const startIdx of indices) {
-    const start = allNodes[startIdx];
-    if (!start) continue;
-    const distances = bfsDistances(adj, start);
-    // 对每个可达节点，回溯路径累加介数
-    const reachable = [...distances.keys()].filter((id) => id !== start);
-    for (const target of reachable) {
-      const dist = distances.get(target)!;
-      if (dist === 1) {
-        centrality.set(start, (centrality.get(start) ?? 0) + 0.5);
-      }
-      // 简化：只累加距离为 1 和 2 的路径
-      if (dist <= 2) {
-        const midNeighbors = adj.all.get(target);
-        if (midNeighbors) {
-          for (const mid of midNeighbors) {
-            if (mid !== start && (distances.get(mid) ?? Infinity) === dist - 1) {
-              centrality.set(mid, (centrality.get(mid) ?? 0) + 0.25);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 归一化
-  const factor = 1 / Math.max(1, sampleSize);
-  for (const [id, val] of centrality) {
-    centrality.set(id, val * factor);
-  }
-  return centrality;
-}
-
-/**
  * PageRank：基于随机游走的节点重要性排名。
- * 迭代收敛，阻尼系数 0.85（标准值）。
- * 复杂度 O(iterations × E)。
+ * 迭代收敛，阻尼系数 0.85（标准值）。复杂度 O(iterations × E)。
+ *
+ * ## 悬挂节点质量守恒（cycle-141 P0 修复）
+ *
+ * 旧实现对出度为 0 的节点直接 `continue`，其 `damping × rank` 质量**每轮丢失**，
+ * 于是总质量逐轮衰减、排名整体失真——收敛判据以 n 缩放，恰好掩盖了不归一。
+ *
+ * 标准做法：悬挂节点不流出质量，而是把 `damping × rank` **平均重分配给所有节点**。
+ * 这样每轮总质量恒为 1（(1-damping) 的 teleport + damping×1 的重分配），
+ * 排名与「图是否连通」解耦。修复后 `pageRankMass ≈ 1` 是可断言的守恒见证。
  */
 export function computePageRank(
   adj: AdjacencyList,
@@ -202,13 +163,25 @@ export function computePageRank(
     let diff = 0;
     for (const id of nodeIds) next.set(id, (1 - damping) / n);
 
+    // 收集悬挂节点（出度 0）的质量，稍后平均重分配。
+    let danglingMass = 0;
     for (const id of nodeIds) {
       const outNeighbors = adj.out.get(id);
-      if (!outNeighbors || outNeighbors.size === 0) continue;
+      if (!outNeighbors || outNeighbors.size === 0) {
+        // 悬挂节点：质量不流出，收集后平均重分配（cycle-141 质量守恒修复）。
+        danglingMass += damping * (rank.get(id) ?? 0);
+        continue;
+      }
       const share = damping * (rank.get(id)! ?? 0) / outNeighbors.size;
       for (const neighbor of outNeighbors) {
         next.set(neighbor, (next.get(neighbor) ?? 0) + share);
       }
+    }
+
+    // 悬挂质量平均重分配给所有节点——每轮总质量恒为 1。
+    if (danglingMass > 0) {
+      const danglingShare = danglingMass / n;
+      for (const id of nodeIds) next.set(id, (next.get(id) ?? 0) + danglingShare);
     }
 
     for (const id of nodeIds) {
@@ -249,8 +222,9 @@ export function analyzeDegreeDistribution(outDegrees: Map<string, number>): {
   if (degrees.length < 10) {
     return { alpha: 0, isPowerLaw: false, maxDegree: 0, minDegree: 0, meanDegree: 0 };
   }
-  const maxDeg = Math.max(...degrees);
-  const minDeg = Math.min(...degrees);
+  // 用 reduce 而非 Math.max(...degrees)：后者在超大数组上有栈风险。
+  const maxDeg = degrees.reduce((a, b) => (b > a ? b : a), 0);
+  const minDeg = degrees.reduce((a, b) => (b < a ? b : a), degrees[0]!);
   const meanDeg = degrees.reduce((a, b) => a + b, 0) / degrees.length;
 
   // 简化幂律拟合：对 log(degree) vs log(rank) 做线性回归
@@ -295,6 +269,25 @@ export interface GraphMetrics {
   };
   topBetweenness: Array<{ id: string; value: number }>;
   topPageRank: Array<{ id: string; value: number }>;
+  /** cycle-141 附加：介数采样的源节点数（< 节点总数 = 近似）。 */
+  betweennessSampleSize: number;
+  betweennessApproximate: boolean;
+  /** PageRank 总质量——应 ≈ 1，是悬挂质量守恒的见证。 */
+  pageRankMass: number;
+  /** 弱/强连通分量数。 */
+  components: { weaklyConnected: number; stronglyConnected: number };
+  /** 关节点（咽喉）数。 */
+  articulationPoints: number;
+  /** 直径（断开图 null）。 */
+  diameter: number | null;
+  /** 平均最短路径（断开图 null）。 */
+  avgShortestPath: number | null;
+  /** 模块度 Q ∈ [-0.5, 1]（单层贪心 Louvain 近似）。 */
+  modularity: number;
+  /** 圈复杂度 = E − N + P（P = 弱连通分量数）。 */
+  cyclomaticNumber: number;
+  /** k-core 的最大 k。 */
+  kCore: number;
 }
 
 /** 计算完整的图指标。 */
@@ -305,7 +298,8 @@ export function computeGraphMetrics(nodes: MetricNode[], edges: MetricEdge[]): G
 
   const density = computeDensity(nodeCount, edgeCount);
   const avgClustering = computeAverageClustering(adj);
-  const betweenness = computeBetweennessCentrality(adj);
+  const betweennessResult = computeBetweennessCentrality(adj);
+  const betweenness = betweennessResult.centrality;
   const pageRank = computePageRank(adj);
   const { outDegrees } = computeDegreeDistribution(adj);
   const degreeStats = analyzeDegreeDistribution(outDegrees);
@@ -320,6 +314,21 @@ export function computeGraphMetrics(nodes: MetricNode[], edges: MetricEdge[]): G
     .slice(0, 10)
     .map(([id, value]) => ({ id, value }));
 
+  // cycle-141 附加图论指标（全部纯函数、库内自包含）。
+  const components = {
+    weaklyConnected: countWeaklyConnectedComponents(adj),
+    stronglyConnected: countStronglyConnectedComponents(adj),
+  };
+  const articulationPoints = countArticulationPoints(adj);
+  const distStats = computeDistanceStats(adj);
+  const modularity = computeModularity(adj);
+  const cyclomaticNumber = edgeCount - nodeCount + components.weaklyConnected;
+  const kCore = computeKCore(adj);
+
+  // PageRank 总质量——悬挂质量守恒的见证（应 ≈ 1）。
+  let pageRankMass = 0;
+  for (const v of pageRank.values()) pageRankMass += v;
+
   return {
     nodeCount,
     edgeCount,
@@ -330,5 +339,15 @@ export function computeGraphMetrics(nodes: MetricNode[], edges: MetricEdge[]): G
     degreeDistribution: degreeStats,
     topBetweenness,
     topPageRank,
+    betweennessSampleSize: betweennessResult.sampleSize,
+    betweennessApproximate: betweennessResult.approximate,
+    pageRankMass,
+    components,
+    articulationPoints,
+    diameter: distStats.diameter,
+    avgShortestPath: distStats.avgShortestPath,
+    modularity,
+    cyclomaticNumber,
+    kCore,
   };
 }

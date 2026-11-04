@@ -105,7 +105,7 @@ describe('resolvePanelTier（纯函数分档）', () => {
 });
 
 describe('面板抽屉标记', () => {
-  const none = { hasSelectedNode: false, showSearch: false, showPathFind: false, showFilterPanel: false, showImport: false };
+  const none = { hasSelectedNode: false, showSearch: false, showPathFind: false, showFilterPanel: false, showImport: false, showManage: false };
 
   it('reports the open sheet panels in a stable order', () => {
     expect(openSheetPanels(none)).toEqual([]);
@@ -120,7 +120,7 @@ describe('面板抽屉标记', () => {
         for (const showPathFind of [true, false]) {
           for (const showFilterPanel of [true, false]) {
             for (const showImport of [true, false]) {
-              for (const key of openSheetPanels({ hasSelectedNode, showSearch, showPathFind, showFilterPanel, showImport })) {
+              for (const key of openSheetPanels({ hasSelectedNode, showSearch, showPathFind, showFilterPanel, showImport, showManage: false })) {
                 producible.add(key);
               }
           for (const showManage of [true, false]) {

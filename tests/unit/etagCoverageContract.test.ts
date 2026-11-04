@@ -96,7 +96,8 @@ const DECISION_MATRIX: MatrixEntry[] = [
   { method: 'POST', path: '/api/v1/codegraph/init', routeClass: 'post', rationale: '触发动作非资源获取' },
   { method: 'POST', path: '/api/v1/codegraph/watch', routeClass: 'post', rationale: '触发动作非资源获取' },
   { method: 'POST', path: '/api/v1/codegraph/manage/delete', routeClass: 'post', rationale: '删除索引是触发动作，非资源获取' },
-  // ---- sse（1 条：流式响应不结束，304 判定无从发生） ----
+  // cycle-141：管理面板「更新」——`codegraph_sync` + 重扫都是触发动作，条件请求语义不适用。
+  { method: 'POST', path: '/api/v1/codegraph/manage/update', routeClass: 'post', rationale: '增量同步触发动作，非资源获取' },  // ---- sse（1 条：流式响应不结束，304 判定无从发生） ----
   { method: 'GET', path: '/api/v1/codegraph/events', routeClass: 'sse', rationale: 'text/event-stream 长连接' },
   // ---- diagnostic（3 条：实时探测端点，缓存主动有害） ----
   { method: 'GET', path: '/api/v1/codegraph/status', routeClass: 'diagnostic', rationale: '能力探测，每次都该拿实时状态' },

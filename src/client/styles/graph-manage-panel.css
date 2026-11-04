@@ -290,3 +290,78 @@
   color: var(--cg-warning);
   font-size: 12px;
 }
+
+/* ── 删除确认（内联两步确认） ────────────────────────────────────────────── */
+
+.cg-manage-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-error);
+  border-radius: 4px;
+}
+
+.cg-manage-confirm-text {
+  flex: 1;
+  min-width: 200px;
+  color: var(--cg-error);
+  font-size: 12px;
+}
+
+/* ── 白盒信息 ────────────────────────────────────────────────────────────── */
+
+.cg-manage-whitebox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+}
+
+.cg-manage-whitebox-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cg-manage-whitebox-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.cg-manage-whitebox-value {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--cg-text);
+  word-break: break-all;
+  text-align: right;
+}
+
+.cg-manage-truncation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--cg-border);
+}
+
+.cg-manage-truncation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+
+.cg-manage-metric-grid--extra {
+  margin-top: 8px;
+}
+

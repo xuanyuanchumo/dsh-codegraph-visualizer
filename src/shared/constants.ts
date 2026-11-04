@@ -398,6 +398,27 @@ export const INCREMENTAL = {
   MAX_FILE_BATCH: 200,
 } as const;
 
+/**
+ * `/manage/metrics` 的采样边界（cycle-141，P0 可用性）。
+ *
+ * ## 节点与边必须**各自**设上界
+ *
+ * 旧实现的循环条件只界节点（`allDbNodes.length < 10000`），边侧完全没有界：只要节点数
+ * 没到上限，循环就把**全库边**读进内存。代码图谱的边数通常是节点数的 2–5 倍，一个
+ * 9 千节点 / 4 万边的仓库就足以让这条路由 OOM。节点与边是**同一处内存护栏的两半**，
+ * 缺一即回到旧缺陷——所以这里两个上界缺一不可。
+ *
+ * ## 边界只影响「读多少」，不影响「算得对不对」
+ *
+ * 触到上界时路由如实披露 `truncated: true` 与 `nodesTotal/edgesTotal`，客户端据此知道
+ * 这不是全量图。上界不是精度承诺，是可用性护栏。
+ */
+export const METRICS = {
+  MAX_NODES: 10000,
+  MAX_EDGES: 50000,
+  PAGE_SIZE: 500,
+} as const;
+
 export const UI = {
   SEARCH_DEBOUNCE_MS: 200,
   RESIZE_DEBOUNCE_MS: 200,
@@ -505,6 +526,10 @@ export const ERROR_CODES = {
   BODY_TOO_LARGE: 'BODY_TOO_LARGE',
   INVALID_JSON_BODY: 'INVALID_JSON_BODY',
   INVALID_CONFIG: 'INVALID_CONFIG',
+  INDEX_NOT_FOUND: 'INDEX_NOT_FOUND',
+  DELETE_FAILED: 'DELETE_FAILED',
+  METRICS_FAILED: 'METRICS_FAILED',
+  SYNC_FAILED: 'SYNC_FAILED',
 } as const;
 
 export const ERROR_MESSAGES: Record<string, { en: string; zh: string }> = {
@@ -533,6 +558,10 @@ export const ERROR_MESSAGES: Record<string, { en: string; zh: string }> = {
   BODY_TOO_LARGE: { en: 'Request body too large', zh: '请求体过大' },
   INVALID_JSON_BODY: { en: 'Invalid JSON body: expected object', zh: '无效的 JSON 请求体：应为对象' },
   INVALID_CONFIG: { en: 'Invalid configuration', zh: '无效的配置' },
+  INDEX_NOT_FOUND: { en: 'Index not found', zh: '未找到索引' },
+  DELETE_FAILED: { en: 'Failed to delete index', zh: '删除索引失败' },
+  METRICS_FAILED: { en: 'Graph metrics computation failed', zh: '图指标计算失败' },
+  SYNC_FAILED: { en: 'Upstream sync failed', zh: '上游同步失败' },
 };
 export const REPO_URL = 'https://github.com/xuanyuanchumo/dsh-codegraph-visualizer';
 export const IMPORT = {
