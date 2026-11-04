@@ -17,7 +17,7 @@
   "engines": {
     "node": ">=22.19 || >=24",
     "pnpm": ">=9",
-    "dsh": ">=0.2.0-rc.2 <0.4.0-0"
+    "dsh": ">=0.2.0-rc.2 <0.3.0 || >=0.3.0-0 <0.4.0-0"
   },
   "packageManager": "pnpm@9.12.0",
   "main": "dist/index.js",
@@ -45,6 +45,11 @@
     "lint": "oxlint src/",
     "lint:fix": "oxlint src/ --fix",
     "hygiene": "node scripts/consume-check.mjs",
+    "market": "node scripts/plugin-market-index.mjs",
+    "market:check": "node scripts/plugin-market-index.mjs --check",
+    "icon": "node scripts/generate-icon-raster.mjs",
+    "icon:check": "node scripts/generate-icon-raster.mjs --check",
+    "market:prepare": "pnpm run icon && pnpm run market",
     "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {

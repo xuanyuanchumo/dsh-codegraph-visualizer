@@ -4,7 +4,7 @@ import { useT } from '../i18n/index.ts';
 import { logger } from '../../shared/Logger.ts';
 import type { LogEntry, LogLevel } from '../../shared/Logger.ts';
 import { getMeasurements, getThresholds } from '../../shared/PerformanceMonitor.ts';
-import { snapshot as obsSnapshot } from '../../shared/observability.ts';
+import { snapshot as obsSnapshot, getAllPipelineTiming, PIPELINE_ORDER, PIPELINE_STAGE_LABELS } from '../../shared/observability.ts';
 import { buildRuntimeSnapshot } from '../../shared/runtimeSnapshot.ts';
 import type { RuntimeLogRow, RuntimeSnapshot } from '../../shared/runtimeSnapshot.ts';
 import { RUNTIME } from '../../shared/constants.ts';
@@ -187,7 +187,7 @@ export const RuntimePanel = memo(function RuntimePanel({ onClose, label }: Runti
 
           <div className="cg-runtime-footnote">{t('runtime.noTraceId')}</div>
 
-          <ObservabilitySection obs={obsSnapshot()} t={t} />
+          <ObservabilitySection obs={obsSnapshot()} timing={getAllPipelineTiming()} t={t} />
         </>
       )}
     </AnalysisPanelShell>
@@ -197,12 +197,13 @@ export const RuntimePanel = memo(function RuntimePanel({ onClose, label }: Runti
 /**
  * 白盒可观测性计数区（cycle-141 第二轮）。
  *
- * 展示缓存命中率、ETag 决策分布、AST 预算用量、管线阶段计数——
- * 这些是 PerformanceMonitor 度量不了的**计数**维度。
+ * 展示缓存命中率、ETag 决策分布、AST 预算用量、管线阶段计数与耗时——
+ * 这些是 PerformanceMonitor 度量不了的**计数**维度 + 管线**耗时**维度。
  */
-function ObservabilitySection({ obs, t }: { obs: Record<string, number>; t: (k: string, p?: Record<string, string | number>) => string }) {
+function ObservabilitySection({ obs, timing, t }: { obs: Record<string, number>; timing: Record<string, { count: number; avgMs: number; maxMs: number; minMs: number; lastMs: number }>; t: (k: string, p?: Record<string, string | number>) => string }) {
   const entries = Object.entries(obs);
-  if (entries.length === 0) return null;
+  const timingEntries = Object.entries(timing);
+  if (entries.length === 0 && timingEntries.length === 0) return null;
 
   // 按分组组织：cache / etag / ast / pipeline
   const groups: Array<{ prefix: string; label: string; items: Array<[string, number]> }> = [
@@ -220,7 +221,11 @@ function ObservabilitySection({ obs, t }: { obs: Record<string, number>; t: (k: 
     }
   }
   const visibleGroups = groups.filter((g) => g.items.length > 0);
-  if (visibleGroups.length === 0) return null;
+
+  // 管线耗时区：按 PIPELINE_ORDER 排列
+  const visibleTiming = PIPELINE_ORDER
+    .map((stage) => ({ stage, timing: timing[stage] }))
+    .filter((e): e is { stage: (typeof PIPELINE_ORDER)[number]; timing: { count: number; avgMs: number; maxMs: number; minMs: number; lastMs: number } } => e.timing !== undefined && e.timing.count > 0);
 
   return (
     <div className="cg-runtime-obs-section">
@@ -240,6 +245,21 @@ function ObservabilitySection({ obs, t }: { obs: Record<string, number>; t: (k: 
           </div>
         </div>
       ))}
+      {visibleTiming.length > 0 && (
+        <div className="cg-runtime-obs-group">
+          <div className="cg-runtime-obs-group-label">{t('runtime.obsPipelineTiming')}</div>
+          <div className="cg-runtime-obs-items">
+            {visibleTiming.map(({ stage, timing: tm }) => (
+              <div key={stage} className="cg-runtime-obs-item">
+                <span className="cg-runtime-obs-key">{PIPELINE_STAGE_LABELS[stage] ?? stage}</span>
+                <span className="cg-runtime-obs-value">
+                  {tm.count}× avg {tm.avgMs.toFixed(0)}ms max {tm.maxMs.toFixed(0)}ms
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

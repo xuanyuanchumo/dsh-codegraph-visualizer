@@ -73,6 +73,8 @@ export const ROUTE_ENTRIES: RegistryEntry[] = [
   // cycle-141：/manage/update 曾只注册不登记——正是本矩阵要抓住的「注册了但矩阵不知道」
   // 形态（cycle-134 真机 /status 报 byFace.tools=12 而实际 13 的同族缺陷）。
   { id: '/manage/update', face: 'routes', registeredAt: 'src/host/routes/controlRoutes.ts:519', produces: '增量更新（codegraph_sync → 重扫）', consumers: ['client GraphManagePanel'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
+  // cycle-141 workstream E：Π 视图划分的用户侧出口——「每个节点/边属于哪些正交视图」。
+  { id: '/views', face: 'routes', registeredAt: 'src/host/routes/viewsRoute.ts', produces: 'Π 视图划分（结构/时序/所有权/领域 + 节点视图矩阵）', consumers: ['client ViewsPanel', 'graph_views tool'], guardTest: 'viewsRoute.test.ts', lifecycle: 'consuming' },
   { id: '/tree-sitter', face: 'routes', registeredAt: 'src/host/routes/analysisRoutes.ts:320', produces: 'tree-sitter 解析对照', consumers: ['tests/unit/pathParityAndRevealContract.test.ts（外部消费）'], guardTest: 'pathParityAndRevealContract.test.ts', lifecycle: 'consuming' },
   { id: '/status', face: 'routes', registeredAt: 'src/host/routes/statusRoutes.ts:10', produces: '能力位 + 索引状态', consumers: ['client 空态判定', '本 registry 路由'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },
   { id: '/health', face: 'routes', registeredAt: 'src/host/routes/statusRoutes.ts:37', produces: '健康度（503 语义）', consumers: ['E2E diff-and-integration.spec', 'dev-server.mjs（外部消费）'], guardTest: 'routes.test.ts', lifecycle: 'consuming' },

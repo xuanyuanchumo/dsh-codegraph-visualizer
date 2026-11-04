@@ -173,3 +173,155 @@ export function recordAstBudget(stats: { requested: number; returned: number; tr
 export function recordPipelineStage(stage: 'scan' | 'init' | 'import' | 'dbRead' | 'merge' | 'xuanjiDelta' | 'xuanjiDegraded'): void {
   incr(`pipeline.${stage}`);
 }
+
+/**
+ * 管线阶段耗时追踪（cycle-141 第二轮）。
+ *
+ * 计数器只回答「多少次」，不回答「多久」。管线流动可视化需要**两者**：
+ *   - 计数：数据流过这个阶段多少次
+ *   - 耗时：每次流过花了多少时间
+ *
+ * 本模块用两个 Map 分别追踪：
+ *   - `pipelineDurations`：每个阶段的耗时样本（最近 100 条）
+ *   - `pipelineTimingKeys`：每个阶段的计时键名
+ *
+ * 与 `recordPipelineStage` 配合使用：调用方在进入阶段时调用
+ * `startPipelineTiming(stage)`，离开时调用 `endPipelineTiming(stage)`。
+ * 这两个函数**必须配对**——漏调 end 会让计时器永久挂起（stale timer）。
+ */
+
+/** 每个阶段保留的最近耗时样本数。 */
+const PIPELINE_SAMPLE_LIMIT = 100;
+
+/** 阶段 → 耗时样本数组（最近 100 条）。 */
+const pipelineDurations = new Map<string, number[]>();
+
+/** 阶段 → 正在计时的起始时间（pendingMarks 的管线版本）。 */
+const pipelinePendingMarks = new Map<string, number>();
+
+/**
+ * 开始计时某个管线阶段。
+ *
+ * 返回一个 disposer：调用它等同于调用 `endPipelineTiming`。
+ * 这样调用方可以用 `try/finally` 或 `using` 语法确保计时器一定被清理。
+ */
+export function startPipelineTiming(stage: string): () => void {
+  const now = Date.now();
+  pipelinePendingMarks.set(stage, now);
+  return () => endPipelineTiming(stage);
+}
+
+/**
+ * 结束计时某个管线阶段，记录耗时。
+ *
+ * 返回耗时（毫秒），若没有对应的起始时间则返回 null。
+ */
+export function endPipelineTiming(stage: string): number | null {
+  const start = pipelinePendingMarks.get(stage);
+  if (start === undefined) return null;
+  pipelinePendingMarks.delete(stage);
+  const durationMs = Date.now() - start;
+  let samples = pipelineDurations.get(stage);
+  if (!samples) {
+    samples = [];
+    pipelineDurations.set(stage, samples);
+  }
+  samples.push(durationMs);
+  if (samples.length > PIPELINE_SAMPLE_LIMIT) samples.shift();
+  return durationMs;
+}
+
+/**
+ * 获取某个管线阶段的耗时统计。
+ *
+ * 返回 `{ count, avgMs, maxMs, minMs, lastMs, samples }`——
+ * `samples` 是最近 100 条样本的数组（用于可视化）。
+ */
+export function getPipelineTiming(stage: string): {
+  count: number;
+  avgMs: number;
+  maxMs: number;
+  minMs: number;
+  lastMs: number;
+  samples: number[];
+} {
+  const samples = pipelineDurations.get(stage) ?? [];
+  if (samples.length === 0) {
+    return { count: 0, avgMs: 0, maxMs: 0, minMs: 0, lastMs: 0, samples: [] };
+  }
+  const sum = samples.reduce((a, b) => a + b, 0);
+  const avgMs = sum / samples.length;
+  let maxMs = 0;
+  let minMs = Infinity;
+  for (const s of samples) {
+    if (s > maxMs) maxMs = s;
+    if (s < minMs) minMs = s;
+  }
+  return {
+    count: samples.length,
+    avgMs,
+    maxMs,
+    minMs,
+    lastMs: samples[samples.length - 1]!,
+    samples: [...samples],
+  };
+}
+
+/**
+ * 获取所有管线阶段的耗时统计。
+ *
+ * 返回 `Record<stage, timing>`——供面板一次性渲染全部阶段。
+ */
+export function getAllPipelineTiming(): Record<string, ReturnType<typeof getPipelineTiming>> {
+  const out: Record<string, ReturnType<typeof getPipelineTiming>> = {};
+  for (const stage of pipelineDurations.keys()) {
+    out[stage] = getPipelineTiming(stage);
+  }
+  return out;
+}
+
+/**
+ * 管线阶段名的有序列表（用于面板渲染顺序）。
+ *
+ * 按数据流方向排列：scan → import → dbRead → merge → xuanjiDelta。
+ */
+export const PIPELINE_ORDER = [
+  'scan',
+  'init',
+  'import',
+  'dbRead',
+  'merge',
+  'xuanjiDelta',
+  'xuanjiDegraded',
+] as const;
+
+/**
+ * 指标计算耗时记录器。
+ *
+ * `manage/metrics` 路由已经计算 `computeMs` 并返回给客户端，但这只出现在
+ * 单次响应里。把耗时也记入 observability 模块，面板就能展示「最近 N 次
+ * 指标计算的平均耗时」——这才是白盒透明化该有的样子。
+ *
+ * 用 `pipeline.metricsCompute` 键记录累计耗时（毫秒），面板可据此算平均。
+ */
+export function recordMetricsCompute(durationMs: number): void {
+  incr('pipeline.metricsCompute', durationMs);
+  // 也递增一次计数，让面板知道「计算了多少次」
+  incr('pipeline.metricsCompute.count');
+}
+
+/**
+ * 管线阶段中文名（用于面板显示）。
+ *
+ * 放在 observability 模块而不是 i18n，因为这是**技术术语**而非用户界面文本——
+ * 管线阶段名是开发者/运维看的内部指标，不需要国际化。
+ */
+export const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  scan: '扫描',
+  init: '初始化',
+  import: '导入',
+  dbRead: '数据库读取',
+  merge: '三源合并',
+  xuanjiDelta: '璇玑增量',
+  xuanjiDegraded: '璇玑降级',
+};

@@ -43,6 +43,7 @@ import { registerLayoutWorkerRoute } from './routes/workerRoutes.ts';
 import { registerKeywordQueryRoute } from './routes/queryRoute.ts';
 import { registerPathsRoute } from './routes/pathsRoute.ts';
 import { registerRegistryRoute } from './routes/registryRoute.ts';
+import { registerViewsRoute } from './routes/viewsRoute.ts';
 import { resetSnapshotShrinkState } from './compat/index.ts';
 
 export function registerRoutes(deps: RouteDeps): void {
@@ -113,6 +114,11 @@ export function registerRoutes(deps: RouteDeps): void {
   // 插在中间会让一大片无关用例整体错位一格。所有路由都是 `kind: 'exact'` 的精确路径，
   // 注册顺序不影响匹配语义。代价是本路由的索引（24）依赖前面所有路由先注册。
   registerManageUpdateRoute(rc);
+  // cycle-141 workstream E：Π 视图划分的用户侧出口（`/api/v1/codegraph/views`）。
+  // 同样刻意追加在**最后**：既有测试用「第 N 次注册」定位路由（`getHandler(ctx, N)`），
+  // 插在中间会让一大片无关用例整体错位一格。所有路由都是 `kind: 'exact'` 的精确路径，
+  // 注册顺序不影响匹配语义。代价是本路由的索引（25）依赖前面所有路由先注册。
+  registerViewsRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');

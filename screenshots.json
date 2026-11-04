@@ -1,0 +1,8 @@
+[
+  "tests/e2e/__screenshots__/visual-win32/visual-screenshots.spec.ts/e2e-01-default.png",
+  "tests/e2e/__screenshots__/visual-win32/visual-screenshots.spec.ts/e2e-04-dark.png",
+  "tests/e2e/__screenshots__/visual-win32/visual-screenshots.spec.ts/e2e-07-call-chain.png",
+  "tests/e2e/__screenshots__/visual-win32/visual-screenshots.spec.ts/e2e-09-path-find.png",
+  "tests/e2e/__screenshots__/visual-win32/visual-screenshots.spec.ts/e2e-11-filter.png",
+  "tests/e2e/__screenshots__/visual-win32/visual-screenshots.spec.ts/e2e-14-edge-panel.png"
+]

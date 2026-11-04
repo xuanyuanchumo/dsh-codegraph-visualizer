@@ -835,6 +835,7 @@ export const zh: Record<string, string> = {
   'runtime.obsEtag': 'ETag 决策',
   'runtime.obsAst': 'AST 预算',
   'runtime.obsPipeline': '管线阶段',
+  'runtime.obsPipelineTiming': '管线耗时',
 
   // 通用
   'common.close': '关闭',
@@ -913,4 +914,29 @@ export const zh: Record<string, string> = {
   'pathPattern.hops': '{n} 跳',
   'pathPattern.announce': '枚举完成：{n} 条路径',
   'pathPattern.tuningLabel': '枚举参数',
+
+  // cycle-141 workstream E：Π 视图划分面板（`ViewsPanel`）。
+  // 四视图（structural/temporal/ownership/domain）的卡片、分布条、节点矩阵与领域分解。
+  'views.title': '视图划分（Π）',
+  'views.loading': '加载视图划分中…',
+  'views.error': '视图划分加载失败',
+  'views.retry': '重试',
+  'views.notFound': '未找到索引，尚未构建图谱',
+  'views.nodes': '节点',
+  'views.edges': '边',
+  'views.card.structural': '结构视图',
+  'views.card.temporal': '时序视图',
+  'views.card.ownership': '所有权视图',
+  'views.card.domain': '领域视图',
+  'views.cardHint': '{nodes} 节点 · {edges} 边',
+  'views.temporalUnavailable': '时序视图不可用',
+  'views.ownershipUnavailable': '所有权视图不可用',
+  'views.distributionTitle': '视图分布',
+  'views.matrixTitle': '节点视图矩阵',
+  'views.domainTitle': '领域分布',
+  'views.domainUnknown': '未命名领域',
+  'views.yes': '✓',
+  'views.no': '—',
+  'views.sampled': '仅显示前 {shown} 个节点（共 {total} 个）',
+  'views.emptyMatrix': '暂无节点',
 };

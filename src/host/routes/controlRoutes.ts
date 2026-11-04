@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { VALIDATION, ERROR_CODES, ERROR_MESSAGES, API, METRICS } from '../../shared/constants.ts';
-import { recordCacheHit, recordCacheMiss, recordPipelineStage } from '../../shared/observability.ts';
+import { recordCacheHit, recordCacheMiss, recordPipelineStage, startPipelineTiming, endPipelineTiming, recordMetricsCompute } from '../../shared/observability.ts';
 import { RepoId } from '../../types/index.ts';
 import { fetchMergedGraph } from '../../tools.ts';
 import { resolveDbPath } from '../../adapters/CodeGraphAdapter.ts';
@@ -61,6 +61,9 @@ export function registerScanRoute(rc: RouteContext): void {
           return;
         }
 
+        // 管线阶段计时：scan 开始 → fetchMergedGraph 完成 → merge 完成
+        startPipelineTiming('scan');
+
         const scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
           .then(raw => slimGraphData(raw, config.maxNodes));
         deps.setScanInFlight(scanPath, scanPromise);
@@ -69,14 +72,18 @@ export function registerScanRoute(rc: RouteContext): void {
 
         scanPromise.then(data => {
           if (deps.isDestroyed()) return;
+          endPipelineTiming('scan');
           deps.setLastGraphData(data);
           scanCache.set(scanPath, { data, timestamp: Date.now() });
+          // 管线阶段计时：merge 开始 → 缓存写入完成
+          startPipelineTiming('merge');
           // 管线阶段计数：scan 完成进入 merge（三源合并）阶段
           recordPipelineStage('merge');
           if (scanCache.size > config.scanCacheLimit) {
             const oldest = scanCache.keys().next().value;
             if (oldest !== undefined) scanCache.delete(oldest);
           }
+          endPipelineTiming('merge');
           ctx.emit('codegraph-visualizer/graph/updated', {
             repoId: RepoId(repoId),
             nodeCount: data.metadata.nodeCount,
@@ -457,6 +464,7 @@ export function registerManageMetricsRoute(rc: RouteContext): void {
         const { computeGraphMetrics } = await import('../../xuanji/analysis/graphMetrics.ts');
         const metrics = computeGraphMetrics(nodes, edges);
         const computeMs = Date.now() - startedAt;
+        recordMetricsCompute(computeMs);
 
         const nodesSampled = nodes.length;
         const edgesSampled = edges.length;

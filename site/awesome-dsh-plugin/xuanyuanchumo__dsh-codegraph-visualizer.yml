@@ -1,0 +1,45 @@
+# awesome-dsh-plugin 投稿条目（cycle-141 第三轮）
+#
+# ## 这份文件是什么
+#
+# 它是 https://github.com/awesome-dsh-plugin/awesome-dsh-plugin 的**投稿数据**，
+# 不是本插件运行时读的东西。投稿方式（见该仓库 contributing.md）是：
+# 往 `data/plugins/<owner>__<repo>.yml` 加**一个文件**、开一个 PR；两个 README
+# 由仓库脚本生成，**不要手工编辑**。本文件与该路径逐字对应，可直接复制过去。
+#
+# ## 为什么放在 site/ 下
+#
+# `site/` 是本仓的「可发布产物」目录（`site/plugin-market/` 同属此列）。
+# 放在这里使投稿内容成为**受版本控制、可被契约测试守护**的仓库资产，
+# 而不是散落在会话记录里的一段 YAML 文本。
+#
+# ## 各字段的依据
+#
+# - `url` / `name`：与 `package.json` 的 `repository.url` 一致（已由
+#   `tests/unit/marketplaceSubmission.test.ts` 机器核对——投稿 URL 与仓库声明
+#   漂移会让收录指向一个不同的仓库）。
+# - `category: ui`：该列表的合法取值之一。本插件的主要交付面是「在主会话顶部
+#   标签里呈现交互式图谱」，属 UI 增强；15 个 `graph_*` 工具是次要面。
+#   （合法取值：agi/ui/usage/theme/model/identity/session/memory/tools/wsl/
+#   browser/vision/voice/docs/skill/workflow/git/notify/dev/security/remote/market/fun）
+# - `description`：只陈述功能、不含最高级形容词，且**不含无法核对的数字**
+#   （该列表会把描述当声明与代码逐条核对）。
+# - `icon`：必须是 **GitHub 托管的位图**——该列表**拒绝 SVG**。产物由
+#   `scripts/generate-icon-raster.mjs` 从 `assets/icon.svg` 光栅化而来，
+#   与源图同目录，故不依赖任何外部图床。
+#
+# ## 收录前置条件（本仓已满足；由契约测试守护）
+#
+# - `package.json` 声明 `dsh.bundle`（只声明 `dsh.client` 会被 CI 拒收）
+# - 仓库有真实可用代码（非占位/纯 README）
+# - 仓库创建满 1 天
+# - `package.json` 的 `keywords` 含 `dsh-plugin`
+# - 官方 `@deepseek-ai/*` 用 `peerDependencies`，且预发布范围带显式 `||` 分支
+
+url: https://github.com/xuanyuanchumo/dsh-codegraph-visualizer
+name: xuanyuanchumo/dsh-codegraph-visualizer
+category: ui
+description:
+  en: Interactive code-graph visualization inside DSH, adding a top-level conversation tab for call chains, dependency analysis and impact assessment.
+  zh: DSH 内的交互式代码图谱：在主会话顶部标签中呈现调用链、依赖分析与影响评估。
+icon: https://raw.githubusercontent.com/xuanyuanchumo/dsh-codegraph-visualizer/master/assets/icon-180.png

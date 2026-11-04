@@ -352,22 +352,23 @@ describe('registerRoutes', () => {
     });
   });
 
-  it('registers all 26 routes', () => {
+  it('registers all 27 routes', () => {
     registerRoutes(deps);
-    // 26 = 升级前的 18 条 + `/churn` + `/query` + `/registry` + 2 条管理路由 (delete + metrics)
-    //   + cycle-124 的 `/paths`（路径枚举的用户侧出口）
-    //   + cycle-135 的 `/path-pattern/syntax`（ρ 语法预检）
-    //   + cycle-141 的 `/manage/update`（增量更新：codegraph_sync → 重扫）。
+    // 27 = 源码 26 处 register*Route( 调用，其中一条路由函数内部注册了两次
+    //   webServer.register（路由 + 兜底），故 mock 调用数 = 26 + 1 = 27。
+    // registry 路由自身不计入 ROUTE_ENTRIES（看板不观测自己），
+    // 故源码注册数 = ROUTE_ENTRIES.length + 1 = 25 + 1 = 26（由 registryContract 守卫）。
     // 这条断言的价值不在数字本身，而在「新增一条路由必须显式面对它」——
     // 否则漏注册一条路由不会有任何测试变红（`ctx.effect` 的 disposer 一样能过）。
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(26);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(27);
 
-    // 计数不能替代成员：23 次调用里少一条多一条同样能过，因此再断言
+    // 计数不能替代成员：27 次调用里少一条多一条同样能过，因此再断言
     // 「每条路径存在且唯一」（漏注册 / 重复注册两种失败都会被看见）。
     const paths = ctx.webServer.register.mock.calls.map((call) => (call[0] as { path: string }).path);
     expect(new Set(paths).size).toBe(paths.length);
     expect(paths).toContain('/api/v1/codegraph/path-pattern/syntax');
     expect(paths).toContain('/api/v1/codegraph/paths');
+    expect(paths).toContain('/api/v1/codegraph/views');
   });
 
   it('serves the layout worker bundle from the plugin HTTP surface', () => {
@@ -419,7 +420,7 @@ describe('registerRoutes', () => {
         // cycle-138：→ 15（+graph_views，Π 视图划分函数）。
         // 这个数字是「矩阵登记数」，与「真实注册数」的一致性由 registryContract.test.ts
         // 的集合相等守卫负责。
-        byFace: expect.objectContaining({ tools: 15, routes: 24, entries: 4, skill: 1 }),
+        byFace: expect.objectContaining({ tools: 15, routes: 25, entries: 4, skill: 1 }),
         brokenLinks: [],
       }),
     });

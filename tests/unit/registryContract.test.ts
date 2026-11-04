@@ -177,7 +177,7 @@ describe('business registry contract', () => {
     // cycle-135：+graph_slice（多维视图切片：时序 / 所有权 / 领域 + 结构）。
     // cycle-138：+graph_views（Π 视图划分函数）。
     expect(TOOL_ENTRIES.length).toBe(15);
-    expect(ROUTE_ENTRIES.length).toBe(24); // cycle-141 +/manage/update
+    expect(ROUTE_ENTRIES.length).toBe(25); // cycle-141 +/manage/update +/views
     expect(ENTRY_ITEMS.length).toBe(4);
     expect(SKILL_ENTRIES.length).toBe(1);
   });

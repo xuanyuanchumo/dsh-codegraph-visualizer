@@ -85,12 +85,52 @@ function compareVersions(a: string, b: string): number {
   return aPre < bPre ? -1 : 1;
 }
 
-function coversVersion(range: string, version: string): boolean {
-  const parts = range.split(/\s+/).filter(Boolean);
-  return parts.every((part) => {
-    if (part.startsWith('>=')) return compareVersions(version, part.slice(2)) >= 0;
-    if (part.startsWith('<')) return compareVersions(version, part.slice(1)) < 0;
-    throw new Error(`manifest.test: unsupported range operator in "${part}"`);
+/**
+ * 求值 semver 范围是否覆盖某版本——**忠实实现 node-semver 默认模式语义**。
+ *
+ * cycle-141 第三轮修正：旧实现按空白切分并对每一段无条件求值，既不认识 `||`
+ * 分支，也不实现 node-semver 的**预发布元组规则**（带预发布的版本只有在范围内
+ * 存在一个同 major.minor.patch 元组、且自身带预发布标签的比较符时才可能匹配）。
+ * 后果与 `tests/unit/dshGeneration.test.ts` 的同名助手完全相同：守卫测的是自己，
+ * 不是安装门。
+ *
+ * 与 `dshGeneration.test.ts` 的 `compareWithinRange` 保持**独立实现**（同上注释的
+ * 理由）：两边都断言同一件事，复制一份比互相 import 更能暴露「其中一边被改坏」。
+ * 本函数默认模式；需要 includePrerelease 语义时传第三参。
+ */
+function coversVersion(
+  range: string,
+  version: string,
+  opts: { includePrerelease?: boolean } = {},
+): boolean {
+  const parse = (v: string): { core: number[]; pre: string } => {
+    const [core = '0', pre = ''] = v.split('-', 2);
+    return { core: core.split('.').map(Number), pre };
+  };
+  const cmpCore = (a: number[], b: number[]): number => {
+    for (let i = 0; i < 3; i += 1) {
+      const diff = (a[i] ?? 0) - (b[i] ?? 0);
+      if (diff !== 0) return diff < 0 ? -1 : 1;
+    }
+    return 0;
+  };
+  const v = parse(version);
+  return range.split('||').some((branch) => {
+    const parts = branch.split(/\s+/).filter(Boolean);
+    for (const part of parts) {
+      const ok = part.startsWith('>=')
+        ? compareVersions(version, part.slice(2)) >= 0
+        : part.startsWith('<')
+          ? compareVersions(version, part.slice(1)) < 0
+          : (() => { throw new Error(`manifest.test: unsupported range operator in "${part}"`); })();
+      if (!ok) return false;
+    }
+    if (opts.includePrerelease === true) return true;
+    if (v.pre === '') return true;
+    return parts.some((part) => {
+      const ref = parse(part.replace(/^[<>]=?/, ''));
+      return ref.pre !== '' && cmpCore(ref.core, v.core) === 0;
+    });
   });
 }
 

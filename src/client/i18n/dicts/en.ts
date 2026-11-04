@@ -838,6 +838,7 @@ export const en: Record<string, string> = {
   'runtime.obsEtag': 'ETag decisions',
   'runtime.obsAst': 'AST budget',
   'runtime.obsPipeline': 'Pipeline stages',
+  'runtime.obsPipelineTiming': 'Pipeline timing',
 
   // Common
   'common.close': 'Close',
@@ -918,4 +919,30 @@ export const en: Record<string, string> = {
   'pathPattern.hops': '{n} hops',
   'pathPattern.announce': 'Enumeration finished: {n} paths',
   'pathPattern.tuningLabel': 'Enumeration options',
+
+  // cycle-141 workstream E: Π view-partition panel (`ViewsPanel`).
+  // Four views (structural/temporal/ownership/domain): cards, distribution bar,
+  // node matrix and domain breakdown.
+  'views.title': 'View partition (Π)',
+  'views.loading': 'Loading view partition…',
+  'views.error': 'Failed to load view partition',
+  'views.retry': 'Retry',
+  'views.notFound': 'No index found — build the graph first',
+  'views.nodes': 'nodes',
+  'views.edges': 'edges',
+  'views.card.structural': 'Structural',
+  'views.card.temporal': 'Temporal',
+  'views.card.ownership': 'Ownership',
+  'views.card.domain': 'Domain',
+  'views.cardHint': '{nodes} nodes · {edges} edges',
+  'views.temporalUnavailable': 'Temporal view unavailable',
+  'views.ownershipUnavailable': 'Ownership view unavailable',
+  'views.distributionTitle': 'View distribution',
+  'views.matrixTitle': 'Node view matrix',
+  'views.domainTitle': 'Domain breakdown',
+  'views.domainUnknown': 'Unnamed domain',
+  'views.yes': '✓',
+  'views.no': '—',
+  'views.sampled': 'Showing first {shown} of {total} nodes',
+  'views.emptyMatrix': 'No nodes',
 };

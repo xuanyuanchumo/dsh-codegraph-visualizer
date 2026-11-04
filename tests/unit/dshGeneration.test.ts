@@ -30,30 +30,78 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ALL_GENERATIONS: DshGeneration[] = ['gen1', 'gen2', 'gen3', 'unknown'];
 
 /**
- * 求值 `>=A <B` 形态的窗口是否覆盖某版本。仅支持本项目声明的那一种形态。
+ * 求值一个 semver 范围是否覆盖某版本——**忠实实现 node-semver 的默认模式语义**。
+ *
+ * ## 为什么不能自己简化（cycle-141 第三轮修正）
+ *
+ * 本函数此前把预发布标签当普通分量比较（`cmp('0.3.0-rc.2','0.2.0-rc.2') >= 0` 直接通过），
+ * 与 node-semver 的真实行为**不一致**。真实规则（`Range.prototype.test` → `testSet`）是：
+ *
+ * > 带预发布标签的版本，只有在范围里存在一个 **同 major.minor.patch 元组**、
+ * > 且**自身带预发布标签**的比较符时，才可能匹配；否则一律 false。
+ *
+ * 后果：守卫放行了单段范围 `>=0.2.0-rc.2 <0.4.0-0`，而真实 semver 在默认模式下
+ * **拒绝** `0.3.0-rc.2`（`semver@7.8.5` 实测 false）⇒ 受支持的 gen3 宿主装不上插件，
+ * 而没有任何测试变红。守卫测的是它自己，不是安装门——
+ * 这正是本仓「fixture 不得自造外部契约」那条教训的现场。
+ *
+ * 现在按真实规则实现，并支持 `||` 分支（段内 AND；预发布元组规则**按分支**应用，
+ * 与 node-semver 的 `this.set` 数组语义一致）。`includePrerelease` 选项暴露出来，
+ * 因为**两种模式都要断言**：宿主实际用 `true`（cycle-110 §3.3 由「插件在
+ * 0.2.1-rc.3 上能跑」反推），而市场校验器可能用默认的 `false`。
+ *
  * 与 `tests/unit/manifest.test.ts` 的同名助手保持独立实现——两边都断言同一件事，
  * 复制一份比互相 import 更能暴露「其中一边被改坏」。
  */
-function compareWithinRange(range: string, version: string): boolean {
-  const parse = (v: string): [number[], string] => {
+function compareWithinRange(
+  range: string,
+  version: string,
+  opts: { includePrerelease?: boolean } = {},
+): boolean {
+  const parse = (v: string): { core: number[]; pre: string } => {
     const [core = '0', pre = ''] = v.split('-', 2);
-    return [core.split('.').map(Number), pre];
+    return { core: core.split('.').map(Number), pre };
   };
-  const cmp = (a: string, b: string): number => {
-    const [aCore, aPre] = parse(a);
-    const [bCore, bPre] = parse(b);
+  const cmpCore = (a: number[], b: number[]): number => {
     for (let i = 0; i < 3; i += 1) {
-      const diff = (aCore[i] ?? 0) - (bCore[i] ?? 0);
+      const diff = (a[i] ?? 0) - (b[i] ?? 0);
       if (diff !== 0) return diff < 0 ? -1 : 1;
     }
-    if (aPre === bPre) return 0;
-    if (aPre === '') return 1;
-    if (bPre === '') return -1;
-    return aPre < bPre ? -1 : 1;
+    return 0;
   };
-  return range.split(/\s+/).filter(Boolean).every((part) => (
-    part.startsWith('>=') ? cmp(version, part.slice(2)) >= 0 : cmp(version, part.slice(1)) < 0
-  ));
+  const cmp = (a: string, b: string): number => {
+    const av = parse(a);
+    const bv = parse(b);
+    const core = cmpCore(av.core, bv.core);
+    if (core !== 0) return core;
+    if (av.pre === bv.pre) return 0;
+    if (av.pre === '') return 1; // release > prerelease
+    if (bv.pre === '') return -1;
+    return av.pre < bv.pre ? -1 : 1;
+  };
+
+  const v = parse(version);
+  // `||` 是 OR；每段内部是 AND；预发布元组规则按段应用。
+  return range.split('||').some((branch) => {
+    const parts = branch.split(/\s+/).filter(Boolean);
+    // 1) 所有比较符必须满足（元组 + 预发布比较）。
+    for (const part of parts) {
+      const ok = part.startsWith('>=')
+        ? cmp(version, part.slice(2)) >= 0
+        : part.startsWith('<')
+          ? cmp(version, part.slice(1)) < 0
+          : false;
+      if (!ok) return false;
+    }
+    // 2) 预发布元组规则（node-semver 默认模式）：version 带预发布时，
+    //    本段必须存在一个同元组且自身带预发布标签的比较符。
+    if (opts.includePrerelease === true) return true;
+    if (v.pre === '') return true;
+    return parts.some((part) => {
+      const ref = parse(part.replace(/^[<>]=?/, ''));
+      return ref.pre !== '' && cmpCore(ref.core, v.core) === 0;
+    });
+  });
 }
 
 function hostCtx(overrides: Record<string, unknown> = {}) {
@@ -174,16 +222,51 @@ describe('generation model is the single source of truth', () => {
 
   it('still covers the whole gen3 line after tightening the upper bound (改窄守卫)', () => {
     // 收紧上界最容易犯的错是顺手把 0.3 的预发布也排掉 —— 那会让受支持的 gen3 宿主
-    // 装不上本插件。这一条与上一条必须同时存在。
+    // 装不上本插件。这一条与上一条必须同时存在。**宿主模式**（includePrerelease: true）
+    // 是 cycle-110 §3.3 反推出的实际求值模式。
+    const HOST = { includePrerelease: true } as const;
     for (const version of ['0.3.0-rc.1', '0.3.0-rc.2', '0.3.0', '0.3.7']) {
-      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must cover ${version}`).toBe(true);
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version, HOST), `${DSH_SUPPORTED_RANGE} must cover ${version}`).toBe(true);
     }
     // 下限侧的同一对：0.2 线（含本机实跑宿主）必须仍被覆盖，gen1 必须仍被排除。
     for (const version of ['0.2.0-rc.2', '0.2.1-rc.3', '0.2.1', '0.2.9']) {
-      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must cover ${version}`).toBe(true);
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version, HOST), `${DSH_SUPPORTED_RANGE} must cover ${version}`).toBe(true);
     }
     for (const version of ['0.1.7-rc.1', '0.1.7-rc.2', '0.1.9']) {
-      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must NOT cover ${version}`).toBe(false);
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version, HOST), `${DSH_SUPPORTED_RANGE} must NOT cover ${version}`).toBe(false);
+    }
+  });
+
+  /**
+   * cycle-141 第三轮修正：**默认模式**（`includePrerelease: false`）下的 gen3 覆盖。
+   *
+   * ## 缺陷现场
+   *
+   * 单段范围 `>=0.2.0-rc.2 <0.4.0-0` 在默认模式下**拒绝** 0.3.0 的全部预发布：
+   * node-semver 的预发布元组规则要求「范围内存在一个同 major.minor.patch 元组、
+   * 且自身带预发布标签的比较符」，而该范围的两个比较符分别落在 0.2.0 与 0.4.0 元组上，
+   * **没有任何一个在 0.3.0 上** ⇒ `0.3.0-rc.1`/`0.3.0-rc.2` 均 `false`（`semver@7.8.5` 实测）。
+   *
+   * 市场校验器若用默认模式，受支持的 gen3 宿主就装不上本插件
+   * （`awesome-dsh-plugin/contributing.md` 对同一个坑给出同一条建议：用显式 `||` 分支）。
+   *
+   * ## 断言的三件事
+   *
+   * 1. 新范围在默认模式下覆盖整个 gen3 线（含 `0.3.0-0` 这一 semver 最小预发布）；
+   * 2. **反例**：单段旧范围在默认模式下**不**覆盖 `0.3.0-rc.2` —— 这是「真的修好了」的证据，
+   *    而不是「守卫恰好放行」；
+   * 3. gen4 的全部预发布在两种模式下都仍被排除（收紧没有被放松）。
+   */
+  it('covers the gen3 prerelease line even in semver DEFAULT mode (the || branch fix)', () => {
+    for (const version of ['0.3.0-0', '0.3.0-rc.1', '0.3.0-rc.2', '0.3.0', '0.3.7']) {
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must cover ${version} in DEFAULT mode`).toBe(true);
+    }
+    // 反例：旧单段范围在默认模式下漏掉 gen3 预发布。
+    expect(compareWithinRange('>=0.2.0-rc.2 <0.4.0-0', '0.3.0-rc.2')).toBe(false);
+    expect(compareWithinRange('>=0.2.0-rc.2 <0.4.0-0', '0.3.0-rc.1')).toBe(false);
+    // gen4 预发布在两种模式下都必须排除。
+    for (const version of ['0.4.0-0', '0.4.0-alpha.1', '0.4.0-rc.1', '0.4.0']) {
+      expect(compareWithinRange(DSH_SUPPORTED_RANGE, version), `${DSH_SUPPORTED_RANGE} must NOT cover ${version} in DEFAULT mode`).toBe(false);
     }
   });
 

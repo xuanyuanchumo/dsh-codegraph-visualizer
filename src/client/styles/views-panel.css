@@ -1,0 +1,286 @@
+/* ---- cycle-141 workstream E: Π 视图划分面板（ViewsPanel） ----
+ * 只消费 `tokens.css` 的设计令牌（`--cg-*`），不出现任何原始色值或
+ * 带色值回退的 var() 写法——由 `tests/unit/tokensContract.test.ts` 守。
+ * 四个视图的语义色借用既有令牌：结构=accent、时序=info、所有权=warning、领域=success。
+ */
+
+/* —— 状态行（加载 / 错误 / 未构建）—— */
+
+.cg-views-state {
+  padding: 12px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--cg-text-secondary);
+}
+
+.cg-views-state-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cg-error);
+}
+
+.cg-views-state-empty {
+  color: var(--cg-text-tertiary);
+}
+
+.cg-views-retry {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  transition: background-color var(--cg-transition), border-color var(--cg-transition);
+}
+
+.cg-views-retry:hover {
+  background: var(--cg-surface-active);
+}
+
+/* —— 四张视图摘要卡 —— */
+
+.cg-views-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.cg-views-card {
+  padding: 8px 8px 6px;
+  background: var(--cg-surface-hover);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  border-left: 3px solid var(--cg-accent);
+}
+
+.cg-views-card-temporal { border-left-color: var(--cg-info); }
+.cg-views-card-ownership { border-left-color: var(--cg-warning); }
+.cg-views-card-domain { border-left-color: var(--cg-success); }
+
+.cg-views-card-off {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.cg-views-card-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--cg-text-tertiary);
+  text-transform: uppercase;
+}
+
+.cg-views-card-count {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 2px;
+  font-family: var(--cg-font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cg-accent);
+}
+
+.cg-views-card-temporal .cg-views-card-count { color: var(--cg-info); }
+.cg-views-card-ownership .cg-views-card-count { color: var(--cg-warning); }
+.cg-views-card-domain .cg-views-card-count { color: var(--cg-success); }
+
+.cg-views-card-unit {
+  font-family: var(--cg-font-sans);
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--cg-text-tertiary);
+}
+
+.cg-views-card-hint {
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-views-card-reason {
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--cg-warning);
+}
+
+/* —— 通用分节 —— */
+
+.cg-views-section {
+  margin-bottom: 10px;
+}
+
+.cg-views-section-title {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cg-text-tertiary);
+}
+
+/* —— 视图分布条 —— */
+
+.cg-views-bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  background: var(--cg-surface-active);
+  border-radius: var(--cg-radius-xs);
+}
+
+.cg-views-bar-seg {
+  height: 100%;
+  min-width: 2px;
+  transition: width var(--cg-transition-slow);
+}
+
+.cg-views-bar-structural { background: var(--cg-accent); }
+.cg-views-bar-temporal { background: var(--cg-info); }
+.cg-views-bar-ownership { background: var(--cg-warning); }
+.cg-views-bar-domain { background: var(--cg-success); }
+
+.cg-views-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 5px;
+  font-size: 9px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-views-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cg-views-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--cg-radius-xs);
+}
+
+.cg-views-dot-structural { background: var(--cg-accent); }
+.cg-views-dot-temporal { background: var(--cg-info); }
+.cg-views-dot-ownership { background: var(--cg-warning); }
+.cg-views-dot-domain { background: var(--cg-success); }
+
+/* —— 节点视图矩阵 —— */
+
+.cg-views-sampled {
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  font-size: 9px;
+  color: var(--cg-warning);
+  background: var(--cg-surface-hover);
+  border: 1px dashed var(--cg-border-strong);
+  border-radius: var(--cg-radius-xs);
+}
+
+.cg-views-empty {
+  padding: 10px 8px;
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
+}
+
+.cg-views-matrix {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+}
+
+.cg-views-matrix-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(4, 30px);
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  font-size: 10px;
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.cg-views-matrix-row:last-child {
+  border-bottom: none;
+}
+
+.cg-views-matrix-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-weight: 600;
+  color: var(--cg-text-tertiary);
+  background: var(--cg-surface-active);
+}
+
+.cg-views-matrix-id {
+  font-family: var(--cg-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cg-text);
+}
+
+.cg-views-cell {
+  text-align: center;
+  font-family: var(--cg-font-mono);
+  color: var(--cg-text-tertiary);
+}
+
+.cg-views-cell-on {
+  color: var(--cg-accent);
+  font-weight: 700;
+}
+
+/* —— 领域分解 —— */
+
+.cg-views-domains {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.cg-views-domain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 10px;
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.cg-views-domain:last-child {
+  border-bottom: none;
+}
+
+.cg-views-domain-name {
+  font-family: var(--cg-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cg-text);
+}
+
+.cg-views-domain-count {
+  font-family: var(--cg-font-mono);
+  color: var(--cg-text-secondary);
+}
+
+/* —— 页脚 —— */
+
+.cg-views-footnote {
+  margin-top: 8px;
+  padding-top: 6px;
+  font-size: 9px;
+  color: var(--cg-text-tertiary);
+  border-top: 1px solid var(--cg-border);
+}
