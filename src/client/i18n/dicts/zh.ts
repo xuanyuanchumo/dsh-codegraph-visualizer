@@ -526,6 +526,41 @@ export const zh: Record<string, string> = {
   'canvasControls.visibleRatioTitle': '可见节点比例',
   'canvasControls.minimap': '交互式小地图',
   'canvasControls.minimapHint': '点击或拖拽以导航到该位置',
+  'canvasControls.minimapFocusHint': '点击定位，拖拽平移',
+  'canvasControls.minimapDensity': '节点密度',
+  'canvasControls.minimapEdgeDensity': '边密度',
+
+  // 画布内布局选择器（cycle-141 / D）
+  'canvasControls.layoutSelector': '布局切换',
+  'canvasControls.layoutCycle': '点击切换至下一种布局（当前：{l}）',
+  'canvasControls.layout.cose': '力导向',
+  'canvasControls.layout.fcose': '约束力导向',
+  'canvasControls.layout.dagre': '分层',
+  'canvasControls.layout.circle': '环形',
+  'canvasControls.layout.grid': '网格',
+  'canvasControls.layout.radial': '径向',
+  'canvasControls.layout.tree': '树形',
+
+  // 节点 / 边标签显隐开关（cycle-141 / D）
+  'canvasControls.labelToggle': '显示 / 隐藏节点与边标签',
+  'canvasControls.labelsShown': '标签已显示',
+  'canvasControls.labelsHidden': '标签已隐藏',
+
+  // 画布键盘导航（cycle-141 / D）
+  'canvasControls.keyboardHint': '键盘导航',
+  'canvasControls.keyboardHintToggle': '显示键盘导航提示',
+  'canvasControls.keyboardHintClose': '关闭键盘导航提示',
+  'canvasControls.keyboardHintHint': '画布聚焦时按 H 显示 / 隐藏',
+  'canvasControls.shortcutArrowUp': '↑ 聚焦上方相邻节点',
+  'canvasControls.shortcutArrowDown': '↓ 聚焦下方相邻节点',
+  'canvasControls.shortcutArrowLeft': '← 聚焦左侧相邻节点',
+  'canvasControls.shortcutArrowRight': '→ 聚焦右侧相邻节点',
+  'canvasControls.shortcutEnter': 'Enter 选中聚焦节点',
+  'canvasControls.shortcutEscape': 'Esc 清除聚焦 / 选择',
+  'canvasControls.shortcutZoomIn': '+ 放大',
+  'canvasControls.shortcutZoomOut': '- 缩小',
+  'canvasControls.shortcutFit': 'F 适应窗口',
+  'canvasControls.multiSelect': '多选模式',
 
   'micro.closeView': '关闭微观视图',
   'micro.functionBar': '微观视图工具栏',
@@ -794,6 +829,12 @@ export const zh: Record<string, string> = {
   'runtime.degraded': '已降级',
   'runtime.measurements': '{n} 个样本',
   'runtime.noTraceId': '运行时层数据来自插件进程内，未接入 Trace ID',
+  // cycle-141 白盒可观测性计数
+  'runtime.obsTitle': '白盒计数器',
+  'runtime.obsCache': '缓存',
+  'runtime.obsEtag': 'ETag 决策',
+  'runtime.obsAst': 'AST 预算',
+  'runtime.obsPipeline': '管线阶段',
 
   // 通用
   'common.close': '关闭',

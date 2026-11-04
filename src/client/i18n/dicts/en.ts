@@ -528,6 +528,41 @@ export const en: Record<string, string> = {
   'canvasControls.visibleRatioTitle': 'Visible node ratio',
   'canvasControls.minimap': 'Interactive minimap',
   'canvasControls.minimapHint': 'Click or drag to navigate',
+  'canvasControls.minimapFocusHint': 'Click to focus, drag to pan',
+  'canvasControls.minimapDensity': 'Node density',
+  'canvasControls.minimapEdgeDensity': 'Edge density',
+
+  // Canvas layout selector (cycle-141 / D)
+  'canvasControls.layoutSelector': 'Layout switcher',
+  'canvasControls.layoutCycle': 'Click to cycle layouts (current: {l})',
+  'canvasControls.layout.cose': 'Force-directed',
+  'canvasControls.layout.fcose': 'Constrained force',
+  'canvasControls.layout.dagre': 'Layered',
+  'canvasControls.layout.circle': 'Circle',
+  'canvasControls.layout.grid': 'Grid',
+  'canvasControls.layout.radial': 'Radial',
+  'canvasControls.layout.tree': 'Tree',
+
+  // Node / edge label visibility toggle (cycle-141 / D)
+  'canvasControls.labelToggle': 'Show / hide node and edge labels',
+  'canvasControls.labelsShown': 'Labels shown',
+  'canvasControls.labelsHidden': 'Labels hidden',
+
+  // Canvas keyboard navigation (cycle-141 / D)
+  'canvasControls.keyboardHint': 'Keyboard navigation',
+  'canvasControls.keyboardHintToggle': 'Show keyboard navigation hint',
+  'canvasControls.keyboardHintClose': 'Close keyboard navigation hint',
+  'canvasControls.keyboardHintHint': 'Press H while the canvas is focused',
+  'canvasControls.shortcutArrowUp': '↑ Focus the upper neighbor',
+  'canvasControls.shortcutArrowDown': '↓ Focus the lower neighbor',
+  'canvasControls.shortcutArrowLeft': '← Focus the left neighbor',
+  'canvasControls.shortcutArrowRight': '→ Focus the right neighbor',
+  'canvasControls.shortcutEnter': 'Enter to select the focused node',
+  'canvasControls.shortcutEscape': 'Esc to clear focus / selection',
+  'canvasControls.shortcutZoomIn': '+ Zoom in',
+  'canvasControls.shortcutZoomOut': '- Zoom out',
+  'canvasControls.shortcutFit': 'F Fit to view',
+  'canvasControls.multiSelect': 'Multi-select mode',
 
   'micro.closeView': 'Close micro view',
   'micro.functionBar': 'Micro view toolbar',
@@ -797,6 +832,12 @@ export const en: Record<string, string> = {
   'runtime.degraded': 'Degraded',
   'runtime.measurements': '{n} samples',
   'runtime.noTraceId': 'Runtime data comes from the plugin process; no Trace ID is wired in',
+  // cycle-141 white-box observability counters
+  'runtime.obsTitle': 'White-box counters',
+  'runtime.obsCache': 'Cache',
+  'runtime.obsEtag': 'ETag decisions',
+  'runtime.obsAst': 'AST budget',
+  'runtime.obsPipeline': 'Pipeline stages',
 
   // Common
   'common.close': 'Close',

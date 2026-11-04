@@ -25,6 +25,20 @@ export interface PanelKeyboardHandlers {
   onUndo?: () => void;
   onRedo?: () => void;
   onRefresh?: () => void;
+  /**
+   * 画布键盘导航（cycle-141 / D）。
+   *
+   * 方向键 / Enter / Esc / +/- / F 的**实际处理**在 `InteractionController`
+   * （它直接拿到 `cy` 才能做「屏幕空间找相邻节点」）；这里只保留父层可选的
+   * 通知通道，方便同步 aria 状态、详情面板或提示浮层。**不在这里注册全局监听**，
+   * 否则方向键会劫持页面滚动。
+   */
+  onCanvasArrow?: (dir: 'up' | 'down' | 'left' | 'right') => void;
+  onCanvasEnter?: () => void;
+  onCanvasEscape?(): void;
+  onCanvasZoom?: (direction: 'in' | 'out') => void;
+  onCanvasFit?(): void;
+  onCanvasHintToggle?(): void;
 }
 
 export interface ShortcutDef {
@@ -51,6 +65,26 @@ export const KEYBOARD_SHORTCUTS: ShortcutDef[] = [
   { key: '?', descKey: 'shortcut.help', preventDefault: true },
   { key: 'F10', descKey: 'shortcut.contextMenu', shift: true, preventDefault: true },
   { key: 'ContextMenu', descKey: 'shortcut.contextMenuKey', preventDefault: true },
+];
+
+/**
+ * 画布级快捷键（cycle-141 / D）。
+ *
+ * 与 `KEYBOARD_SHORTCUTS` 分开声明，**不注册全局监听**：面板级快捷键挂在
+ * `document` 上、任何焦点下都生效；画布级只在 `.cg-graph-container` 聚焦时由
+ * `InteractionController` 接管。此处仅作为键盘提示浮层与文档的元数据，
+ * 避免方向键劫持页面滚动、也避免 `usePanelKeyboard` 的测试长度断言被悄悄改变。
+ */
+export const CANVAS_KEYBOARD_SHORTCUTS: ShortcutDef[] = [
+  { key: 'ArrowUp', descKey: 'canvasControls.shortcutArrowUp' },
+  { key: 'ArrowDown', descKey: 'canvasControls.shortcutArrowDown' },
+  { key: 'ArrowLeft', descKey: 'canvasControls.shortcutArrowLeft' },
+  { key: 'ArrowRight', descKey: 'canvasControls.shortcutArrowRight' },
+  { key: 'Enter', descKey: 'canvasControls.shortcutEnter' },
+  { key: 'Escape', descKey: 'canvasControls.shortcutEscape' },
+  { key: '+', descKey: 'canvasControls.shortcutZoomIn' },
+  { key: '-', descKey: 'canvasControls.shortcutZoomOut' },
+  { key: 'F', descKey: 'canvasControls.shortcutFit' },
 ];
 
 export function formatShortcutKey(s: ShortcutDef): string {

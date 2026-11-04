@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { VALIDATION, ERROR_CODES, ERROR_MESSAGES, API, METRICS } from '../../shared/constants.ts';
+import { recordCacheHit, recordCacheMiss, recordPipelineStage } from '../../shared/observability.ts';
 import { RepoId } from '../../types/index.ts';
 import { fetchMergedGraph } from '../../tools.ts';
 import { resolveDbPath } from '../../adapters/CodeGraphAdapter.ts';
@@ -33,6 +34,7 @@ export function registerScanRoute(rc: RouteContext): void {
 
         const cached = scanCache.get(scanPath);
         if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
+          recordCacheHit('scan');
           deps.setLastGraphData(cached.data);
           const scanPayload = JSON.stringify({ success: true, ...cached.data });
           if (scanPayload.length > API.DATA_RESPONSE_MAX_BYTES) {
@@ -48,6 +50,10 @@ export function registerScanRoute(rc: RouteContext): void {
           }
           return;
         }
+
+        // 缓存未命中：记录可观测性计数（白盒透明化：缓存命中率是核心指标）
+        recordCacheMiss('scan');
+        recordPipelineStage('scan');
 
         const inFlight = deps.getScanInFlight(scanPath);
         if (inFlight) {
@@ -65,6 +71,8 @@ export function registerScanRoute(rc: RouteContext): void {
           if (deps.isDestroyed()) return;
           deps.setLastGraphData(data);
           scanCache.set(scanPath, { data, timestamp: Date.now() });
+          // 管线阶段计数：scan 完成进入 merge（三源合并）阶段
+          recordPipelineStage('merge');
           if (scanCache.size > config.scanCacheLimit) {
             const oldest = scanCache.keys().next().value;
             if (oldest !== undefined) scanCache.delete(oldest);

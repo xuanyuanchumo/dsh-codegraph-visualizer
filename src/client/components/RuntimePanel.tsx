@@ -4,6 +4,7 @@ import { useT } from '../i18n/index.ts';
 import { logger } from '../../shared/Logger.ts';
 import type { LogEntry, LogLevel } from '../../shared/Logger.ts';
 import { getMeasurements, getThresholds } from '../../shared/PerformanceMonitor.ts';
+import { snapshot as obsSnapshot } from '../../shared/observability.ts';
 import { buildRuntimeSnapshot } from '../../shared/runtimeSnapshot.ts';
 import type { RuntimeLogRow, RuntimeSnapshot } from '../../shared/runtimeSnapshot.ts';
 import { RUNTIME } from '../../shared/constants.ts';
@@ -185,8 +186,60 @@ export const RuntimePanel = memo(function RuntimePanel({ onClose, label }: Runti
           )}
 
           <div className="cg-runtime-footnote">{t('runtime.noTraceId')}</div>
+
+          <ObservabilitySection obs={obsSnapshot()} t={t} />
         </>
       )}
     </AnalysisPanelShell>
   );
 });
+
+/**
+ * 白盒可观测性计数区（cycle-141 第二轮）。
+ *
+ * 展示缓存命中率、ETag 决策分布、AST 预算用量、管线阶段计数——
+ * 这些是 PerformanceMonitor 度量不了的**计数**维度。
+ */
+function ObservabilitySection({ obs, t }: { obs: Record<string, number>; t: (k: string, p?: Record<string, string | number>) => string }) {
+  const entries = Object.entries(obs);
+  if (entries.length === 0) return null;
+
+  // 按分组组织：cache / etag / ast / pipeline
+  const groups: Array<{ prefix: string; label: string; items: Array<[string, number]> }> = [
+    { prefix: 'cache.', label: t('runtime.obsCache'), items: [] },
+    { prefix: 'etag.', label: t('runtime.obsEtag'), items: [] },
+    { prefix: 'ast.', label: t('runtime.obsAst'), items: [] },
+    { prefix: 'pipeline.', label: t('runtime.obsPipeline'), items: [] },
+  ];
+  for (const [key, value] of entries) {
+    for (const g of groups) {
+      if (key.startsWith(g.prefix)) {
+        g.items.push([key, value]);
+        break;
+      }
+    }
+  }
+  const visibleGroups = groups.filter((g) => g.items.length > 0);
+  if (visibleGroups.length === 0) return null;
+
+  return (
+    <div className="cg-runtime-obs-section">
+      <div className="cg-runtime-section-header">
+        <span className="cg-runtime-section-title">{t('runtime.obsTitle')}</span>
+      </div>
+      {visibleGroups.map((g) => (
+        <div key={g.prefix} className="cg-runtime-obs-group">
+          <div className="cg-runtime-obs-group-label">{g.label}</div>
+          <div className="cg-runtime-obs-items">
+            {g.items.map(([key, value]) => (
+              <div key={key} className="cg-runtime-obs-item">
+                <span className="cg-runtime-obs-key">{key}</span>
+                <span className="cg-runtime-obs-value">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

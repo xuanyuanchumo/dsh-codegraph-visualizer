@@ -21,6 +21,7 @@ import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { coerceGraphData } from '../../shared/GraphValidator.ts';
 import { isForeignRepo } from '../../shared/graphScope.ts';
+import { recordEtagDecision, recordAstBudget } from '../../shared/observability.ts';
 import {
   etagKeyForChildren, etagKeyForOutline, etagKeyForAst, etagKeyForEdges, resolveAstBudget,
 } from '../../shared/graphFingerprint.ts';
@@ -170,6 +171,7 @@ function settleConditional(res: Response, key: string, sink: EtagSink | undefine
       sink.notModified = true;
       sink.key = key;
     }
+    recordEtagDecision('304');
     return true;
   }
   if (sink) {
@@ -181,6 +183,7 @@ function settleConditional(res: Response, key: string, sink: EtagSink | undefine
     // 未传 sink 的旧调用点没有"应用完成"的回调点，只能就地登记，行为与加入本机制前一致。
     rememberEtag(key, res.headers?.get?.('etag') ?? null);
   }
+  recordEtagDecision('200');
   return false;
 }
 
@@ -342,13 +345,23 @@ export async function fetchSymbolAST(
     if (!res.ok) return null;
     const data = await res.json() as SymbolASTData;
     const astNodes = data.astNodes ?? [];
+    // cycle-141 可观测性：记录 AST 预算用量（白盒透明化——CLAUDE.md 明确点名过
+    // 「AST 预算在 UI 从未呈现」这个层层丢弃缺陷）。
+    const astTotal = typeof data.total === 'number' ? data.total : astNodes.length;
+    const astHasMore = data.hasMore === true;
+    recordAstBudget({
+      requested: astTotal,
+      returned: astNodes.length,
+      truncated: astHasMore,
+      hasMore: astHasMore,
+    });
     return {
       astNodes,
       astEdges: data.astEdges ?? [],
       sourceLines: data.sourceLines ?? [],
-      total: typeof data.total === 'number' ? data.total : astNodes.length,
+      total: astTotal,
       cursor: typeof data.cursor === 'number' ? data.cursor : astNodes.length,
-      hasMore: data.hasMore === true,
+      hasMore: astHasMore,
     };
   }, null, { nodeId });
 }
