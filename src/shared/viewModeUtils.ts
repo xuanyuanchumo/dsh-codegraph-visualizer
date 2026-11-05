@@ -105,6 +105,7 @@ export type AnalysisPanelKey =
   | 'showDiff'
   | 'showKeywordQuery'
   | 'showPathPattern'
+  | 'showViews'
   | 'showMiniMap' | 'showLegend';
 
 /**
@@ -148,6 +149,9 @@ export const STRUCTURAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showDiff',
   'showKeywordQuery',
   'showPathPattern',
+  // showViews（cycle-143）：Π 视图划分读的是「当前图」的划分事实，与 showDiff/
+  // showKeywordQuery 同一条判据——需要一层有图的视图。运行时层没有图，不提供。
+  'showViews',
   'showMiniMap', 'showLegend',
 ]);
 
@@ -157,6 +161,7 @@ export const BEHAVIORAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showDiff',
   'showKeywordQuery',
   'showPathPattern',
+  'showViews',
   'showSearch', 'showPathFind', 'showMiniMap', 'showLegend',
 ]);
 

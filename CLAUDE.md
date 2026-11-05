@@ -240,3 +240,6 @@
   - ② **LIMIT N 的字母序截断会系统性偏向某个 id 前缀域**：盘符开头（`D:`=0x44）的 id 字母序全部排在 `dir:`（0x64）之前，342 个真实目录的最小名次是 1778——永远进不了 LIMIT 50。对「前 N 条」查询必须用显式分层排序（dir: > file: > 其他），不能裸信字典序。
   - ③ **getTopLevelDir 对绝对路径返回的是路径字面段不是逻辑顶层**：`D:\Projects\TraeProjects\x/src` 被判成 `Projects/TraeProjects`——50 个顶层目录全塌进一个聚类组。相对路径通道（上游索引）与绝对路径通道（原生索引）第一次在客户端聚类器上分叉。`dir:` 前缀目录节点自己是分组锚；分组判定的所有消费点（分组/增量/代价估算）必须同一实现，漂移即展开代价错位。
   - ④ **graphLayer 是声明域，resolveDbPath 是解析域——两者不能各写各的**：bootstrap 写死 'upstream' 而解析函数会回落 native-index，来源徽章撒谎（与「服务键存在必须双向证据」同族）。解析函数返回「实际解析出的来源」，声明按返回值走。
+- 批量 Replace 对同一锚点命中两次会产生重复声明（TS2451）：给 usePanelState 接新键时 `const toggleX = useCallback(...)` 锚点出现两处、replace 各补一发 → 双倍声明。锚点必须唯一（带上下文），或改用 edit 工具（old_string 唯一性校验是结构防线）——这是 GEN2_MAPPING 重复声明教训的第 2 次复发（cycle-143）。
+- 「三层测试各答各的」盲区：组件测试答「组件对不对」、路由测试答「路由对不对」、工具测试答「工具对不对」，没有一层答「用户可达吗」——ViewsPanel 三层全绿却零消费点存活了两个循环。新增面板时同步写源码级可达性守卫（viewsPanelReachability.test.ts 四环节：开关声明/栈挂载/工具入口/层判据，含反向自检）。
+- 探针红不了先查守卫再查探针：变异 `visible: panel.showViews,` → `showViewszzz,` 守卫仍绿，根因是前缀匹配（toContain('visible: panel.showViews') 命中 showViewszzz）——词边界 `[^a-zA-Z0-9_]` 收紧后才红。守卫的正则/包含判定必须先假设会被同形前缀欺骗（cycle-143 M1 实证）。

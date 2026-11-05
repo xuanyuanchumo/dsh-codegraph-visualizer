@@ -897,6 +897,9 @@ export const en: Record<string, string> = {
   // can look like "nothing happened" on screen.
   'toolbar.pathPattern': 'Path pattern search',
   'toolbar.pathPatternSection': 'Path patterns',
+  // Π view-partition entry (cycle-143 wiring: the component was unreachable before)
+  'toolbar.views': 'View partition',
+  'toolbar.viewsSection': 'View dimensions',
   'pathPattern.title': 'Path pattern (ρ) enumeration',
   'pathPattern.inputLabel': 'Path pattern ρ',
   'pathPattern.placeholder': 'Enter a ρ, e.g. call+ . import',

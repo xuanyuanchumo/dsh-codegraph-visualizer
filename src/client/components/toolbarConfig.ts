@@ -6,7 +6,7 @@ import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
   HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  StarIcon, GhostIcon, WatchIcon, DiffIcon, SearchIcon,
+  StarIcon, GhostIcon, WatchIcon, DiffIcon, SearchIcon, LayersIcon,
 } from './Icons.tsx';
 import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
@@ -171,6 +171,20 @@ export const PATH_PATTERN_ITEMS: ToolMenuItem[] = [
   { panel: 'showPathPattern', Icon: PathIcon, key: 'toolbar.pathPattern', btnClass: 'cg-pathpattern-btn', toggle: 'onTogglePathPattern' },
 ];
 
+/**
+ * Π 视图划分的工具项（cycle-143 接线）。
+ *
+ * 与关键词检索/ρ 路径同属「换一个输入再查图」的一族（这里换的是**维度**：
+ * 结构恒有，时序/所有权/领域按事实叠加），因此单独成段。此前该面板只有组件
+ * 没有入口——grep ViewsPanel 零消费点，「实现了但不可达」，注册矩阵的
+ * consumers 声明随之失真。
+ *
+ * 图标复用 `LayersIcon`：语义上 Π 就是「同一张图按正交维度叠出四层」。
+ */
+export const VIEWS_ITEMS: ToolMenuItem[] = [
+  { panel: 'showViews', Icon: LayersIcon, key: 'toolbar.views', btnClass: 'cg-views-btn', toggle: 'onToggleViews' },
+];
+
 export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] }[] = [
   { labelKey: 'toolbar.analysis', items: ANALYSIS_ITEMS },
   { labelKey: 'toolbar.quality', items: QUALITY_ITEMS },
@@ -180,6 +194,7 @@ export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] 
   // 插在中间会让 `ToolbarActions` 的分隔符索引与既有 E2E 的段序断言一起漂移。
   { labelKey: 'toolbar.keywordSection', items: KEYWORD_QUERY_ITEMS },
   { labelKey: 'toolbar.pathPatternSection', items: PATH_PATTERN_ITEMS },
+  { labelKey: 'toolbar.viewsSection', items: VIEWS_ITEMS },
 ];
 export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
   { value: 'png', key: 'export.png' },

@@ -12,6 +12,7 @@ import { RuntimePanel } from './RuntimePanel.tsx';
 import { DiffPanel } from './DiffPanel.tsx';
 import { KeywordQueryPanel } from './KeywordQueryPanel.tsx';
 import { PathPatternPanel } from './PathPatternPanel.tsx';
+import { ViewsPanel } from './ViewsPanel.tsx';
 import { useGraphStore } from '../store/graphStore.ts';
 import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
@@ -70,6 +71,9 @@ interface RightPanelStackProps {
     runtime: string;
     keywordQuery: string;
     pathPattern: string;
+    views: string;
+    /** 目标工作区绝对路径（ViewsPanel 的 /views 请求参数）。 */
+    currentWorkspace: string;
     godModuleStats: (n: number, e: number) => string;
     /** 扫描完成但无超标模块（诚实空态）。 */
     godModuleEmpty: string;
@@ -191,6 +195,18 @@ export function RightPanelStack(props: RightPanelStackProps) {
           useGraphStore.getState().clearPathPattern();
           panel.setShowPathPattern(false);
         }}
+      />,
+    },
+    {
+      // Π 视图划分面板（cycle-143 接线）。此前只有组件没有开关与挂载点——
+      // grep ViewsPanel 在 src/ 零消费点，「实现了但不可达」缺陷家族，注册矩阵
+      // 的 consumers: ['client ViewsPanel'] 声明随之失真。与运行时面板同一条
+      // 判断：不附加「有没有数据」前置条件，四态（空/加载/错误/未构建）都渲染。
+      visible: panel.showViews,
+      children: <ViewsPanel
+        label={props.labels.views}
+        workspacePath={props.labels.currentWorkspace}
+        onClose={() => panel.setShowViews(false)}
       />,
     },
   ];

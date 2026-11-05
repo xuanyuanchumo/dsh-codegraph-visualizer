@@ -57,6 +57,13 @@ export interface ToolbarVisibilityState {
    * （拼错类型名 vs 语法错误）与结果形状（路径列表 vs 子图）都不同。
    */
   showPathPattern: boolean;
+  /**
+   * Π 视图划分面板（cycle-143 接线）。
+   *
+   * 与 `showKeywordQuery` 同一条层判据：Π 划分读的是「当前图」的正交视图事实，
+   * 需要一层有图的视图；运行时层没有图，该面板不可用。
+   */
+  showViews: boolean;
   showRegistry: boolean;
 }
 
@@ -86,6 +93,8 @@ export interface ToolbarToggleHandlers {
   onToggleKeywordQuery: () => void;
   /** ρ 路径模式面板开关（cycle-135）。 */
   onTogglePathPattern: () => void;
+  /** Π 视图划分面板开关（cycle-143 接线）。 */
+  onToggleViews: () => void;
   onToggleRegistry: () => void;
 }
 

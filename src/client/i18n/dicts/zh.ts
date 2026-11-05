@@ -892,6 +892,9 @@ export const zh: Record<string, string> = {
   // 「拼错类型名」与「语法错误」——两者在画面上都可能只是「什么都没有」。
   'toolbar.pathPattern': '路径模式检索',
   'toolbar.pathPatternSection': '路径模式',
+  // Π 视图划分入口（cycle-143 接线：组件此前不可达）
+  'toolbar.views': '视图划分',
+  'toolbar.viewsSection': '视图维度',
   'pathPattern.title': '路径模式（ρ）枚举',
   'pathPattern.inputLabel': '路径模式 ρ',
   'pathPattern.placeholder': '输入 ρ，如 call+ . import',

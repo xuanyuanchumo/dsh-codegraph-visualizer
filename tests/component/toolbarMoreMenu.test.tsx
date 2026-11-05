@@ -44,6 +44,7 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     showHotspot: false, showGodModule: false, showCoreFunction: false, showDeadCode: false,
     showFilterPanel: false, showTour: false, showRuntime: false, showDiff: false,
     showKeywordQuery: false,
+  showViews: false,
   showRegistry: false,
     onToggleSearch: noop, onToggleCallChain: noop, onToggleCycles: noop,
     onToggleCycleIsolation: noop, onToggleImpact: noop, onToggleInheritance: noop,
@@ -55,6 +56,7 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
   // 璇玑图 ρ 路径模式面板（cycle-135）
   showPathPattern: false,
   onTogglePathPattern: noop,
+  onToggleViews: noop,
   onToggleRegistry: noop,
     ...overrides,
   };

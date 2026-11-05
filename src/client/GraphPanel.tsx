@@ -658,6 +658,8 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
           runtime: t('runtime.title'),
           keywordQuery: t('keywordQuery.title'),
           pathPattern: t('pathPattern.title'),
+          views: t('views.title'),
+          currentWorkspace,
           godModuleStats: (n, e) => t('godmodule.stats', { nodes: n, edges: e }),
           godModuleEmpty: t('godmodule.empty'),
           godModuleWait: t('godmodule.wait'),
