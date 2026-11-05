@@ -835,13 +835,18 @@ export const zh: Record<string, string> = {
   'runtime.degraded': '已降级',
   'runtime.measurements': '{n} 个样本',
   'runtime.noTraceId': '运行时层数据来自插件进程内，未接入 Trace ID',
-  // cycle-141 白盒可观测性计数
-  'runtime.obsTitle': '白盒计数器',
-  'runtime.obsCache': '缓存',
-  'runtime.obsEtag': 'ETag 决策',
-  'runtime.obsAst': 'AST 预算',
-  'runtime.obsPipeline': '管线阶段',
-  'runtime.obsPipelineTiming': '管线耗时',
+  // cycle-141 白盒可观测性计数（cycle-142 升级为流动可视化：runtime.flow* 键）
+  'runtime.flowTitle': '可观测流动',
+  'runtime.flowEmptyHint': '本会话尚无白盒计数（ETag 决策 / 缓存命中 / AST 预算 / 管线计时）——执行取数、展开或重建索引后出现',
+  'runtime.flowPipeline': '管线时间分布（按平均耗时占比）',
+  'runtime.flowPipelineEmpty': '管线尚无计时样本',
+  'runtime.flowCache': '缓存命中率',
+  'runtime.flowCacheRatio': '{pct}%（命中 {hits} / 未命中 {misses}）',
+  'runtime.flowEtag': 'ETag 决策分布',
+  'runtime.flowAst': 'AST 预算用量',
+  'runtime.flowAstUsage': '返回 {returned} / 请求 {requested}（{pct}%）',
+  'runtime.flowAstTruncated': '截断 {truncated} 次 · 分页未完 {hasMore} 次',
+  'runtime.flowPipelineHint': '色带宽度 = 该阶段平均耗时占比；悬停看详情',
 
   // 通用
   'common.close': '关闭',

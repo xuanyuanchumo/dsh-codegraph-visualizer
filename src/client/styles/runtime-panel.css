@@ -298,3 +298,134 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+/* ── cycle-142 可观测性流动可视化 ─────────────────────────────── */
+
+/* 分段色带容器：段绝对定位，宽度 = 占比 */
+.cg-runtime-flow-band {
+  position: relative;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--cg-bg-elevated);
+  overflow: hidden;
+}
+
+.cg-runtime-flow-seg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 1px;
+}
+
+/* ETag 色带略高，三段对比更醒目 */
+.cg-runtime-flow-band-etag {
+  height: 8px;
+}
+
+/* 管线阶段配色：只用 tokens.css 已定义的语义 token（裸色值与内联回退被
+   tokensContract 守卫禁止）。数据流方向按 token 语义渐进：信息→强调→成功，
+   降级段用警示色；同色阶段以透明度区分先后。 */
+.cg-flow-stage-scan { background: var(--cg-info); }
+.cg-flow-stage-init { background: var(--cg-info); opacity: 0.8; }
+.cg-flow-stage-import { background: var(--cg-accent); opacity: 0.9; }
+.cg-flow-stage-dbread { background: var(--cg-accent); }
+.cg-flow-stage-merge { background: var(--cg-success); opacity: 0.9; }
+.cg-flow-stage-xuanjidelta { background: var(--cg-success); }
+.cg-flow-stage-xuanjidegraded { background: var(--cg-warning); }
+
+/* ETag 决策配色：200 正常 / 304 节省 / rejected 警示（token 语义对位） */
+.cg-flow-etag-200 { background: var(--cg-info); }
+.cg-flow-etag-304 { background: var(--cg-success); }
+.cg-flow-etag-rejected { background: var(--cg-error); }
+
+/* 无数据段（pct=null 的兜底渲染）淡化 */
+.cg-flow-seg-nodata { opacity: 0.25; }
+
+/* 管线图例 */
+.cg-runtime-flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 9px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-runtime-flow-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cg-flow-swatch {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+
+/* 缓存命中率行 */
+.cg-runtime-flow-cache-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.cg-runtime-flow-cache-row {
+  display: grid;
+  grid-template-columns: 58px 1fr 34px;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+}
+
+.cg-runtime-flow-cache-name {
+  color: var(--cg-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cg-runtime-flow-cache-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--cg-bg-elevated);
+  overflow: hidden;
+}
+
+.cg-runtime-flow-cache-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--cg-success);
+}
+
+.cg-runtime-flow-cache-value {
+  color: var(--cg-text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* AST 预算用量 */
+.cg-runtime-flow-ast {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 9px;
+}
+
+.cg-runtime-flow-ast-bar {
+  flex: 0 0 72px;
+}
+
+.cg-runtime-flow-ast-text {
+  color: var(--cg-text-secondary);
+}
+
+.cg-runtime-flow-ast-extra {
+  color: var(--cg-warning);
+}

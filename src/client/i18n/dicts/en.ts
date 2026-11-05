@@ -838,13 +838,18 @@ export const en: Record<string, string> = {
   'runtime.degraded': 'Degraded',
   'runtime.measurements': '{n} samples',
   'runtime.noTraceId': 'Runtime data comes from the plugin process; no Trace ID is wired in',
-  // cycle-141 white-box observability counters
-  'runtime.obsTitle': 'White-box counters',
-  'runtime.obsCache': 'Cache',
-  'runtime.obsEtag': 'ETag decisions',
-  'runtime.obsAst': 'AST budget',
-  'runtime.obsPipeline': 'Pipeline stages',
-  'runtime.obsPipelineTiming': 'Pipeline timing',
+  // cycle-141 white-box observability counters (cycle-142 upgraded to flow visualization: runtime.flow* keys)
+  'runtime.flowTitle': 'Observability flow',
+  'runtime.flowEmptyHint': 'No whitebox counters yet this session (ETag decisions / cache hits / AST budget / pipeline timing) — they appear after fetches, expansions, or a reindex',
+  'runtime.flowPipeline': 'Pipeline time distribution (by avg duration share)',
+  'runtime.flowPipelineEmpty': 'No pipeline timing samples yet',
+  'runtime.flowCache': 'Cache hit rate',
+  'runtime.flowCacheRatio': '{pct}% (hit {hits} / miss {misses})',
+  'runtime.flowEtag': 'ETag decision distribution',
+  'runtime.flowAst': 'AST budget usage',
+  'runtime.flowAstUsage': 'returned {returned} / requested {requested} ({pct}%)',
+  'runtime.flowAstTruncated': 'truncated {truncated}× · hasMore {hasMore}×',
+  'runtime.flowPipelineHint': 'Band width = stage share of avg duration; hover for details',
 
   // Common
   'common.close': 'Close',

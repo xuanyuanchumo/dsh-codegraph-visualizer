@@ -696,3 +696,53 @@ checksum）定位帧边界后逐帧解拼。可复用 `dsh-session-persistence-j
 
 **运维用法**：`curl /api/v1/codegraph/registry | jq '.brokenLinks, .lifecycleCounts'`；
 新增业务时必须同时在 `src/host/registry/businessRegistry.ts` 登记一行——漏登记会被契约测试第 3 例抓住（routes.ts 注册数 ≠ 清单数）。
+
+## 16. 图谱管理路由族（cycle-141，T9-T11）
+
+`src/host/routes/controlRoutes.ts` 的 manage 段——代码图谱索引的构建/更新/删除/指标四条路由：
+
+| 路由 | 方法 | 语义 | 错误码 |
+|---|---|---|---|
+| `/manage/build` | POST | 全量扫描建索引（codegraph_scan） | 请求进行中 409（scanInFlight） |
+| `/manage/update` | POST | 增量同步（codegraph_sync，与 build 区分） | 同上 |
+| `/manage/delete` | POST | 删除索引 + 失效 scanCache/scanInFlight + 发 `graph/deleted` 事件 | `INDEX_NOT_FOUND` / `DELETE_FAILED` |
+| `/manage/metrics` | GET | 原生图谱指标（graphMetrics）+ 索引覆盖范围 `coverage` 字段 | `INDEX_NOT_FOUND`（无 DB 时**不再**假成功全零） |
+
+**契约要点**：
+
+- **指标边集上限**：节点数由 `MANAGE_METRICS.MAX_NODES` 限制，边集同上限并在超限时
+  返回 `truncated: true` 披露——「静默全量」与「截断不可见」都是 cycle-141 前的缺陷形态；
+- **`computeMs` 披露**：响应携带指标计算耗时（白盒透明化），同时记入 observability
+  的 `pipeline.metricsCompute` 键（累计）/`pipeline.metricsCompute.count`（次数）；
+- **介数采样预算**：大图 Brandes 采样有界（65.4s→2.7s 实测），采样数写进响应；
+- **coverage 字段**（cycle-141 第七轮）：`{ gitignorePresent, gitignoreRules, ignoredEntries, indexedAt }`
+  来自 `index_meta` 三新列 + `readNativeIndexCoverage`——上游索引 coverage=null 时**不渲染**（宁缺勿造）。
+
+**守卫**：`tests/unit/routes.test.ts` manage describe（错误码化/幂等删除/无 DB 假成功修复/截断披露）
++ `tests/unit/nativeIndexContract.test.ts` NB 契约（coverage 沉淀 14 用例）。
+
+## 17. 可观测性数据面（cycle-141 第二轮 + cycle-142 流动升级）
+
+三个模块自上而下的分工——**计数归 observability，耗时归 PerformanceMonitor，可视化升维归 observabilityFlow**：
+
+| 模块 | 职责 | 消费者 |
+|---|---|---|
+| `src/shared/observability.ts` | 计数器（`incr`/`snapshot`/`reset`）+ 管线阶段计时（LIFO 栈语义，支持同阶段嵌套，每阶段留最近 100 样本） | RuntimePanel 白盒区、测试 |
+| `src/shared/observabilityFlow.ts` | **纯函数升维**：管线耗时占比条（`leftPct`/`widthPct` 前置计算）、缓存命中率（判零为 null 不伪造 100%）、ETag 决策分布、AST 预算用量 | `RuntimePanel.ObservabilitySection` |
+| `src/shared/runtimeSnapshot.ts` | 日志窗口裁剪 + 性能样本聚合（先窗口后条数的顺序契约） | RuntimePanel 主体 |
+
+**OBS_KEYS 分组**（`runtime.flow*` 可视化按此前缀分组渲染）：
+`cache.{scan|indexeddb|diagram|cluster}.{hit|miss}` / `etag.{200|304|rejected}` /
+`ast.{requested|returned|truncated|hasMore}` / `pipeline.{scan|init|import|dbRead|merge|xuanjiDelta|xuanjiDegraded}`。
+
+**设计约束**（写新计数器时必须遵守）：
+
+1. 零依赖纯计数，无副作用——不写文件不发事件；
+2. `reset()` 必须成对清空所有模块级单例状态（counters + pipelineDurations + pipelinePendingMarks，
+   cycle-141 第四轮修复的「成对重置」教训）；
+3. 占比数学放 `observabilityFlow.ts` 纯函数，**不放组件**（CLAUDE.md「预算规则属于纯函数」）；
+4. 面板 CSS 只准用 `tokens.css` 已定义 token——裸色值/内联回退/未定义 token 被
+   `tests/unit/tokensContract.test.ts` 三条守卫拒绝（cycle-142 现场抓到过）。
+
+**守卫**：`tests/unit/observabilityFlow.test.ts` 14 用例（占比归一/判零/确定性逐字节比较）
++ `tests/component/RuntimePanel.test.tsx` 流动区 5 用例（真实单例驱动）。

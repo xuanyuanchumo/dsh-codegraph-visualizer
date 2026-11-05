@@ -4,7 +4,9 @@ import { useT } from '../i18n/index.ts';
 import { logger } from '../../shared/Logger.ts';
 import type { LogEntry, LogLevel } from '../../shared/Logger.ts';
 import { getMeasurements, getThresholds } from '../../shared/PerformanceMonitor.ts';
-import { snapshot as obsSnapshot, getAllPipelineTiming, PIPELINE_ORDER, PIPELINE_STAGE_LABELS } from '../../shared/observability.ts';
+import { snapshot as obsSnapshot, getAllPipelineTiming, PIPELINE_STAGE_LABELS } from '../../shared/observability.ts';
+import { buildObservabilityFlow } from '../../shared/observabilityFlow.ts';
+import type { ObservabilityFlow } from '../../shared/observabilityFlow.ts';
 import { buildRuntimeSnapshot } from '../../shared/runtimeSnapshot.ts';
 import type { RuntimeLogRow, RuntimeSnapshot } from '../../shared/runtimeSnapshot.ts';
 import { RUNTIME } from '../../shared/constants.ts';
@@ -187,7 +189,7 @@ export const RuntimePanel = memo(function RuntimePanel({ onClose, label }: Runti
 
           <div className="cg-runtime-footnote">{t('runtime.noTraceId')}</div>
 
-          <ObservabilitySection obs={obsSnapshot()} timing={getAllPipelineTiming()} t={t} />
+          <ObservabilitySection flow={buildObservabilityFlow({ counts: obsSnapshot(), timing: getAllPipelineTiming() })} t={t} />
         </>
       )}
     </AnalysisPanelShell>
@@ -195,71 +197,150 @@ export const RuntimePanel = memo(function RuntimePanel({ onClose, label }: Runti
 });
 
 /**
- * 白盒可观测性计数区（cycle-141 第二轮）。
+ * 可观测性流动区（cycle-142 升级）。
  *
- * 展示缓存命中率、ETag 决策分布、AST 预算用量、管线阶段计数与耗时——
- * 这些是 PerformanceMonitor 度量不了的**计数**维度 + 管线**耗时**维度。
+ * cycle-141 的文本行升级为**可视化流动**：
+ *   - 管线时间分布：一条分段色带，段宽 = 该阶段平均耗时占比（数据流方向排列），
+ *     悬停 title 显示 count/avg/max 绝对值——学 dsh-context 的 timing strip 模式；
+ *   - 缓存命中率：每条缓存一个 mini 进度条 + 百分比；
+ *   - ETag 决策分布：200/304/rejected 三段色带（rejected 段用警示色，最该被看见）；
+ *   - AST 预算用量：用量条 + 截断/分页计数。
+ *
+ * 占比/命中率/判零全部由 `buildObservabilityFlow` 纯函数前置计算（CLAUDE.md
+ * 「预算规则属于纯函数不属于组件」），组件只画结果。
+ *
+ * ## 空态不是隐藏（cycle-142 真机用户旅程缺陷）
+ *
+ * 首版在 `flow.empty` 时整区返回 null——真机沙箱验证暴露了它的缺陷：面板
+ * 明明有日志与指标，白盒区却像**不存在**，用户无从知道「这里还有一层白盒
+ * 数据、只是当前会话还没产生」。空态必须是**诚实占位**（说明数据何时出现），
+ * 而不是静默消失——「白盒透明化」的对象包括白盒区自己的状态。
  */
-function ObservabilitySection({ obs, timing, t }: { obs: Record<string, number>; timing: Record<string, { count: number; avgMs: number; maxMs: number; minMs: number; lastMs: number }>; t: (k: string, p?: Record<string, string | number>) => string }) {
-  const entries = Object.entries(obs);
-  const timingEntries = Object.entries(timing);
-  if (entries.length === 0 && timingEntries.length === 0) return null;
-
-  // 按分组组织：cache / etag / ast / pipeline
-  const groups: Array<{ prefix: string; label: string; items: Array<[string, number]> }> = [
-    { prefix: 'cache.', label: t('runtime.obsCache'), items: [] },
-    { prefix: 'etag.', label: t('runtime.obsEtag'), items: [] },
-    { prefix: 'ast.', label: t('runtime.obsAst'), items: [] },
-    { prefix: 'pipeline.', label: t('runtime.obsPipeline'), items: [] },
-  ];
-  for (const [key, value] of entries) {
-    for (const g of groups) {
-      if (key.startsWith(g.prefix)) {
-        g.items.push([key, value]);
-        break;
-      }
-    }
+function ObservabilitySection({ flow, t }: { flow: ObservabilityFlow; t: (k: string, p?: Record<string, string | number>) => string }) {
+  if (flow.empty) {
+    return (
+      <div className="cg-runtime-obs-section">
+        <div className="cg-runtime-section-header">
+          <span className="cg-runtime-section-title">{t('runtime.flowTitle')}</span>
+        </div>
+        <div className="cg-runtime-empty-line" role="status">{t('runtime.flowEmptyHint')}</div>
+      </div>
+    );
   }
-  const visibleGroups = groups.filter((g) => g.items.length > 0);
-
-  // 管线耗时区：按 PIPELINE_ORDER 排列
-  const visibleTiming = PIPELINE_ORDER
-    .map((stage) => ({ stage, timing: timing[stage] }))
-    .filter((e): e is { stage: (typeof PIPELINE_ORDER)[number]; timing: { count: number; avgMs: number; maxMs: number; minMs: number; lastMs: number } } => e.timing !== undefined && e.timing.count > 0);
 
   return (
     <div className="cg-runtime-obs-section">
       <div className="cg-runtime-section-header">
-        <span className="cg-runtime-section-title">{t('runtime.obsTitle')}</span>
+        <span className="cg-runtime-section-title">{t('runtime.flowTitle')}</span>
       </div>
-      {visibleGroups.map((g) => (
-        <div key={g.prefix} className="cg-runtime-obs-group">
-          <div className="cg-runtime-obs-group-label">{g.label}</div>
-          <div className="cg-runtime-obs-items">
-            {g.items.map(([key, value]) => (
-              <div key={key} className="cg-runtime-obs-item">
-                <span className="cg-runtime-obs-key">{key}</span>
-                <span className="cg-runtime-obs-value">{value}</span>
-              </div>
+
+      {flow.pipeline.length > 0 && (
+        <div className="cg-runtime-obs-group">
+          <div className="cg-runtime-obs-group-label">{t('runtime.flowPipeline')}</div>
+          <div className="cg-runtime-flow-band" role="img" aria-label={t('runtime.flowPipeline')} title={t('runtime.flowPipelineHint')}>
+            {flow.pipeline.map((seg) => (
+              <div
+                key={seg.stage}
+                className={`cg-runtime-flow-seg cg-flow-stage-${seg.stage}`}
+                style={{ left: `${seg.leftPct}%`, width: `${seg.widthPct}%` }}
+                title={`${seg.label}: ${seg.count}× avg ${formatMs(seg.avgMs)} / max ${formatMs(seg.maxMs)} (${seg.widthPct.toFixed(1)}%)`}
+              />
+            ))}
+          </div>
+          <div className="cg-runtime-flow-legend">
+            {flow.pipeline.map((seg) => (
+              <span key={seg.stage} className="cg-runtime-flow-legend-item" title={`${t('runtime.metricCount', { n: seg.count })} · avg ${formatMs(seg.avgMs)}`}>
+                <i className={`cg-flow-swatch cg-flow-stage-${seg.stage}`} />
+                {PIPELINE_STAGE_LABELS[seg.stage] ?? seg.stage} {seg.widthPct.toFixed(0)}%
+              </span>
             ))}
           </div>
         </div>
-      ))}
-      {visibleTiming.length > 0 && (
+      )}
+      {flow.pipeline.length === 0 && <div className="cg-runtime-empty-line">{t('runtime.flowPipelineEmpty')}</div>}
+
+      {flow.cache.length > 0 && (
         <div className="cg-runtime-obs-group">
-          <div className="cg-runtime-obs-group-label">{t('runtime.obsPipelineTiming')}</div>
-          <div className="cg-runtime-obs-items">
-            {visibleTiming.map(({ stage, timing: tm }) => (
-              <div key={stage} className="cg-runtime-obs-item">
-                <span className="cg-runtime-obs-key">{PIPELINE_STAGE_LABELS[stage] ?? stage}</span>
-                <span className="cg-runtime-obs-value">
-                  {tm.count}× avg {tm.avgMs.toFixed(0)}ms max {tm.maxMs.toFixed(0)}ms
+          <div className="cg-runtime-obs-group-label">{t('runtime.flowCache')}</div>
+          <div className="cg-runtime-flow-cache-list">
+            {flow.cache.map((row) => (
+              <div key={row.cache} className="cg-runtime-flow-cache-row">
+                <span className="cg-runtime-flow-cache-name">{row.cache}</span>
+                <span
+                  className="cg-runtime-flow-cache-bar"
+                  role="meter"
+                  aria-valuenow={row.ratio === null ? undefined : Math.round(row.ratio * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${row.cache} ${t('runtime.flowCacheRatio', { pct: row.ratio === null ? '—' : (row.ratio * 100).toFixed(0), hits: row.hits, misses: row.misses })}`}
+                >
+                  {row.ratio !== null && (
+                    <span className="cg-runtime-flow-cache-fill" style={{ width: `${row.ratio * 100}%` }} />
+                  )}
+                </span>
+                <span className="cg-runtime-flow-cache-value">
+                  {row.ratio === null ? '—' : `${(row.ratio * 100).toFixed(0)}%`}
                 </span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {flow.etag.length > 0 && (
+        <div className="cg-runtime-obs-group">
+          <div className="cg-runtime-obs-group-label">{t('runtime.flowEtag')}</div>
+          <div className="cg-runtime-flow-band cg-runtime-flow-band-etag" role="img" aria-label={t('runtime.flowEtag')}>
+            {flow.etag.map((row) => (
+              <div
+                key={row.decision}
+                className={`cg-runtime-flow-seg cg-flow-etag-${row.decision}${row.pct === null ? ' cg-flow-seg-nodata' : ''}`}
+                style={{ left: `${cumulativeEtagLeft(flow.etag, row.decision)}%`, width: `${row.pct ?? 0}%` }}
+                title={`${row.decision}: ${row.count}${row.pct === null ? '' : ` (${row.pct.toFixed(1)}%)`}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {flow.ast && (
+        <div className="cg-runtime-obs-group">
+          <div className="cg-runtime-obs-group-label">{t('runtime.flowAst')}</div>
+          <div className="cg-runtime-flow-ast">
+            <span
+              className="cg-runtime-flow-cache-bar cg-runtime-flow-ast-bar"
+              role="meter"
+              aria-valuenow={flow.ast.usage === null ? undefined : Math.round(flow.ast.usage * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={t('runtime.flowAstUsage', { returned: flow.ast.returned, requested: flow.ast.requested, pct: flow.ast.usage === null ? '—' : (flow.ast.usage * 100).toFixed(0) })}
+            >
+              {flow.ast.usage !== null && (
+                <span className="cg-runtime-flow-cache-fill" style={{ width: `${Math.min(flow.ast.usage, 1) * 100}%` }} />
+              )}
+            </span>
+            <span className="cg-runtime-flow-ast-text">
+              {t('runtime.flowAstUsage', { returned: flow.ast.returned, requested: flow.ast.requested, pct: flow.ast.usage === null ? '—' : (flow.ast.usage * 100).toFixed(0) })}
+              {(flow.ast.truncated > 0 || flow.ast.hasMore > 0) && (
+                <span className="cg-runtime-flow-ast-extra">
+                  {' '}
+                  {t('runtime.flowAstTruncated', { truncated: flow.ast.truncated, hasMore: flow.ast.hasMore })}
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** 计算某个 ETag 决策段的起始位置（累计前序决策段的宽度）。 */
+function cumulativeEtagLeft(rows: ObservabilityFlow['etag'], decision: string): number {
+  let left = 0;
+  for (const row of rows) {
+    if (row.decision === decision) break;
+    left += row.pct ?? 0;
+  }
+  return left;
 }

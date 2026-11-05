@@ -8,6 +8,7 @@ import React from 'react';
 import { RuntimePanel } from '../../src/client/components/RuntimePanel.tsx';
 import { logger, resetLoggerListeners } from '../../src/shared/Logger.ts';
 import { clearMeasurements, setThreshold, measureSync } from '../../src/shared/PerformanceMonitor.ts';
+import { incr, reset as resetObs, startPipelineTiming } from '../../src/shared/observability.ts';
 import { PERF } from '../../src/shared/constants.ts';
 import { setLang } from '../../src/client/i18n/index.ts';
 
@@ -190,5 +191,87 @@ describe('RuntimePanel', () => {
   it('uses the runtime panel shell variant so it shares the standard chrome', () => {
     render(<RuntimePanel onClose={vi.fn()} label="Runtime" />);
     expect(document.querySelector('.cg-analysis-panel.cg-runtime-panel')).not.toBeNull();
+  });
+});
+
+/**
+ * cycle-142 可观测性流动区（ObservabilitySection 升级）。
+ *
+ * 同样走真实单例：observability 的 incr/reset + startPipelineTiming。
+ * 组件测试只回答「数据面 → DOM 呈现」的接线是否成立，占比数学已由
+ * `tests/unit/observabilityFlow.test.ts` 纯函数层钉死。
+ */
+describe('RuntimePanel / observability flow (cycle-142)', () => {
+  beforeEach(() => {
+    // observability 是另一个模块级单例，且 clearMeasurements() 不管它。
+    resetObs();
+  });
+
+  afterEach(() => {
+    resetObs();
+  });
+
+  it('renders an honest placeholder (not a silent hide) when there is no observability data', () => {
+    // cycle-142 真机用户旅程缺陷：首版 empty 时整区返回 null——面板有日志有指标，
+    // 白盒区却像不存在，用户无从知道「还有一层白盒数据、只是本会话未产生」。
+    // 空态必须是诚实占位：白盒透明化的对象包括白盒区自己的状态。
+    logger.info('host', 'logs exist but no counters');
+    render(<RuntimePanel onClose={vi.fn()} label="Runtime" />);
+    const section = document.querySelector('.cg-runtime-obs-section');
+    expect(section).not.toBeNull();
+    expect(section!.textContent).toContain('Observability flow');
+    expect(document.querySelectorAll('.cg-runtime-flow-band')).toHaveLength(0);
+  });
+
+  it('renders the pipeline band with one segment per timed stage', () => {
+    const end = startPipelineTiming('scan');
+    end();
+    logger.info('host', 'x');
+    render(<RuntimePanel onClose={vi.fn()} label="Runtime" />);
+    const band = document.querySelector('.cg-runtime-flow-band');
+    expect(band).not.toBeNull();
+    expect(document.querySelectorAll('.cg-runtime-flow-seg')).toHaveLength(1);
+    // 图例显示阶段名（来自 PIPELINE_STAGE_LABELS 的中文技术术语，setLang('en') 不影响）
+    const legend = document.querySelector('.cg-runtime-flow-legend');
+    expect(legend).not.toBeNull();
+    expect(legend!.textContent).toContain('扫描');
+  });
+
+  it('renders cache hit-rate rows with ratio fill width', () => {
+    incr('cache.scan.hit', 3);
+    incr('cache.scan.miss', 1);
+    logger.info('host', 'x');
+    render(<RuntimePanel onClose={vi.fn()} label="Runtime" />);
+    const row = document.querySelector('.cg-runtime-flow-cache-row');
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain('scan');
+    expect(row!.textContent).toContain('75%');
+    const fill = row!.querySelector('.cg-runtime-flow-cache-fill') as HTMLElement | null;
+    expect(fill).not.toBeNull();
+    expect(fill!.style.width).toBe('75%');
+  });
+
+  it('renders the ETag decision band including the rejected (risk) segment', () => {
+    incr('etag.200', 6);
+    incr('etag.304', 3);
+    incr('etag.rejected', 1);
+    logger.info('host', 'x');
+    render(<RuntimePanel onClose={vi.fn()} label="Runtime" />);
+    const seg = document.querySelector('.cg-flow-etag-rejected');
+    expect(seg).not.toBeNull();
+    // rejected 占 1/10 → 段宽 10%
+    expect((seg as HTMLElement).style.width).toBe('10%');
+  });
+
+  it('renders AST budget usage with truncation disclosure', () => {
+    incr('ast.requested', 200);
+    incr('ast.returned', 150);
+    incr('ast.truncated', 2);
+    logger.info('host', 'x');
+    render(<RuntimePanel onClose={vi.fn()} label="Runtime" />);
+    const ast = document.querySelector('.cg-runtime-flow-ast');
+    expect(ast).not.toBeNull();
+    expect(ast!.textContent).toContain('75%');
+    expect(ast!.textContent).toContain('2'); // truncated 计数披露
   });
 });
