@@ -17,6 +17,7 @@ import { scoped } from '../shared/Logger.ts';
 import { SQLITE, INCREMENTAL } from '../shared/constants.ts';
 import { EDGE_ROW_COLUMNS, FILTERED_EDGE_KINDS, mapEdgeKind, normalizeRepoPath, type DbNodeRow, type DbEdgeRow } from './codeGraphRows.ts';
 import { getDbConnection, validateNodeRows, validateEdgeRows } from './codeGraphDb.ts';
+import { collapseRepeatedBackslashes } from './nativeIndex.ts';
 
 const log = scoped('codegraph-adapter');
 
@@ -191,19 +192,43 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
   if (!db) return [];
   try {
     const edgeMap = new Map<number, DbEdgeRow>();
-    const nodeSet = new Set(nodeIds);
+    // 存量脏库兼容（cycle-141 第六轮）：修复前写入的边端点带**双反斜杠**，调用方传
+    // 的是折叠后的单形态 id——查询集合同时包含两种拼写（Set 天然去重），双形态
+    // 库与消毒后的新库都能命中。返回行的端点原样返回；bootstrap 的
+    // mapDbEdgesToGraphEdges 端点过滤用同一个双形态集合，闭环成立。
+    const nodeSet = new Set<string>();
+    for (const id of nodeIds) {
+      nodeSet.add(id);
+      // 脏库方向是「扩展」：单形态 → 双形态（脏库每个分隔符都是两个字符）。
+      const expanded = id.replace(/\\/g, '\\\\');
+      if (expanded !== id) nodeSet.add(expanded);
+    }
     const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
     for (let i = 0; i < nodeIds.length; i += batchSize) {
       const batch = nodeIds.slice(i, i + batchSize);
-      const placeholders = batch.map(() => '?').join(', ');
+      const queryBatch = batch.flatMap((id) => {
+        const expanded = id.replace(/\\/g, '\\\\');
+        return expanded !== id ? [id, expanded] : [id];
+      });
+      const placeholders = queryBatch.map(() => '?').join(', ');
       const edges = validateEdgeRows(db.prepare(
         `SELECT ${EDGE_ROW_COLUMNS} FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
-      ).all(...batch, ...batch));
+      ).all(...queryBatch, ...queryBatch));
       for (const e of edges) {
         if (nodeSet.has(e.source) && nodeSet.has(e.target)) edgeMap.set(e.id, e);
       }
     }
-    return [...edgeMap.values()];
+    // 端点折叠（与节点行的 sanitizeDirtyRows 同一出口纪律）：查询集合允许双形态
+    // 是为了命中脏库，但**返回行必须与调用方的 id 域一致**——调用方传的是折叠后的
+    // 单形态（节点行已消毒），边端点若原样返回（双形态），同一次响应里边端点与
+    // 节点 id 不同域，客户端聚类聚合的 nodeIdToVisibleId 映射不上，边全丢
+    //（真机复现：bootstrap 边 41 条全被聚合丢弃，画布 0 边）。
+    const result = [...edgeMap.values()];
+    for (const e of result) {
+      (e as { source: string }).source = collapseRepeatedBackslashes(e.source);
+      (e as { target: string }).target = collapseRepeatedBackslashes(e.target);
+    }
+    return result;
   } catch (e) {
     log.warn('readEdgesForNodesFromDb failed', e);
     return [];

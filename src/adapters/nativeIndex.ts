@@ -94,8 +94,31 @@ const NATIVE_MIGRATION_SQL = [
 /** 原生索引写连接（每工作区一个；与 codeGraphDb 的只读池隔离）。 */
 const writePool = new Map<string, SqliteDb>();
 
+/**
+ * 折叠路径中的重复反斜杠（cycle-141 第六轮）。
+ *
+ * ## 为什么不能只信调用方的转义形态
+ *
+ * workspace/repoId 沿 LLM 工具调用 / 宿主注册表传递时，JSON 转义层数不保证恒定：
+ * 真机实证（dsh-anic index_meta 同分钟两条记录）——`D:\Projects\...`（单反斜杠，
+ * 正常扫描链）与 `D:\\Projects\\...`（双反斜杠字面量，另一条调用链）先后写入。
+ * Windows 文件 API 对重复分隔符宽容（readdir 双反斜杠路径照样成功），扫描不报错，
+ * 但 **id/file_path 带毒入库**：此后按单反斜杠 id 查询（children/edges join）全部落空，
+ * 客户端拿到的 bootstrap id 与后续按需请求的 nodeId 永远对不上。
+ *
+ * 这里刻意**不用** `path.normalize`：它会把 `/` 统一成 `\`，破坏原生索引 id 的
+ * 分隔符约定（FileSystemAdapter 用 `${dirPath}/${entry}` 拼，读侧 SQL 也按 `/`
+ * 做噪音过滤）。只折叠 `\\` → `\`，其余逐字保留。
+ */
+export function collapseRepeatedBackslashes(p: string): string {
+  return p.replace(/\\{2,}/g, '\\');
+}
+
 export function resolveNativeIndexPath(workspacePath: string): string {
-  const root = workspacePath && workspacePath !== '.' ? workspacePath : process.cwd();
+  // 入口归一化（collapseRepeatedBackslashes）：双重转义的 workspace 落到不同的
+  // 磁盘目录（`.codegraph-visualizer` 挂在 `D:\\Projects` 字面目录下），同库两套
+  // meta 的直接来源。折叠后单双反斜杠形态共享同一个索引文件。
+  const root = collapseRepeatedBackslashes(workspacePath && workspacePath !== '.' ? workspacePath : process.cwd());
   const normalized = normalize(root);
   if (normalized.includes('..')) {
     throw new Error(`Invalid workspace path: ${workspacePath}`);
@@ -147,6 +170,10 @@ export function writeNativeIndex(
 ): boolean {
   let indexPath: string;
   try {
+    // workspace 归一化（见 collapseRepeatedBackslashes 头注）：写侧 id/file_path
+    // 的毒源是 scanDir 的 repoId 起点带双反斜杠，这里在 meta 键与目录解析两处
+    // 同时折叠——双形态工作区写进同一份 meta、同一个索引文件。
+    workspacePath = collapseRepeatedBackslashes(workspacePath);
     indexPath = resolveNativeIndexPath(workspacePath);
   } catch (e) {
     log.warn('native index path rejected', { error: String(e) });
@@ -173,11 +200,13 @@ export function writeNativeIndex(
       for (const n of nodes) {
         const props = (n.properties ?? {}) as Record<string, unknown>;
         const exported = props.isExported === true || props.is_exported === 1 || props.is_exported === true;
+        // id 与 filePath 同步折叠：scanDir 从带毒 repoId 起遍历时，每个 dir:/file:
+        // id 与 file_path 都继承了双重转义——写库前统一消毒，读侧单反斜杠查询才能命中。
         insertNode.run(
-          String(n.id),
+          collapseRepeatedBackslashes(String(n.id)),
           n.type,
           n.label,
-          n.filePath ?? '',
+          collapseRepeatedBackslashes(n.filePath ?? ''),
           n.lineNumber ?? 0,
           typeof props.signature === 'string' ? props.signature : null,
           typeof props.docstring === 'string' ? props.docstring : null,
@@ -190,7 +219,9 @@ export function writeNativeIndex(
       for (const e of edges) {
         const props = (e.properties ?? {}) as Record<string, unknown>;
         const line = typeof props.line === 'number' && Number.isFinite(props.line) ? Math.round(props.line) : null;
-        insertEdge.run(String(e.source), String(e.target), e.type, line);
+        // contains/import/call 边的两端同样继承带毒 id——不消毒则 dir: 分支的
+        // contains-join 与 edges join 全部落空。
+        insertEdge.run(collapseRepeatedBackslashes(String(e.source)), collapseRepeatedBackslashes(String(e.target)), e.type, line);
       }
       db.prepare(
         'INSERT OR REPLACE INTO index_meta (workspace, fingerprint, node_count, edge_count, indexed_at) VALUES (?, ?, ?, ?, ?)',

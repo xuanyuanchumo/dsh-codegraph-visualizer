@@ -18,7 +18,7 @@ import {
 import {
   readGraphFromDbPaged, readTopLevelNodesFromDb, readNodeChildrenFromDb, closeAllDbConnections,
 } from '../../src/adapters/codeGraphDb.ts';
-import { readEdgesFromDb } from '../../src/adapters/codeGraphEdgeReads.ts';
+import { readEdgesFromDb, readEdgesForNodesFromDb } from '../../src/adapters/codeGraphEdgeReads.ts';
 import { mapRowsToGraphNodes, mapRowsToGraphEdges } from '../../src/adapters/codeGraphRows.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { NodeId, EdgeId } from '../../src/types/index.ts';
@@ -184,6 +184,122 @@ describe('原生 SQLite 索引（cycle-128）', () => {
       'dir:D:\\proj/aa',
       'dir:D:\\proj/b/ccc',
     ]);
+  });
+
+  // ── cycle-141 第六轮：dir: 目录节点的展开语义（dsh-anic 真机复现 total=0）──────
+  //
+  // 现有 children 语义（file_path = 父.file_path AND kind NOT IN 顶层）只为上游
+  // 索引的 file→符号 设计：对 dir: 目录节点该查询恒返回 0（原生索引的目录树是
+  // contains 边）。修复：dir: 分支按 contains 边读孩子；file: 分支语义不变。
+  it('NB-10 dir: 节点的展开按 contains 边读孩子（现有语义对 dir 恒 0 的回归钉）', () => {
+    const nodes = [
+      makeNode('dir:D:\\proj/src', 'module', 'D:\\proj/src'),
+      makeNode('dir:D:\\proj/src/adapters', 'module', 'D:\\proj/src/adapters'),
+      makeNode('dir:D:\\proj/src/host', 'module', 'D:\\proj/src/host'),
+      makeNode('file:D:\\proj/src/index.ts', 'module', 'D:\\proj/src/index.ts'),
+      makeNode('fn:main', 'function', 'D:\\proj/src/index.ts', 'main'),
+    ];
+    const edges = [
+      makeEdge('c1', 'dir:D:\\proj/src', 'dir:D:\\proj/src/adapters', 'contains'),
+      makeEdge('c2', 'dir:D:\\proj/src', 'dir:D:\\proj/src/host', 'contains'),
+      makeEdge('c3', 'dir:D:\\proj/src', 'file:D:\\proj/src/index.ts', 'contains'),
+      makeEdge('c4', 'file:D:\\proj/src/index.ts', 'fn:main', 'contains'),
+    ];
+    writeNativeIndex(workspace, 'fp', nodes, edges);
+    const indexPath = resolveNativeIndexPath(workspace);
+
+    const kids = readNodeChildrenFromDb(indexPath, 'dir:D:\\proj/src', null, 10);
+    expect(kids).not.toBeNull();
+    expect(kids!.total).toBe(3);
+    // 按 target 排序：adapters < host < file（字母序 D:\proj/src/adapters < .../host < .../index.ts）
+    expect(kids!.nodes.map((r) => r.id)).toEqual([
+      'dir:D:\\proj/src/adapters',
+      'dir:D:\\proj/src/host',
+      'file:D:\\proj/src/index.ts',
+    ]);
+  });
+
+  it('NB-11 dir: 分支分页游标：第二页续读且不重复', () => {
+    const nodes = [
+      makeNode('dir:D:\\proj/src', 'module', 'D:\\proj/src'),
+      ...['a', 'b', 'c'].map((s) => makeNode(`dir:D:\\proj/src/${s}`, 'module', `D:\\proj/src/${s}`)),
+    ];
+    const edges = ['a', 'b', 'c'].map((s) =>
+      makeEdge(`c-${s}`, 'dir:D:\\proj/src', `dir:D:\\proj/src/${s}`, 'contains'));
+    writeNativeIndex(workspace, 'fp', nodes, edges);
+    const indexPath = resolveNativeIndexPath(workspace);
+
+    const page1 = readNodeChildrenFromDb(indexPath, 'dir:D:\\proj/src', null, 2);
+    expect(page1!.total).toBe(3);
+    expect(page1!.nodes).toHaveLength(2);
+    // 第二页：cursor = 本页最后一条 id（dataRoutes /children 的既有约定）
+    const lastId = page1!.nodes[page1!.nodes.length - 1]!.id;
+    const page2 = readNodeChildrenFromDb(indexPath, 'dir:D:\\proj/src', lastId, 2);
+    expect(page2!.total).toBe(3);
+    expect(page2!.nodes).toHaveLength(1);
+    const seen = [...page1!.nodes, ...page2!.nodes].map((r) => r.id);
+    expect(new Set(seen).size).toBe(3);
+  });
+
+  it('NB-12 file: 节点的展开语义不变（上游行为逐字节兼容）', () => {
+    const nodes = [
+      makeNode('file:src/a.ts', 'module', 'src/a.ts'),
+      makeNode('fn:a', 'function', 'src/a.ts', 'a'),
+    ];
+    const edges = [makeEdge('c1', 'file:src/a.ts', 'fn:a', 'contains')];
+    writeNativeIndex(workspace, 'fp', nodes, edges);
+    const indexPath = resolveNativeIndexPath(workspace);
+    // file: 走原语义（file_path 匹配），返回 fn:a
+    const kids = readNodeChildrenFromDb(indexPath, 'file:src/a.ts', null, 10);
+    expect(kids!.total).toBe(1);
+    expect(kids!.nodes.map((r) => r.id)).toEqual(['fn:a']);
+  });
+
+  // ── cycle-141 第六轮：双重转义（存量脏库）兼容 ───────────────────────────
+  //
+  // 真机实证：workspace/repoId 沿 LLM 工具调用传递时 JSON 转义层数不恒定，
+  // dsh-anic 的 index_meta 同分钟两条记录（单/双反斜杠），后者写出的整库
+  // id/file_path/边端点全带双反斜杠。写侧消毒只管新写入；存量库靠读侧
+  // 双形态查询兼容——单形态查询 0 命中且含反斜杠时按折叠形态再查。
+  it('NB-13 存量脏库：单反斜杠查询命中双反斜杠存储的 dir 子树', async () => {
+    // 直接绕过 writeNativeIndex（它已消毒），用原始 SQL 模拟修复前的脏库形态。
+    // 用 writeNativeIndex 写干净数据，再手动 UPDATE 成脏形态。
+    const nodes = [
+      makeNode('dir:D:\\proj/src', 'module', 'D:\\proj/src'),
+      makeNode('dir:D:\\proj/src/adapters', 'module', 'D:\\proj/src/adapters'),
+    ];
+    const edges = [makeEdge('c1', 'dir:D:\\proj/src', 'dir:D:\\proj/src/adapters', 'contains')];
+    writeNativeIndex(workspace, 'fp', nodes, edges);
+    const indexPath = resolveNativeIndexPath(workspace);
+    // 先关掉写/读两池连接——SQLite 连接缓存了页数据，UPDATE 跨连接不可见。
+    closeNativeIndexConnections();
+    closeAllDbConnections();
+    // 手动污染成修复前的形态（id/file_path/边端点全部双反斜杠）
+    const { DatabaseSync } = await import('node:sqlite');
+    const dirty = new DatabaseSync(indexPath);
+    dirty.exec("UPDATE nodes SET id = REPLACE(id, '\\', '\\\\'), file_path = REPLACE(file_path, '\\', '\\\\')");
+    dirty.exec("UPDATE edges SET source = REPLACE(source, '\\', '\\\\'), target = REPLACE(target, '\\', '\\\\')");
+    dirty.close();
+
+    // 客户端视角：折叠后的单反斜杠 id。直接查必须命中（双形态回查生效）。
+    const kids = readNodeChildrenFromDb(indexPath, 'dir:D:\\proj/src', null, 10);
+    expect(kids).not.toBeNull();
+    expect(kids!.total).toBe(1);
+    // 返回行已折叠回单形态（与 bootstrap id 同域）
+    expect(kids!.nodes.map((r) => r.id)).toEqual(['dir:D:\\proj/src/adapters']);
+
+    // 顶层读取同样返回折叠形态
+    const top = readTopLevelNodesFromDb(indexPath, 10);
+    expect(top!.nodes.every((r) => !r.id.includes('\\\\'))).toBe(true);
+
+    // 边 join 双形态命中
+    const edgesFor = readEdgesForNodesFromDb(indexPath, ['dir:D:\\proj/src', 'dir:D:\\proj/src/adapters']);
+    expect(edgesFor).toHaveLength(1);
+    expect(edgesFor[0]!.kind).toBe('contains');
+    // 返回行端点必须折叠回单形态——调用方 id 域（节点行已消毒）与边端点同域，
+    // 否则客户端聚类聚合映射不上、边全丢（真机 "50 节点 · 0 边" 的直接根因）。
+    expect(edgesFor[0]!.source).toBe('dir:D:\\proj/src');
+    expect(edgesFor[0]!.target).toBe('dir:D:\\proj/src/adapters');
   });
 
   it('NB-7 mapRowsToGraph* 往返：写入的图从原生库读回后逐字段等价', () => {
