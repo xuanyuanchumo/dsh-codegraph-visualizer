@@ -52,7 +52,9 @@ const proc = spawn(exe, [
   cwd,
   env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
-  windowsHide: false,
+  // windowsHide: true —— cycle-141 第四轮：宿主进程拉起时不再闪控制台窗口
+  //（与 src/host/prerequisites.ts 的 windowsHide 纪律一致；日志走 pipe，不依赖窗口）。
+  windowsHide: true,
 });
 
 let out = '';

@@ -243,6 +243,37 @@ describe('computeBetweennessCentrality（真实无向 Brandes）', () => {
     expect(sampleSize).toBe(10);
     expect(approximate).toBe(true);
   });
+
+  // ── cycle-141 第四轮：maxSample 预算（真机 65.4s 缺陷的回归钉） ──
+  it('maxSample 上界生效：大图默认封顶 200 源并如实标记 approximate', () => {
+    const n = 500;
+    const nodes = Array.from({ length: n }, (_, i) => makeNode(`n${i}`));
+    // 链形图保证有介数结构（不是孤立点森林）
+    const edges = Array.from({ length: n - 1 }, (_, i) => makeEdge(`n${i}`, `n${i + 1}`));
+    const adj = buildAdj(nodes, edges);
+    const { sampleSize, approximate } = computeBetweennessCentrality(adj);
+    expect(sampleSize).toBe(200);
+    expect(approximate).toBe(true);
+  });
+
+  it('maxSample: null 逃生口保持旧全量行为（显式表态才不封顶）', () => {
+    const n = 500;
+    const nodes = Array.from({ length: n }, (_, i) => makeNode(`n${i}`));
+    const edges = Array.from({ length: n - 1 }, (_, i) => makeEdge(`n${i}`, `n${i + 1}`));
+    const adj = buildAdj(nodes, edges);
+    const { sampleSize, approximate } = computeBetweennessCentrality(adj, 1.0, null);
+    expect(sampleSize).toBe(500);
+    expect(approximate).toBe(false);
+  });
+
+  it('sampleRate 与 maxSample 取交集：两者各自语义不变', () => {
+    const nodes = Array.from({ length: 100 }, (_, i) => makeNode(`n${i}`));
+    const adj = buildAdj(nodes, []);
+    // rate 0.5 → 50 源；maxSample 30 封顶 → 30
+    expect(computeBetweennessCentrality(adj, 0.5, 30).sampleSize).toBe(30);
+    // rate 0.2 → 20 源；maxSample 30 不触发 → 20
+    expect(computeBetweennessCentrality(adj, 0.2, 30).sampleSize).toBe(20);
+  });
 });
 
 describe('cycle-141 附加图论指标', () => {

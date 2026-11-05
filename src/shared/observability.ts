@@ -67,7 +67,18 @@ export function decr(key: string, delta: number = 1): void {
   }
 }
 
-/** 读取单个计数器值（不存在返回 0）。 */
+/**
+ * 结束该阶段所有**未配对**的计时窗口（reset 用）。
+ *
+ * 「未配对」= `pipelinePendingMarks` 里还挂着起始时间、从未等到对应 `end` 的窗口。
+ * 只清理挂起窗口、**不产生样本**：没有发生的测量不能伪造一次 0ms 样本。
+ */
+function clearPendingMarks(): void {
+  pipelinePendingMarks.clear();
+}
+
+/**
+ * 读取单个计数器值（不存在返回 0）。 */
 export function getCount(key: string): number {
   return counters.get(key)?.value ?? 0;
 }
@@ -86,13 +97,21 @@ export function snapshot(): Record<string, number> {
 }
 
 /**
- * 清零全部计数器（测试用）。
+ * 清零全部计数器与管线计时状态（测试用）。
  *
  * 注意：这**不**重置 PerformanceMonitor 的阈值表（那是另一个模块的职责）。
  * 调用方如果需要完整重置，必须同时调用 `clearMeasurements()` 与 `resetThresholds()`。
+ *
+ * cycle-141 第四轮修复（模块级单例成对重置）：此前本函数只清 `counters`，
+ * 不清 `pipelineDurations` / `pipelinePendingMarks`——一个测试里留下的计时样本
+ * 会泄入下一个测试（CLAUDE.md「模块级单例必须成对重置」教训的原样复发：
+ * `clearMeasurements()` 不重置阈值表是同一家族缺陷）。挂起窗口只清理、
+ * 不产生样本——没有发生的测量不能伪造一次 0ms 样本。
  */
 export function reset(): void {
   counters.clear();
+  pipelineDurations.clear();
+  clearPendingMarks();
 }
 
 /** 计数器键名常量——避免散落的字符串字面量漂移。 */
@@ -196,30 +215,41 @@ const PIPELINE_SAMPLE_LIMIT = 100;
 /** 阶段 → 耗时样本数组（最近 100 条）。 */
 const pipelineDurations = new Map<string, number[]>();
 
-/** 阶段 → 正在计时的起始时间（pendingMarks 的管线版本）。 */
-const pipelinePendingMarks = new Map<string, number>();
+/** 阶段 → 正在计时的起始时间栈（支持同阶段嵌套）。 */
+const pipelinePendingMarks = new Map<string, number[]>();
 
 /**
  * 开始计时某个管线阶段。
  *
- * 返回一个 disposer：调用它等同于调用 `endPipelineTiming`。
- * 这样调用方可以用 `try/finally` 或 `using` 语法确保计时器一定被清理。
+ * 返回一个 disposer：调用它**只终结这一次调用开启的窗口**，等同于对该窗口调用
+ * `endPipelineTiming`。这样调用方可以用 `try/finally` 或 `using` 语法确保计时器
+ * 一定被清理。
+ *
+ * cycle-141 第四轮修复（计时窗口所有权）：此前 disposer 绑定的是**阶段名**——
+ * 同阶段嵌套（scan 内再起 scan，例如子图重扫）时，内层先结束、外层的 disposer
+ * 会把**内层的起始时间**当成自己的终点（Map.get 取到的是后写者的标记），或者
+ * 内层结束把外层要用的标记删掉。现在每对 start/disposer 走独立的栈帧，
+ * disposer 只消费自己压入的那一帧。
  */
 export function startPipelineTiming(stage: string): () => void {
   const now = Date.now();
-  pipelinePendingMarks.set(stage, now);
+  const stack = pipelinePendingMarks.get(stage);
+  if (stack) stack.push(now);
+  else pipelinePendingMarks.set(stage, [now]);
   return () => endPipelineTiming(stage);
 }
 
 /**
- * 结束计时某个管线阶段，记录耗时。
+ * 结束计时某个管线阶段**最近一次开启**的窗口，记录耗时。
  *
- * 返回耗时（毫秒），若没有对应的起始时间则返回 null。
+ * 返回耗时（毫秒）；该阶段没有任何挂起窗口时返回 null。
+ * 与 `startPipelineTiming` 是 LIFO 配对：后开始的先结束（栈语义）。
  */
 export function endPipelineTiming(stage: string): number | null {
-  const start = pipelinePendingMarks.get(stage);
-  if (start === undefined) return null;
-  pipelinePendingMarks.delete(stage);
+  const stack = pipelinePendingMarks.get(stage);
+  if (!stack || stack.length === 0) return null;
+  const start = stack.pop()!;
+  if (stack.length === 0) pipelinePendingMarks.delete(stage);
   const durationMs = Date.now() - start;
   let samples = pipelineDurations.get(stage);
   if (!samples) {

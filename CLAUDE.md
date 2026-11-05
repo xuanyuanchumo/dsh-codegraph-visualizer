@@ -230,3 +230,8 @@
   - ② **`engines.dsh` 的预发布范围必须写显式 `||` 分支**：`>=0.2.0-rc.2 <0.4.0-0` 这种单段范围在默认模式下**漏掉整个 gen3 预发布线**，正确形态是 `>=0.2.0-rc.2 <0.3.0 || >=0.3.0-0 <0.4.0-0`。下界要取 semver 最小预发布 `0.3.0-0`——用探针版本 `0.3.0-rc.2` 当边界会漏掉 `0.3.0-rc.1`（首版 `||` 分支就是这么漏的）。`awesome-dsh-plugin/contributing.md` 对同一坑给出同一条建议。
   - ③ **「间接证据推出的宿主选项」不能当作正确性的地基**：cycle-110 用「插件在 `0.2.1-rc.3` 上能跑」反推宿主一定传了 `includePrerelease: true`。那是合理推断，但（a）对 `link:` 安装是否跳过引擎门没有独立核验，（b）把范围写对可以让结论**不依赖**这个假设。**能自洽就不要依赖外部假设。**
   - ④ **投稿类产物要落进仓库并被契约测试守护**：`awesome-dsh-plugin` 的投稿是一个 YAML 文件，`dsh-market` 截图是 `screenshots.json`，市场图标必须是**位图**（SVG 被拒）。这些都不在本插件的运行路径上，因此容易被当成「一次性对话产物」丢掉。把它们放进 `site/`（可发布产物目录）+ `assets/`，并用 `marketplaceSubmission.test.ts` 逐条守护（含「声明的图标/截图必须真实存在」——该列表明确抱怨过 773 张截图里 41 张 404）。
+- **cycle-141 第四轮四条新教训**（正文 `docs/需求分析.md` §84.20）：
+  - ① **采样基础设施齐备 ≠ 有预算**。`brandes.ts` 拆出时就带等距步长/`approximate` 披露/放大估计，但默认 `sampleRate=1.0` 且唯一生产调用点从不传——8393 源 × 全图 BFS 让 `/manage/metrics` 真机实测 65.4s（同轮拆出的 `distance.ts` 有 `maxSample=200` 而这里没有，同一文件族两种纪律）。「阈值与喂养它的上界是同一契约」的图论版：加预算 + `METRICS.BFS_SAMPLE_SOURCES` 单一真源 + null 逃生口 + 3 条回归钉，65425ms → 2701ms（24×）。
+  - ② **模块级单例重置必须成对，本模块新加的状态也要进 reset**——`observability.ts` 的 `reset()` 只清 `counters`，不清同轮新增的 `pipelineDurations`/`pipelinePendingMarks`，正是 CLAUDE.md「clearMeasurements 不重置阈值表」教训的当轮复发。新增模块级可变状态的那次提交就必须同时改 reset。
+  - ③ **disposer 必须绑定窗口实例，不能绑定阶段名**——同阶段嵌套时（scan 内重入 scan），绑定名字的 disposer 会终结别人的计时窗口。LIFO 栈语义（每对 start/disposer 独立栈帧）+ 嵌套/乱序/跨阶段三条回归钉。
+  - ④ **ESM 内建模块（node:child_process）不可 `vi.spyOn`**——"Module namespace is not configurable"。钉「调用契约」（如 windowsHide: true）用源码扫描守卫，且必须带**反向自检**（把目标文本从样文中剥离后守卫条件必须不再满足，防正则失效永绿）。

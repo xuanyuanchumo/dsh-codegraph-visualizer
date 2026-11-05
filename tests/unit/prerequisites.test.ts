@@ -421,9 +421,25 @@ describe('findWorkspacePath', () => {
   });
 });
 
-describe('detectCodegraphCli', () => {
-  it('returns a boolean indicating whether codegraph CLI is available', async () => {
-    const result = await detectCodegraphCli();
-    expect(typeof result).toBe('boolean');
+describe('detectCodegraphCli windowsHide 契约（源码守卫）', () => {
+  // ESM 命名空间不可 vi.spyOn（execFile 是 node: 内建的只读导出），所以用源码扫描钉契约：
+  // detectCodegraphCli 的 execFileAsync 调用必须带 windowsHide: true——gitDiff/gitChurn
+  // 在 cycle-105 真机已确立同一纪律，唯独这里漏了会导致每次前置探测闪一个控制台窗口。
+  it('detectCodegraphCli 的探测调用带 windowsHide: true', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/host/prerequisites.ts', import.meta.url), 'utf8');
+    // 取 detectCodegraphCli 函数体（从签名到下一个 export）
+    const body = src.slice(src.indexOf('export async function detectCodegraphCli'), src.indexOf('export', src.indexOf('export async function detectCodegraphCli') + 10));
+    expect(body).toContain('execFileAsync');
+    expect(body).toContain('windowsHide: true');
+  });
+
+  it('反向自检：守卫正则真的能识别 windowsHide（防正则失效永绿）', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/host/prerequisites.ts', import.meta.url), 'utf8');
+    // 把 windowsHide 从样本文本中移除后守卫条件必须不再满足——证明断言有鉴别力
+    const stripped = src.replace(/windowsHide: true/g, '');
+    expect(stripped.includes('windowsHide: true')).toBe(false);
+    expect(src.includes('windowsHide: true')).toBe(true);
   });
 });

@@ -76,10 +76,25 @@ export interface BetweennessResult {
  *
  * 在无向投影上做 BFS + SPLIT 依赖累加，归一化 `2/((n-1)(n-2))`。
  * 大图采样时用等距步长（无偏），并如实返回 `approximate`。
+ *
+ * ## sampleRate 必须有预算，不能默认全量（cycle-141 第四轮）
+ *
+ * 本函数自拆出以来 `sampleRate` 默认 1.0，而**唯一生产调用点**（`graphMetrics.ts`
+ * 的 `computeBetweennessCentrality(adj)`）从不传它——8393 节点的真实仓库上
+ * 8393 源 × 全图 BFS 让 `manage/metrics` 路由实测 **65.4s**（真机 3085 沙箱
+ * 2026-11-05）。`distance.ts` 的 `computeDistanceStats` 有 `maxSample=200`
+ * 上界而这里没有，同一文件族两种纪律。采样基础设施（等距步长 / approximate
+ * 披露）早已齐备，缺的只是调用点把预算接上。
+ *
+ * 归一化与放大估计已按「采样时乘 n/sampleSize」实现，样本数变化不影响正确性——
+ * 只影响精度（上界估计，如实标注 approximate）。maxSample 的量级与
+ * `computeDistanceStats.maxSample` 一致：两条指标共享同一批 BFS 成本特征，
+ * 「近似披露」在 UI 上口径统一。
  */
 export function computeBetweennessCentrality(
   adj: AdjacencyList,
   sampleRate = 1.0,
+  maxSample: number | null = 200,
 ): BetweennessResult {
   const allNodes = [...adj.all.keys()];
   const n = allNodes.length;
@@ -92,7 +107,10 @@ export function computeBetweennessCentrality(
   }
 
   // 无偏确定性采样：等距步长取 index，避免旧实现的模 233280 偏差。
-  const sampleSize = Math.min(n, Math.max(1, Math.floor(n * sampleRate)));
+  // maxSample（显式 null = 不设上界，保持旧全量行为的逃生口）与 sampleRate
+  // 取交集：先按比例、再封顶——两个旋钮各自语义不变。
+  const byRate = Math.max(1, Math.floor(n * sampleRate));
+  const sampleSize = maxSample === null ? Math.min(n, byRate) : Math.min(n, byRate, maxSample);
   const indices: number[] = [];
   if (sampleSize >= n) {
     for (let i = 0; i < n; i++) indices.push(i);

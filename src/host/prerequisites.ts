@@ -14,7 +14,15 @@ const execFileAsync = promisify(execFile);
 export async function detectCodegraphCli(): Promise<boolean> {
   try {
     const cmd = process.platform === 'win32' ? 'codegraph.cmd' : 'codegraph';
-    await execFileAsync(cmd, ['--version'], { timeout: POLLING.PREREQ_CHECK_TIMEOUT_MS, shell: process.platform === 'win32' });
+    // windowsHide: true —— 与 gitDiff/gitChurn 同一纪律（cycle-105 真机经验）：
+    // Windows 上缺它时每次前置探测都会闪一个控制台窗口（"命令窗口显示问题"）。
+    // shell: win32 是刻意保留的：codegraph.cmd 需要 shell 解析（DEP0190 只警告
+    // shell:true 下拼接含空格/元字符的参数——本调用只有固定字面量 ['--version']，无注入面）。
+    await execFileAsync(cmd, ['--version'], {
+      timeout: POLLING.PREREQ_CHECK_TIMEOUT_MS,
+      shell: process.platform === 'win32',
+      windowsHide: true,
+    });
     return true;
   } catch (e) {
     log.warn('detectCodegraphCli failed', e);

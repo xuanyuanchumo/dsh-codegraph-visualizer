@@ -50,6 +50,20 @@ import {
 import { computeDistanceStats } from './distance.ts';
 import { computeModularity, computeKCore } from './community.ts';
 
+/**
+ * BFS 采样源的统一预算（cycle-141 第四轮）。
+ *
+ * 真机量化（8393 节点仓库）：介数全量（8393 源 × 全图 BFS）实测 65.4s，
+ * `manage/metrics` 路由从「即时」退化为「一分钟白屏」。200 源与
+ * `computeDistanceStats.maxSample` 同量级——两条近似指标共享同一口径，
+ * 采样是上界估计且响应里如实披露（`betweennessApproximate` / `sampled`）。
+ *
+ * 常量放在 xuanji 库内而不是宿主 `shared/constants.ts`：库边界契约
+ * （libraryBoundary）要求 xuanji 零宿主依赖，预算是算法自身的成本特征，
+ * 属于库的语义而非宿主配置。
+ */
+const BFS_SAMPLE_SOURCES = 200;
+
 // ── 重新导出：保持调用方零改动 ──────────────────────────────────────────
 export type { MetricNode, MetricEdge, AdjacencyList } from './types.ts';
 export {
@@ -298,7 +312,10 @@ export function computeGraphMetrics(nodes: MetricNode[], edges: MetricEdge[]): G
 
   const density = computeDensity(nodeCount, edgeCount);
   const avgClustering = computeAverageClustering(adj);
-  const betweennessResult = computeBetweennessCentrality(adj);
+  // 采样预算（cycle-141 第四轮）：maxSample: null 表示「调用方明确不封顶」，
+  // 这里必须封顶——真机 8393 节点全量 Brandes 实测 65.4s。近似结果经由
+  // betweennessSampleSize/betweennessApproximate 如实披露，预算语义见 BFS_SAMPLE_SOURCES。
+  const betweennessResult = computeBetweennessCentrality(adj, 1.0, BFS_SAMPLE_SOURCES);
   const betweenness = betweennessResult.centrality;
   const pageRank = computePageRank(adj);
   const { outDegrees } = computeDegreeDistribution(adj);

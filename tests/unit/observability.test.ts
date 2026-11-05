@@ -12,6 +12,8 @@ import {
   recordEtagDecision,
   recordAstBudget,
   recordPipelineStage,
+  startPipelineTiming, endPipelineTiming,
+  getAllPipelineTiming, getPipelineTiming,
   OBS_KEYS,
 } from '../../src/shared/observability.ts';
 
@@ -154,5 +156,87 @@ describe('recordPipelineStage', () => {
     recordPipelineStage('xuanjiDegraded');
     expect(getCount(OBS_KEYS.pipelineXuanjiDelta)).toBe(1);
     expect(getCount(OBS_KEYS.pipelineXuanjiDegraded)).toBe(1);
+  });
+});
+
+describe('pipeline timing（cycle-141 第四轮：计时窗口所有权 + reset 成对重置）', () => {
+  beforeEach(() => reset());
+
+  it('无挂起窗口时 end 返回 null', () => {
+    expect(endPipelineTiming('scan')).toBeNull();
+  });
+
+  it('start → end 产生一个样本，耗时非负', () => {
+    const dispose = startPipelineTiming('scan');
+    dispose();
+    const timing = getPipelineTiming('scan');
+    expect(timing.count).toBe(1);
+    expect(timing.lastMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('disposer 与 endPipelineTiming 等价', () => {
+    startPipelineTiming('merge')();
+    expect(getPipelineTiming('merge').count).toBe(1);
+  });
+
+  it('同阶段嵌套：disposer 只终结自己的窗口（LIFO 栈语义）', () => {
+    // 外层先开始；内层后开始、先结束——外层的 disposer 消费的是自己压入的那一帧。
+    const outerDispose = startPipelineTiming('scan');
+    const innerDispose = startPipelineTiming('scan');
+    expect(innerDispose()).toBeGreaterThanOrEqual(0);
+    expect(outerDispose()).toBeGreaterThanOrEqual(0);
+    // 两个窗口都产生了样本，且此后该阶段没有挂起窗口
+    expect(getPipelineTiming('scan').count).toBe(2);
+    expect(endPipelineTiming('scan')).toBeNull();
+  });
+
+  it('同阶段乱序结束：直接调 end 也按 LIFO 取最近的窗口', () => {
+    startPipelineTiming('merge');
+    startPipelineTiming('merge');
+    const first = endPipelineTiming('merge');
+    const second = endPipelineTiming('merge');
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(second).toBeGreaterThanOrEqual(0);
+    expect(endPipelineTiming('merge')).toBeNull();
+  });
+
+  it('不同阶段互不干扰', () => {
+    const scanDispose = startPipelineTiming('scan');
+    const initDispose = startPipelineTiming('init');
+    initDispose();
+    scanDispose();
+    expect(getPipelineTiming('scan').count).toBe(1);
+    expect(getPipelineTiming('init').count).toBe(1);
+  });
+
+  it('样本上限 100：超限后丢弃最旧样本', () => {
+    for (let i = 0; i < 105; i++) {
+      startPipelineTiming('scan');
+      endPipelineTiming('scan');
+    }
+    expect(getPipelineTiming('scan').count).toBe(100);
+  });
+
+  it('getAllPipelineTiming 只含已有样本的阶段', () => {
+    startPipelineTiming('dbRead')();
+    const all = getAllPipelineTiming();
+    expect(Object.keys(all)).toContain('dbRead');
+    expect(Object.keys(all)).not.toContain('scan');
+  });
+
+  it('reset 清掉耗时样本（成对重置——此前只清 counters）', () => {
+    startPipelineTiming('scan')();
+    expect(getPipelineTiming('scan').count).toBe(1);
+    reset();
+    expect(getPipelineTiming('scan').count).toBe(0);
+    expect(Object.keys(getAllPipelineTiming())).toHaveLength(0);
+  });
+
+  it('reset 丢弃挂起窗口且不伪造样本', () => {
+    const dispose = startPipelineTiming('scan');
+    reset();
+    // 挂起窗口被清掉：disposer 落空（null），不会产生一次伪造的 0ms 样本
+    expect(dispose()).toBeNull();
+    expect(getPipelineTiming('scan').count).toBe(0);
   });
 });
