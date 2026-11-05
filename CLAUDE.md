@@ -235,3 +235,8 @@
   - ② **模块级单例重置必须成对，本模块新加的状态也要进 reset**——`observability.ts` 的 `reset()` 只清 `counters`，不清同轮新增的 `pipelineDurations`/`pipelinePendingMarks`，正是 CLAUDE.md「clearMeasurements 不重置阈值表」教训的当轮复发。新增模块级可变状态的那次提交就必须同时改 reset。
   - ③ **disposer 必须绑定窗口实例，不能绑定阶段名**——同阶段嵌套时（scan 内重入 scan），绑定名字的 disposer 会终结别人的计时窗口。LIFO 栈语义（每对 start/disposer 独立栈帧）+ 嵌套/乱序/跨阶段三条回归钉。
   - ④ **ESM 内建模块（node:child_process）不可 `vi.spyOn`**——"Module namespace is not configurable"。钉「调用契约」（如 windowsHide: true）用源码扫描守卫，且必须带**反向自检**（把目标文本从样文中剥离后守卫条件必须不再满足，防正则失效永绿）。
+- **cycle-141 第五轮四条新教训**（正文 `docs/需求分析.md` §84.21；原生图谱 "Projects (50)" 单簇塌缩的三根因闭环）：
+  - ① **语法结构不是符号**：tree-sitter 的 `import_statement` 曾被收成 kind=module 的 `<import_statement>` 节点——1777 个 0 出边 0 入边的伪节点。判定「某 AST 节点该不该进图」的准绳是「它是不是一个可命名的符号」，语句/声明包装/容器节点一律不进（与既有 `<lexical_declaration>` 剔除纪律同族）。剔除时数据面要保留：模块字符串进 importSources，「不进图」≠「丢弃语法事实」。
+  - ② **LIMIT N 的字母序截断会系统性偏向某个 id 前缀域**：盘符开头（`D:`=0x44）的 id 字母序全部排在 `dir:`（0x64）之前，342 个真实目录的最小名次是 1778——永远进不了 LIMIT 50。对「前 N 条」查询必须用显式分层排序（dir: > file: > 其他），不能裸信字典序。
+  - ③ **getTopLevelDir 对绝对路径返回的是路径字面段不是逻辑顶层**：`D:\Projects\TraeProjects\x/src` 被判成 `Projects/TraeProjects`——50 个顶层目录全塌进一个聚类组。相对路径通道（上游索引）与绝对路径通道（原生索引）第一次在客户端聚类器上分叉。`dir:` 前缀目录节点自己是分组锚；分组判定的所有消费点（分组/增量/代价估算）必须同一实现，漂移即展开代价错位。
+  - ④ **graphLayer 是声明域，resolveDbPath 是解析域——两者不能各写各的**：bootstrap 写死 'upstream' 而解析函数会回落 native-index，来源徽章撒谎（与「服务键存在必须双向证据」同族）。解析函数返回「实际解析出的来源」，声明按返回值走。
