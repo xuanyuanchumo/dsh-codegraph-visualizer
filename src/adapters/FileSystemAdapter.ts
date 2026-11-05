@@ -5,6 +5,7 @@ import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 import type { TreeSitterAdapter } from './TreeSitterAdapter.ts';
 import { parseTsconfigPaths, resolveAliasModule, resolveCallEdges, type TsconfigPathsMapping } from './treeSitterExtractors.ts';
 import { FILE_SYSTEM } from '../shared/constants.ts';
+import { createGitignoreFilter, DEFAULT_IGNORED_DIRS } from './gitignoreFilter.ts';
 
 const log = scoped('fs-adapter');
 
@@ -14,13 +15,9 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.json', '.toml', '.yaml', '.yml',
 ]);
 
-const IGNORED_DIRS = new Set([
-  'node_modules', '.git', 'dist', 'build', 'target',
-  '__pycache__', '.venv', 'venv', '.next',
-  'coverage', '.cache', '.codegraph',
-  // cycle-141：.codegraph-visualizer/ 是插件自己的索引目录，不应出现在图谱中。
-  '.codegraph-visualizer',
-]);
+// 硬编码兜底目录表下沉到 gitignoreFilter.ts（单一真源 DEFAULT_IGNORED_DIRS）——
+// cycle-141 第七轮：.gitignore 在场时与硬编码表并集裁决（见 GitignoreFilter 头注）。
+const IGNORED_DIRS = DEFAULT_IGNORED_DIRS;
 
 
 function getLanguageFromExt(ext: string): string {
@@ -73,6 +70,17 @@ export class FileSystemAdapter implements IDataAdapter {
     const edges: GraphEdge[] = [];
     const visitedDirs = new Set<string>();
     let fileCount = 0;
+    let ignoredCount = 0;
+
+    // .gitignore 过滤（cycle-141 第七轮）：仓库根的 .gitignore + 硬编码目录表
+    // 并集裁决（GitignoreFilter 头注）。读失败 = 纯兜底（gitignore 缺席是常态）。
+    const { filter: gitignore, gitignorePresent } = createGitignoreFilter(
+      (p) => this.fs!.readFile(p),
+      repoId,
+    );
+    // repoId 前缀长度：把绝对路径归一成「相对仓库根、/ 分隔」的裁决域。
+    const repoPrefix = repoId.endsWith('/') ? repoId.length : repoId.length + 1;
+    const relPathOf = (absPath: string): string => absPath.slice(repoPrefix).replace(/\\/g, '/');
 
     const scanDir = (dirPath: string, parentId?: string): void => {
       if (fileCount >= FILE_SYSTEM.MAX_FILES) return;
@@ -91,12 +99,27 @@ export class FileSystemAdapter implements IDataAdapter {
         const fullPath = dirPath.endsWith('/') ? dirPath + entry : `${dirPath}/${entry}`;
         const baseName = entry.split('/').pop() ?? entry;
 
-        if (IGNORED_DIRS.has(baseName)) continue;
+        if (IGNORED_DIRS.has(baseName)) { ignoredCount++; continue; }
 
         let isDir: boolean;
         try {
           isDir = this.fs!.stat(fullPath).isDirectory;
         } catch {
+          continue;
+        }
+
+        // .gitignore 裁决。目录在递归前剪枝（整棵子树不进图，性能主路径）——
+        // **例外**：.gitignore 含取反规则时降级为「不生成节点但仍递归」，
+        // 让 `!.cycles/config.yml` 这类白名单能救回目录内的文件（git 语义对齐；
+        // 取反规则数通常 ≤ 几条，降级路径开销可控）。文件被排除只 continue，
+        // 不存在子树问题。
+        const rel = relPathOf(fullPath);
+        const ignored = gitignore.isIgnored(rel, isDir);
+        if (ignored && (!isDir || !gitignore.hasNegation)) { ignoredCount++; continue; }
+        if (ignored && isDir) {
+          // 目录被排除但有取反规则：跳过目录节点本体，仍递归其内容逐个裁决。
+          ignoredCount++;
+          scanDir(fullPath);
           continue;
         }
 
@@ -151,14 +174,23 @@ export class FileSystemAdapter implements IDataAdapter {
 
     scanDir(repoId);
 
-    log.info(`scanned ${fileCount} files, ${nodes.length} nodes, ${edges.length} edges`);
+    // 白盒可观测：gitignore 是否在场/规则数/排除数——管理面板「索引覆盖范围」的数据面，
+    // 也是「图谱为什么少了某目录」的唯一可诊断入口（排除是不可见操作，没有这个数字
+    // 「被 gitignore 屏蔽」和「扫描 bug」长得一样）。scanCoverage 随 AdapterResult
+    // 上行，tools.ts 回写索引时沉淀进 index_meta（readNativeIndexCoverage 读侧）。
+    log.info(`scanned ${fileCount} files, ${nodes.length} nodes, ${edges.length} edges, gitignore ${gitignorePresent ? `${gitignore.ruleCount} rules` : 'absent'}, ignored ${ignoredCount}`);
 
     return {
       nodes,
       edges,
       source: this.source,
       timestamp: Date.now(),
-    };
+      scanCoverage: {
+        gitignorePresent,
+        gitignoreRules: gitignore.ruleCount,
+        ignoredEntries: ignoredCount,
+      },
+    } as AdapterResult & { scanCoverage: { gitignorePresent: boolean; gitignoreRules: number; ignoredEntries: number } };
   }
 
   async fetchDataWithSymbols(repoId: string, _invoke?: UpstreamInvoker): Promise<AdapterResult> {

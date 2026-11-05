@@ -77,6 +77,61 @@ describe('FileSystemAdapter', () => {
     expect(fileNodes.length).toBeGreaterThanOrEqual(2);
   });
 
+  // ── cycle-141 第七轮：.gitignore 剪枝（dsh-anic 真机场景）──────────────────
+  it('.gitignore 排除的整棵子树不进图（目录剪枝在递归前）', async () => {
+    const fs = createMockFs({
+      '/repo/.gitignore': 'artifacts/\n.agents/\ntest-results/\n',
+      '/repo/src': ['/repo/src/main.ts'],
+      '/repo/src/main.ts': 'export function main() {}',
+      '/repo/artifacts': ['/repo/artifacts/bundle.js'],
+      '/repo/artifacts/bundle.js': 'console.log("generated")',
+      '/repo/.agents/worktrees': ['/repo/.agents/worktrees/w1.ts'],
+      '/repo/.agents/worktrees/w1.ts': 'export const w = 1;',
+    });
+    const adapter = new FileSystemAdapter();
+    adapter.setFileSystem(fs);
+    const result = await adapter.fetchData('/repo');
+    const allPaths = result.nodes.map(n => n.filePath);
+    // 源码在
+    expect(allPaths.some(p => p?.endsWith('src/main.ts'))).toBe(true);
+    // gitignore 排除的目录与其下文件全部缺席
+    expect(allPaths.some(p => p?.includes('artifacts'))).toBe(false);
+    expect(allPaths.some(p => p?.includes('.agents'))).toBe(false);
+    // 目录节点也不在（剪枝不是只摘文件）
+    expect(result.nodes.some(n => n.label === 'artifacts')).toBe(false);
+  });
+
+  it('.gitignore 缺席时退回硬编码兜底（node_modules 仍不进图）', async () => {
+    const fs = createMockFs({
+      '/repo/src': ['/repo/src/main.ts'],
+      '/repo/src/main.ts': 'export function main() {}',
+      '/repo/node_modules': ['/repo/node_modules/lib.js'],
+      '/repo/node_modules/lib.js': 'module.exports = {};',
+    });
+    const adapter = new FileSystemAdapter();
+    adapter.setFileSystem(fs);
+    const result = await adapter.fetchData('/repo');
+    expect(result.nodes.some(n => n.filePath?.includes('node_modules'))).toBe(false);
+    expect(result.nodes.filter(n => n.filePath?.endsWith('.ts')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('.gitignore 的取反规则救回目录内的白名单文件', async () => {
+    const fs = createMockFs({
+      '/repo/.gitignore': '.cycles/\n!.cycles/config.yml\n',
+      '/repo/.cycles': ['/repo/.cycles/cache.json', '/repo/.cycles/config.yml'],
+      '/repo/.cycles/cache.json': '{}',
+      '/repo/.cycles/config.yml': 'key: value',
+      '/repo/src': ['/repo/src/main.ts'],
+      '/repo/src/main.ts': 'export function main() {}',
+    });
+    const adapter = new FileSystemAdapter();
+    adapter.setFileSystem(fs);
+    const result = await adapter.fetchData('/repo');
+    const allPaths = result.nodes.map(n => n.filePath);
+    expect(allPaths.some(p => p?.endsWith('cache.json'))).toBe(false);
+    expect(allPaths.some(p => p?.endsWith('config.yml'))).toBe(true);
+  });
+
   it('creates contains edges between directories and files', async () => {
     const fs = createMockFs({
       '/repo/src': ['/repo/src/main.ts'],

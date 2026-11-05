@@ -246,6 +246,12 @@ export const zh: Record<string, string> = {
   'manage.truncated': '已截断',
   'manage.sampled': '已采样',
   'manage.compute_ms': '计算耗时(ms)',
+  // cycle-141 第七轮：索引覆盖范围（gitignore 过滤白盒）
+  'manage.coverage_title': '索引覆盖范围',
+  'manage.coverage_gitignore': '.gitignore 过滤',
+  'manage.coverage_rules': '过滤规则数',
+  'manage.coverage_ignored': '已排除条目',
+  'manage.coverage_indexed_at': '索引时间',
   'manage.yes': '是',
   'manage.no': '否',
   'manage.components': '连通分量',

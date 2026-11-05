@@ -247,6 +247,12 @@ export const en: Record<string, string> = {
   'manage.truncated': 'Truncated',
   'manage.sampled': 'Sampled',
   'manage.compute_ms': 'Compute (ms)',
+  // cycle-141 round 7: index coverage (gitignore filter white-box)
+  'manage.coverage_title': 'Index coverage',
+  'manage.coverage_gitignore': '.gitignore filter',
+  'manage.coverage_rules': 'Filter rules',
+  'manage.coverage_ignored': 'Ignored entries',
+  'manage.coverage_indexed_at': 'Indexed at',
   'manage.yes': 'Yes',
   'manage.no': 'No',
   'manage.components': 'Components',

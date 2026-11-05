@@ -87,8 +87,24 @@ const NATIVE_MIGRATION_SQL = [
     fingerprint TEXT NOT NULL,
     node_count INTEGER NOT NULL,
     edge_count INTEGER NOT NULL,
-    indexed_at INTEGER NOT NULL
+    indexed_at INTEGER NOT NULL,
+    gitignore_present INTEGER NOT NULL DEFAULT 0,
+    gitignore_rules INTEGER NOT NULL DEFAULT 0,
+    ignored_entries INTEGER NOT NULL DEFAULT 0
   )`,
+] as const;
+
+/**
+ * 老库升级 ALTER（cycle-141 第七轮）：CREATE IF NOT EXISTS 不会给已存在的表补列。
+ * **必须容错执行**——新库建表已含这些列，ALTER 会报 duplicate column；这条失败
+ * 是幂等成功而不是错误。此前把 ALTER 混进 NATIVE_MIGRATION_SQL 让 getWriteDb 的
+ * try/catch 整体失败 → 每次打开连接都返回 null → 全部写入静默失败（13 个用例
+ * EPERM/0 行的现场）。
+ */
+const NATIVE_UPGRADE_SQL = [
+  `ALTER TABLE index_meta ADD COLUMN gitignore_present INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE index_meta ADD COLUMN gitignore_rules INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE index_meta ADD COLUMN ignored_entries INTEGER NOT NULL DEFAULT 0`,
 ] as const;
 
 /** 原生索引写连接（每工作区一个；与 codeGraphDb 的只读池隔离）。 */
@@ -134,6 +150,10 @@ function getWriteDb(indexPath: string): SqliteDb | null {
     mkdirSync(join(indexPath, '..'), { recursive: true });
     const db = new DatabaseSync(indexPath) as unknown as SqliteDb;
     for (const ddl of NATIVE_MIGRATION_SQL) db.exec(ddl);
+    // 升级 ALTER 容错执行（duplicate column = 幂等成功，见 NATIVE_UPGRADE_SQL 头注）。
+    for (const ddl of NATIVE_UPGRADE_SQL) {
+      try { db.exec(ddl); } catch { /* 列已存在 */ }
+    }
     writePool.set(indexPath, db);
     return db;
   } catch (e) {
@@ -162,11 +182,24 @@ export function closeNativeIndexConnections(): void {
  *   properties.line（AST 行号），metadata 恒 null（原生通道无 confidence 数据，
  *   不编造——parseEdgeConfidence 的保守降级哲学）。
  */
+/** 索引覆盖范围统计（写侧随扫描沉淀，读侧供管理面板白盒区）。 */
+export interface IndexCoverage {
+  /** .gitignore 是否在场（false = 纯硬编码兜底）。 */
+  gitignorePresent: boolean;
+  /** .gitignore 规则数（0 = 缺席或空文件）。 */
+  gitignoreRules: number;
+  /** 本次扫描被排除的目录/文件总数。 */
+  ignoredEntries: number;
+  /** 索引时间（读侧填充；写侧参数不需要）。 */
+  indexedAt?: number;
+}
+
 export function writeNativeIndex(
   workspacePath: string,
   fingerprint: string,
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
+  coverage: IndexCoverage = { gitignorePresent: false, gitignoreRules: 0, ignoredEntries: 0 },
 ): boolean {
   let indexPath: string;
   try {
@@ -224,8 +257,17 @@ export function writeNativeIndex(
         insertEdge.run(collapseRepeatedBackslashes(String(e.source)), collapseRepeatedBackslashes(String(e.target)), e.type, line);
       }
       db.prepare(
-        'INSERT OR REPLACE INTO index_meta (workspace, fingerprint, node_count, edge_count, indexed_at) VALUES (?, ?, ?, ?, ?)',
-      ).run(workspacePath, fingerprint, nodes.length, edges.length, Date.now());
+        'INSERT OR REPLACE INTO index_meta (workspace, fingerprint, node_count, edge_count, indexed_at, gitignore_present, gitignore_rules, ignored_entries) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ).run(
+        workspacePath,
+        fingerprint,
+        nodes.length,
+        edges.length,
+        Date.now(),
+        coverage.gitignorePresent ? 1 : 0,
+        coverage.gitignoreRules,
+        coverage.ignoredEntries,
+      );
       db.exec('COMMIT');
       log.info('native index written', { workspacePath, nodes: nodes.length, edges: edges.length, fingerprint: fingerprint.slice(0, 12) });
       return true;
@@ -258,6 +300,39 @@ export function readNativeIndexMeta(workspacePath: string): { fingerprint: strin
     return { fingerprint: row.fingerprint, nodeCount: row.node_count, edgeCount: row.edge_count, indexedAt: row.indexed_at };
   } catch (e) {
     log.warn('native index meta read failed', { error: String(e) });
+    return null;
+  }
+}
+
+/**
+ * 读取某工作区的索引覆盖范围（null = 未索引 / 老库无列 / 读失败）。
+ *
+ * 老库的列是 `ALTER TABLE ... DEFAULT 0` 补出来的——读到 0/0/0 是「升级前索引」
+ * 的诚实值，不编造。管理面板据此渲染「索引覆盖范围」行。
+ */
+export function readNativeIndexCoverage(workspacePath: string): IndexCoverage | null {
+  let indexPath: string;
+  try {
+    indexPath = resolveNativeIndexPath(workspacePath);
+  } catch {
+    return null;
+  }
+  if (!existsSync(indexPath)) return null;
+  const db = getWriteDb(indexPath);
+  if (!db) return null;
+  try {
+    const row = db.prepare('SELECT gitignore_present, gitignore_rules, ignored_entries, indexed_at FROM index_meta WHERE workspace = ?').get(workspacePath) as
+      | { gitignore_present: number; gitignore_rules: number; ignored_entries: number; indexed_at: number }
+      | undefined;
+    if (!row) return null;
+    return {
+      gitignorePresent: row.gitignore_present === 1,
+      gitignoreRules: row.gitignore_rules,
+      ignoredEntries: row.ignored_entries,
+      indexedAt: row.indexed_at,
+    };
+  } catch (e) {
+    log.warn('native index coverage read failed', { error: String(e) });
     return null;
   }
 }

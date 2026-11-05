@@ -270,11 +270,13 @@ export async function fetchMergedGraph(
       const nativeAdapter = d.nativeAdapter as NativeGraphAdapter;
       const nativeResult = await nativeAdapter.fetchDataWithSymbols(repoId);
       if (nativeResult.nodes.length > 0) {
-        // ③ 回写索引（写失败不阻塞图返回——索引是缓存层）。
+        // ③ 回写索引（写失败不阻塞图返回——索引是缓存层）。coverage 统计来自
+        // fetchData 的 gitignore 裁决（AdapterResult.scanCoverage，缺席 = 旧调用方）。
         try {
           const { computeGraphFingerprint } = await import('./shared/graphFingerprint.ts');
           const fp = computeGraphFingerprint({ nodes: nativeResult.nodes, edges: nativeResult.edges, metadata: { repoId: makeRepoId(repoId), timestamp: 0, nodeCount: nativeResult.nodes.length, edgeCount: nativeResult.edges.length } } as GraphData);
-          writeNativeIndex(repoId, fp, nativeResult.nodes, nativeResult.edges);
+          const cov = (nativeResult as { scanCoverage?: { gitignorePresent: boolean; gitignoreRules: number; ignoredEntries: number } }).scanCoverage;
+          writeNativeIndex(repoId, fp, nativeResult.nodes, nativeResult.edges, cov ?? { gitignorePresent: false, gitignoreRules: 0, ignoredEntries: 0 });
         } catch (e) {
           log.warn('native index write-back failed', { error: String(e) });
         }

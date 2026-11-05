@@ -472,6 +472,17 @@ export function registerManageMetricsRoute(rc: RouteContext): void {
           || nodesTotal !== nodesSampled
           || edgesTotal !== edgesSampled;
 
+        // 索引覆盖范围（cycle-141 第七轮）：原生索引读 meta 里写侧沉淀的 gitignore
+        // 统计——「图谱为什么少了某目录」的唯一可诊断入口（排除是不可见操作）。
+        // 上游索引无此数据面（graphLayer=upstream 时 coverage 为 null，面板不渲染该行）。
+        let coverage: import('../../adapters/nativeIndex.ts').IndexCoverage | null = null;
+        try {
+          const { readNativeIndexCoverage } = await import('../../adapters/nativeIndex.ts');
+          coverage = readNativeIndexCoverage(workspacePath);
+        } catch {
+          coverage = null;
+        }
+
         sendJson(res, 200, {
           success: true,
           errorCode: null,
@@ -501,6 +512,7 @@ export function registerManageMetricsRoute(rc: RouteContext): void {
             sampled: truncated,
             computeMs,
           },
+          coverage,
           computedAt: Date.now(),
         }, req, corsConfig);
       } catch (e) {

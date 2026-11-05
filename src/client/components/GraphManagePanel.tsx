@@ -75,6 +75,14 @@ interface TruncationInfo {
   computeMs: number;
 }
 
+/** 索引覆盖范围（cycle-141 第七轮：gitignore 过滤的白盒数据，原生索引才有）。 */
+interface CoverageInfo {
+  gitignorePresent: boolean;
+  gitignoreRules: number;
+  ignoredEntries: number;
+  indexedAt: number;
+}
+
 interface ManageMetricsResponse {
   success: boolean;
   errorCode: string | null;
@@ -82,6 +90,8 @@ interface ManageMetricsResponse {
   truncation: TruncationInfo | null;
   /** 结构指纹：冻结契约未承诺，仅当宿主提供时才显示（宁缺勿造）。 */
   fingerprint?: string;
+  /** 覆盖范围：仅原生索引提供（上游索引为 null，面板不渲染该行——宁缺勿造）。 */
+  coverage?: CoverageInfo | null;
   error?: string;
 }
 
@@ -180,6 +190,7 @@ export const GraphManagePanel = memo(function GraphManagePanel({
 
   const [metrics, setMetrics] = useState<GraphMetrics | null>(null);
   const [truncation, setTruncation] = useState<TruncationInfo | null>(null);
+  const [coverage, setCoverage] = useState<CoverageInfo | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
@@ -201,6 +212,7 @@ export const GraphManagePanel = memo(function GraphManagePanel({
       if (!data) {
         setMetrics(null);
         setTruncation(null);
+        setCoverage(null);
         setFingerprint(null);
         setMetricsError(t('manage.metrics_error'));
         return;
@@ -208,6 +220,7 @@ export const GraphManagePanel = memo(function GraphManagePanel({
       if (!data.success) {
         setMetrics(null);
         setTruncation(null);
+        setCoverage(null);
         setFingerprint(null);
         setMetricsError(
           data.errorCode === 'INDEX_NOT_FOUND'
@@ -218,11 +231,13 @@ export const GraphManagePanel = memo(function GraphManagePanel({
       }
       setMetrics(data.metrics ?? null);
       setTruncation(data.truncation ?? null);
+      setCoverage(data.coverage ?? null);
       setFingerprint(data.fingerprint ?? null);
     } catch (e) {
       if (!controller.signal.aborted) {
         setMetrics(null);
         setTruncation(null);
+        setCoverage(null);
         setFingerprint(null);
         setMetricsError(e instanceof Error ? e.message : String(e));
       }
@@ -277,6 +292,7 @@ export const GraphManagePanel = memo(function GraphManagePanel({
         // 删除成功：清空指标/白盒，并让 store 复位（节点/边/repoId/lastUpdated 一并清零）。
         setMetrics(null);
         setTruncation(null);
+        setCoverage(null);
         setFingerprint(null);
         setMetricsError(null);
         useGraphStore.getState().clearGraph();
@@ -578,6 +594,32 @@ export const GraphManagePanel = memo(function GraphManagePanel({
                 <div className="cg-manage-whitebox-row">
                   <span className="cg-manage-label">{t('manage.compute_ms')}</span>
                   <span className="cg-manage-whitebox-value">{truncation.computeMs}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* 索引覆盖范围（cycle-141 第七轮）：gitignore 过滤的白盒数据——
+              「图谱为什么少了某目录」的唯一可诊断入口。仅原生索引提供（coverage
+              为 null 不渲染——上游索引没有这个数据面，宁缺勿造）。 */}
+          {coverage && (
+            <div className="cg-manage-truncation">
+              <span className="cg-manage-label">{t('manage.coverage_title')}</span>
+              <div className="cg-manage-truncation-grid">
+                <div className="cg-manage-whitebox-row">
+                  <span className="cg-manage-label">{t('manage.coverage_gitignore')}</span>
+                  <span className="cg-manage-whitebox-value">{coverage.gitignorePresent ? t('manage.yes') : t('manage.no')}</span>
+                </div>
+                <div className="cg-manage-whitebox-row">
+                  <span className="cg-manage-label">{t('manage.coverage_rules')}</span>
+                  <span className="cg-manage-whitebox-value">{coverage.gitignoreRules}</span>
+                </div>
+                <div className="cg-manage-whitebox-row">
+                  <span className="cg-manage-label">{t('manage.coverage_ignored')}</span>
+                  <span className="cg-manage-whitebox-value">{coverage.ignoredEntries}</span>
+                </div>
+                <div className="cg-manage-whitebox-row">
+                  <span className="cg-manage-label">{t('manage.coverage_indexed_at')}</span>
+                  <span className="cg-manage-whitebox-value">{new Date(coverage.indexedAt).toLocaleString()}</span>
                 </div>
               </div>
             </div>
