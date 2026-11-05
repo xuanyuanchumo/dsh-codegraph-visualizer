@@ -54,7 +54,12 @@ export function computeIncrementalClusters(
   const newDirs = new Set<string>();
   for (const node of addedNodes) {
     const depGroup = getDependencyGroup(node);
-    const dir = depGroup ?? (node.filePath ? getTopLevelDir(node.filePath) : node.id);
+    // cycle-141 第五轮：dir: 前缀目录节点自己是分组锚（与 progressiveCluster
+    // buildDirMapping 同一判定——绝对路径顶层节点的 getTopLevelDir 会把
+    // D:\Projects\x 判成 Projects/TraeProjects 单组，50 目录塌 1 簇）。
+    const isDirNode = String(node.id).startsWith('dir:');
+    const dir = depGroup
+      ?? (isDirNode ? String(node.id).slice(4) : node.filePath ? getTopLevelDir(node.filePath) : node.id);
     const clusterId = getDirClusterId(dir);
     nodeIdToVisibleId.set(node.id, clusterId);
     if (!prevIds.has(dir) && !newDirs.has(dir)) newDirs.add(dir);
@@ -122,7 +127,10 @@ export function computeIncrementalClusters(
     if (clusterChildMap.has(clusterId)) continue;
     const dirNodes = newRawNodes.filter((n) => {
       const depGroup = getDependencyGroup(n);
-      const d = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+      // 与上方 addedNodes 分组同一判定（dir: 锚修复）。
+      const isDirNode = String(n.id).startsWith('dir:');
+      const d = depGroup
+        ?? (isDirNode ? String(n.id).slice(4) : n.filePath ? getTopLevelDir(n.filePath) : n.id);
       return d === dir;
     });
     if (dirNodes.length === 0) continue;

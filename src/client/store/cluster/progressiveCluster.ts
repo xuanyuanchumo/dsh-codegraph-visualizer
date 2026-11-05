@@ -64,6 +64,14 @@ export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
 /**
  * 原始节点 → 所属目录（同一份判定与 `clusterExpandCost` 的目录缓存保持一致：
  * 依赖分组优先，其次文件路径的顶层目录，最后退回节点 id）。
+ *
+ * cycle-141 第五轮（dsh-anic 真机第三根因）：**dir: 前缀的目录节点自己是分组锚**。
+ * 原生索引的顶层节点是绝对路径（`D:\proj\anic/src`），`getTopLevelDir` 取「路径
+ * 第 2、3 段」会把 `D:\Projects\TraeProjects\dsh-anic/bin` 判成
+ * `Projects/TraeProjects`——50 个顶层目录全部塌进同一个分组，画布只剩一个
+ * `cluster____Projects` 簇（真机画布 "Projects (50)" 的直接来源）。
+ * 目录节点（id 带 `dir:` 前缀）的 filePath 就是目录本身，按它**完整路径**分组
+ * （相对路径工作区不受影响：其顶层节点没有 dir: 前缀，走原逻辑）。
  */
 function buildDirMapping(rawNodes: GraphNode[]): {
   nodeToDir: Map<string, string>;
@@ -73,7 +81,9 @@ function buildDirMapping(rawNodes: GraphNode[]): {
   const dirToNodes = new Map<string, GraphNode[]>();
   for (const n of rawNodes) {
     const depGroup = getDependencyGroup(n);
-    const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+    const isDirNode = String(n.id).startsWith('dir:');
+    const dir = depGroup
+      ?? (isDirNode ? String(n.id).slice(4) : n.filePath ? getTopLevelDir(n.filePath) : n.id);
     nodeToDir.set(n.id, dir);
     const list = dirToNodes.get(dir);
     if (list) list.push(n);

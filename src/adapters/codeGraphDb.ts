@@ -244,10 +244,19 @@ export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes:
   try {
     const noiseWhere = buildNoiseWhereClause();
     const kindWhere = "kind IN ('file', 'module', 'import')";
+    // 【P0-R19-02】优先选出 dir:/file: 节点——避免 1777 个<import_statement>伪节点被 id 字母序挤出顶层（dsh-anic 真机症结）
+    // 排序键：dir: > file: > import_statement module；次按长度再 id，保证稳定顺序
+    const topLevelOrderBy = [
+      "CASE WHEN REPLACE(id,'\\','/') LIKE 'dir:%' THEN 1 WHEN REPLACE(id,'\\','/') LIKE 'file:%' THEN 2 ELSE 3 END",
+      "LENGTH(file_path)",
+      "id"
+    ].join(', ');
+    
     const whereClause = noiseWhere ? kindWhere + ' AND ' + noiseWhere : kindWhere;
     const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE ' + whereClause).get() as { cnt: number }).cnt;
     const nodes = validateNodeRows(db.prepare(
-      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE ' + whereClause + ' LIMIT ?',
+      `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported 
+       FROM nodes WHERE ${whereClause} ORDER BY ${topLevelOrderBy} LIMIT ?`,
     ).all(limit));
     return { nodes, total };
   } catch (e) {

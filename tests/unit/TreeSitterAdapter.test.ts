@@ -259,11 +259,17 @@ describe('TreeSitterAdapter symbol extraction (real wasm)', () => {
     adapter.destroy();
   });
 
-  it('extracts import statements as module nodes', async () => {
+  it('does NOT emit import statements as graph nodes（P0-R19-01 新契约：语法结构不是符号）', async () => {
     const result = await adapter.parseFile('foo.ts', "import { foo } from 'bar';");
     expect(result.source).toBe('tree-sitter');
+    // 旧行为：每个 import_statement 收成 kind=module 的 `<import_statement>` 伪节点
+    //（dsh-anic 真机 1777 个，把 342 个 dir: 目录挤出 /bootstrap LIMIT 50，画布塌缩成
+    // "Projects (50)" 单簇）。新契约：import 语句不产生节点。
     const importNodes = result.nodes.filter((n: GraphNode) => n.type === 'module');
-    expect(importNodes.length).toBeGreaterThan(0);
+    expect(importNodes.length).toBe(0);
+    // 但依赖图数据面必须完整：模块字符串仍进 importSources（FileSystemAdapter 据此
+    // 解析成 import 边）——「不进图」不等于「丢弃语法事实」。
+    expect(result.importsByFile?.get('foo.ts')).toEqual(['bar']);
   });
 
   it('extracts variable declarations from Rust (let_declaration)', async () => {
@@ -543,8 +549,11 @@ describe('TreeSitterAdapter per-grammar symbol types (real wasm)', () => {
     const variables = labelsOf(result.nodes, 'variable');
     expect(variables).toEqual(expect.arrayContaining(['x', 'LIMIT', 'GLOBAL']));
 
+    // P0-R19-01：Rust 的 use_declaration 不再产出 module 节点（语法结构不是符号），
+    // 但模块字符串仍进 importSources（依赖图数据面）。
     const modules = labelsOf(result.nodes, 'module');
-    expect(modules.length).toBeGreaterThan(0);
+    expect(modules.length).toBe(0);
+    expect(result.importsByFile?.get('foo.rs')?.length).toBeGreaterThan(0);
   });
 
   it('extracts TypeScript symbols without the nameless declaration wrappers', async () => {

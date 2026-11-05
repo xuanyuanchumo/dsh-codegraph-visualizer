@@ -138,6 +138,54 @@ describe('原生 SQLite 索引（cycle-128）', () => {
     expect(children!.total).toBe(2);
   });
 
+  // ── cycle-141 第五轮：顶层读取优先级（dsh-anic 真机症结的直接回归钉）──────
+  //
+  // 症结复现：1777 个裸路径 id（盘符 `D:\...` 开头）的 `<import_statement>` 伪节点
+  // 字母序全部排在 `dir:`（小写 d = 0x64）之前 ⇒ LIMIT 50 选出的顶层节点全是
+  // 伪节点（0 出边 0 入边），342 个真实目录节点被挤出，画布塌缩成单簇。
+  // 修复：ORDER BY 分层——dir: 优先、file: 次之、其他垫底。
+  it('NB-8 顶层读取 dir:/file: 优先于裸路径 id（字母序不再挤掉目录树）', () => {
+    const nodes: GraphNode[] = [
+      // 40 个裸路径伪节点（字母序 < dir:，模拟 dsh-anic 的 <import_statement>）
+      ...Array.from({ length: 40 }, (_, i) =>
+        makeNode(`D:\\proj/file${i}.ts:<import_statement>:${i}`, 'module', `D:\\proj/file${i}.ts`, '<import_statement>')),
+      // 真实目录树节点（dir: 前缀）
+      makeNode('dir:D:\\proj/src', 'module', 'D:\\proj/src'),
+      makeNode('dir:D:\\proj/docs', 'module', 'D:\\proj/docs'),
+      // file: 节点
+      makeNode('file:D:\\proj/src/main.ts', 'module', 'D:\\proj/src/main.ts'),
+    ];
+    writeNativeIndex(workspace, 'fp', nodes, []);
+    const indexPath = resolveNativeIndexPath(workspace);
+
+    // LIMIT 3 必须是 dir: ×2 + file: ×1——伪节点一个都不进
+    const top = readTopLevelNodesFromDb(indexPath, 3);
+    expect(top).not.toBeNull();
+    expect(top!.total).toBe(43); // 全部 kind=module
+    const ids = top!.nodes.map((r) => r.id);
+    expect(ids).toContain('dir:D:\\proj/src');
+    expect(ids).toContain('dir:D:\\proj/docs');
+    expect(ids).toContain('file:D:\\proj/src/main.ts');
+    expect(ids.filter((id) => id.includes('<import_statement>'))).toHaveLength(0);
+  });
+
+  it('NB-9 同层内排序确定性：dir 间按路径长度再 id（稳定分页）', () => {
+    const nodes = [
+      makeNode('dir:D:\\proj/aa', 'module', 'D:\\proj/aa'),
+      makeNode('dir:D:\\proj/b/ccc', 'module', 'D:\\proj/b/ccc'),
+      makeNode('dir:D:\\proj/a', 'module', 'D:\\proj/a'),
+    ];
+    writeNativeIndex(workspace, 'fp', nodes, []);
+    const indexPath = resolveNativeIndexPath(workspace);
+    const top = readTopLevelNodesFromDb(indexPath, 10);
+    // 同为 dir: 层：按 LENGTH(file_path) 升序（a=9 < aa=10 < b/ccc=13），同长按 id
+    expect(top!.nodes.map((r) => r.id)).toEqual([
+      'dir:D:\\proj/a',
+      'dir:D:\\proj/aa',
+      'dir:D:\\proj/b/ccc',
+    ]);
+  });
+
   it('NB-7 mapRowsToGraph* 往返：写入的图从原生库读回后逐字段等价', () => {
     const src = [makeNode('fn:main', 'function', 'src/m.ts', 'main'), makeNode('cls:A', 'class', 'src/A.ts', 'A')];
     const sedges = [makeEdge('x1', 'fn:main', 'cls:A', 'extend', 42)];

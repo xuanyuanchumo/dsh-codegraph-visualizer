@@ -150,7 +150,7 @@ const SYMBOL_NODE_TYPES: Record<SupportedGrammar, Record<string, SymbolKind>> = 
     arrow_function: 'function',
     class_declaration: 'class',
     variable_declarator: 'variable',
-    import_statement: 'module',
+    // 【P0-R19-01】import_statement 是语法结构不是符号，不应收成 graph node
   };
   return {
     // The TS grammar is a superset of the JS one; keep them separate so a JS-only change cannot
@@ -172,7 +172,8 @@ const SYMBOL_NODE_TYPES: Record<SupportedGrammar, Record<string, SymbolKind>> = 
       function_definition: 'function',
       class_definition: 'class',
       assignment: 'variable',
-      import_statement: 'module',
+      // 【P0-R19-01】同上
+      // import_statement: 'module',
     },
     java: {
       method_declaration: 'function',
@@ -181,7 +182,8 @@ const SYMBOL_NODE_TYPES: Record<SupportedGrammar, Record<string, SymbolKind>> = 
       interface_declaration: 'class',
       enum_declaration: 'class',
       variable_declarator: 'variable',
-      import_declaration: 'module',
+      // 【P0-R19-01】同上
+      // import_declaration: 'module',
     },
     rust: {
       function_item: 'function',
@@ -194,7 +196,8 @@ const SYMBOL_NODE_TYPES: Record<SupportedGrammar, Record<string, SymbolKind>> = 
       let_declaration: 'variable',
       const_item: 'variable',
       static_item: 'variable',
-      use_declaration: 'module',
+      // 【P0-R19-01】同上
+      // use_declaration: 'module',
     },
     go: {
       function_declaration: 'function',
@@ -204,7 +207,8 @@ const SYMBOL_NODE_TYPES: Record<SupportedGrammar, Record<string, SymbolKind>> = 
       type_alias: 'class',
       var_spec: 'variable',
       const_spec: 'variable',
-      import_declaration: 'module',
+      // 【P0-R19-01】同上
+      // import_declaration: 'module',
     },
   };
 })();
@@ -329,9 +333,20 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
 
     try {
       const tree = parser.parse(content);
-      const { nodes, edges } = this.extractSymbols(tree.rootNode, filePath, grammar);
+      // P0-R19-01 修复的顺带发现：parseFile 此前只解构 nodes/edges，丢弃了
+      // importSources/callSites——单文件路径上「import 语句不再产出节点」后，
+      // 模块字符串只存在于 importSources，丢弃即意味着 parseFile 的调用方
+      // 拿不到任何依赖数据面（batchScan 路径一直是透传的，两条路径曾漂移）。
+      const { nodes, edges, importSources, callSites } = this.extractSymbols(tree.rootNode, filePath, grammar);
       tree.delete();
-      return { nodes, edges, source: 'tree-sitter', timestamp: Date.now() };
+      return {
+        nodes,
+        edges,
+        source: 'tree-sitter',
+        timestamp: Date.now(),
+        importsByFile: importSources.length > 0 ? new Map([[filePath, importSources]]) : undefined,
+        callSitesByFile: callSites.length > 0 ? new Map([[filePath, callSites]]) : undefined,
+      };
     } catch (e) {
       log.warn('parseFile failed', { filePath, error: e });
       return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: String(e) };
@@ -492,9 +507,12 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
         if (!node) continue;
         const nodeType = node.type;
 
-        // import 模块源提取（cycle-129 · T1）：在符号判定之前拦截——import 节点
-        // 仍会被下方 symbolKindFor 收成 module 节点（既有行为不变），但它的
-        // 模块字符串同时被记入 importSources，供 FileSystemAdapter 解析成边。
+        // import 模块源提取（cycle-129 · T1；P0-R19-01 语义更新）：在符号判定之前
+        // 拦截——import 节点**不再**被收成 module 图节点（SYMBOL_NODE_TYPES 已移除
+        // 该映射：import 语句是语法结构不是符号，1777 个 `<import_statement>` 伪节点
+        // 曾把 dsh-anic 的 342 个 dir: 目录节点挤出 /bootstrap 的 LIMIT 50，画布塌缩
+        // 成 "Projects (50)" 单簇）。它的模块字符串仍记入 importSources，供
+        // FileSystemAdapter 解析成 `import` 边——依赖图数据面完整保留。
         // 提取函数在模块级（extractImportSources，复杂度独立记账——本文件
         // 复杂度曾在 cycle-129 超预算 117/100，抽离后回落）。
         if (IMPORT_STATEMENT_TYPES.has(nodeType)) {

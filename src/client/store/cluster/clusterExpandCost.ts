@@ -33,7 +33,12 @@ function getDirToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
   _normalizedDirToCountCache = new Map();
   for (const n of rawNodes) {
     const depGroup = getDependencyGroup(n);
-    const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+    // cycle-141 第五轮：dir: 前缀目录节点自己是分组锚（与 progressiveCluster
+    // buildDirMapping / incrementalCluster 同一判定——三处必须一致，否则展开
+    // 代价估算与实际分组漂移）。
+    const isDirNode = String(n.id).startsWith('dir:');
+    const dir = depGroup
+      ?? (isDirNode ? String(n.id).slice(4) : n.filePath ? getTopLevelDir(n.filePath) : n.id);
     const list = _dirToNodesCache.get(dir);
     if (list) list.push(n);
     else _dirToNodesCache.set(dir, [n]);

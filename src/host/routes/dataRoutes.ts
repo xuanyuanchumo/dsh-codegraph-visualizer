@@ -64,14 +64,19 @@ function getGraphIndex(data: GraphData): GraphIndex {
 // 每个按需路由（/bootstrap /children /outline /symbols /edges）的 dbPath 都经此
 // 解析；上游在场行为逐字节不变，原生工作区的按需路由从「内存 500 节点回落」
 // 升级为「全量索引直读」。
-const resolveIndexDbPath = async (workspacePath: string): Promise<string> => {
+//
+// cycle-141 第五轮：返回值带上**实际解析出的库来源**。此前 /bootstrap 的 DB 分支
+// 把 graphLayer 写死 'upstream'（:156），而本函数会回落 native-index——dsh-anic
+// 这类原生工作区被标成 upstream，来源声明撒谎（真机 3085 实测：bootstrap 返回
+// graphLayer=upstream 而读的是 native-index.db）。修复后调用方按返回值如实标注。
+const resolveIndexDbPath = async (workspacePath: string): Promise<{ dbPath: string; layer: 'upstream' | 'native' }> => {
   const upstream = resolveDbPath(workspacePath);
-  if (existsSync(upstream)) return upstream;
+  if (existsSync(upstream)) return { dbPath: upstream, layer: 'upstream' };
   try {
     const { resolveNativeIndexPath } = await import('../../adapters/nativeIndex.ts');
-    return resolveNativeIndexPath(workspacePath);
+    return { dbPath: resolveNativeIndexPath(workspacePath), layer: 'native' };
   } catch {
-    return upstream;
+    return { dbPath: upstream, layer: 'upstream' };
   }
 };
 
@@ -134,7 +139,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = await resolveIndexDbPath(workspacePath);
+        const { dbPath, layer } = await resolveIndexDbPath(workspacePath);
         const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
         if (dbResult && dbResult.nodes.length > 0) {
           const topLevelNodes = mapDbNodesToGraphNodes(dbResult.nodes);
@@ -152,8 +157,10 @@ export function registerBootstrapRoute(rc: RouteContext): void {
               timestamp: Date.now(),
               totalNodeCount: dbResult.total,
               totalEdgeCount: countEdgesInDb(dbPath),
-              // cycle-131：上游 DB 可读分支的来源声明（与 lastGraphData 回落分支对称）。
-              graphLayer: 'upstream',
+              // cycle-131：DB 可读分支的来源声明；cycle-141 第五轮：按实际解析出的
+              // 库来源标注（upstream=.codegraph/codegraph.db，native=native-index.db）——
+              // 此前写死 'upstream'，原生工作区的来源徽章撒谎（真机 3085 实测）。
+              graphLayer: layer,
             },
           }, req, corsConfig, etagHeader);
           return;
@@ -241,7 +248,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = await resolveIndexDbPath(workspacePath);
+        const { dbPath } = await resolveIndexDbPath(workspacePath);
         const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
         if (dbResult && dbResult.nodes.length > 0) {
           const page = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
@@ -317,7 +324,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = await resolveIndexDbPath(workspacePath);
+        const { dbPath } = await resolveIndexDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
           const symbols = mapDbNodesToGraphNodes(dbResult.nodes, nodeId).slice(0, FILE_OUTLINE.MAX_SYMBOLS);
@@ -385,7 +392,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = await resolveIndexDbPath(workspacePath);
+        const { dbPath } = await resolveIndexDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
           const allAstNodes = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
@@ -497,7 +504,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
       const etagHeader = etagHeaders(etagDecision.etag);
 
       if (workspacePath) {
-        const dbPath = await resolveIndexDbPath(workspacePath);
+        const { dbPath } = await resolveIndexDbPath(workspacePath);
         // DB-first: when DB is readable, its answer is authoritative — empty edges means
         // no edges exist, NOT "fall back to memory". This intentionally differs from
         // other routes (bootstrap/children/outline/ast) which use `dbResult.nodes.length > 0`

@@ -97,6 +97,41 @@ describe('computeProgressiveClusters', () => {
     expect(clusterLabels.some((l) => l.includes('utils'))).toBe(true);
   });
 
+  // ── cycle-141 第五轮：dir: 锚语义（dsh-anic 真机 "Projects (50)" 单簇的回归钉）──
+  it('dir: 前缀目录节点自己是分组锚——绝对路径不再塌缩成 Projects 单簇', () => {
+    // 原生索引的顶层是绝对路径 dir: 节点（dsh-anic 真机：50 个顶层目录全部被
+    // getTopLevelDir 判成 'Projects/TraeProjects' 单组 → 1 个 cluster____Projects）。
+    const nodes = [
+      makeNode('dir:D:\\proj\\anic/src', 'module', 'D:\\proj\\anic/src'),
+      makeNode('dir:D:\\proj\\anic/docs', 'module', 'D:\\proj\\anic/docs'),
+      makeNode('dir:D:\\proj\\anic/bin', 'module', 'D:\\proj\\anic/bin'),
+      makeNode('file:D:\\proj\\anic/readme.md', 'module', 'D:\\proj\\anic/readme.md'),
+    ];
+    const result = computeProgressiveClusters(nodes, [], new Set(), 0);
+    // 3 个目录各成一组 + file: 节点按顶层段归组——绝不能只有 1 个簇
+    const clusters = result.nodes.filter((n) => 'isCluster' in n && n.isCluster);
+    expect(clusters.length).toBeGreaterThanOrEqual(3);
+    const labels = clusters.map((n) => n.label);
+    expect(labels.some((l) => l.includes('src'))).toBe(true);
+    expect(labels.some((l) => l.includes('docs'))).toBe(true);
+    expect(labels.some((l) => l.includes('bin'))).toBe(true);
+    // 没有任何簇叫 "Projects (N)"（旧塌缩形状）
+    expect(labels.some((l) => /^Projects \(/.test(l))).toBe(false);
+  });
+
+  it('dir: 节点间的 contains 边聚合为簇间边', () => {
+    const srcDir = 'dir:D:\\proj\\anic/src';
+    const docsDir = 'dir:D:\\proj\\anic/docs';
+    const nodes = [
+      makeNode(srcDir, 'module', 'D:\\proj\\anic/src'),
+      makeNode(docsDir, 'module', 'D:\\proj\\anic/docs'),
+    ];
+    const edges = [makeEdge('c1', srcDir, docsDir, 'contains')];
+    const result = computeProgressiveClusters(nodes, edges, new Set(), 0);
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0]!.type).toBe('contains');
+  });
+
   it('expands directory clusters when expandedNodeIds contains cluster id', () => {
     const nodes = [
       makeNode('a', 'src/components/A.tsx', 'function'),
