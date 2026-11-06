@@ -316,6 +316,60 @@ describe('GET /views: 结构视图恒属 + 显式降级', () => {
   });
 });
 
+describe('GET /views: 宿主自动采集（cycle-144）', () => {
+  it('无显式传参时自动采集：非 git 工作区降级原因变为采集器的可读文本，且 gitSources 披露 source=auto', async () => {
+    // WORKSPACE=/test/workspace 不是 git 仓库 —— 采集器 available:false，
+    // 路由继续走诚实降级，但 reason 不再是「未提供 commitLog」而是采集器的真实原因。
+    const harness = makeHarness();
+    const { code, body } = await call(harness, `${P}?workspace=${encodeURIComponent(WORKSPACE)}`);
+    expect(code).toBe(200);
+    expect(body.success).toBe(true);
+
+    const views = body.views as Record<string, Record<string, unknown>>;
+    expect(views.temporal).toMatchObject({ available: false });
+    expect(views.ownership).toMatchObject({ available: false });
+    // 降级原因来自采集器（不再是无采集时的「未提供」）——auto 采集真实发生了。
+    expect(String(views.temporal!.reason)).not.toContain('未提供');
+    expect(String(views.ownership!.reason)).not.toContain('未提供');
+
+    // gitSources 白盒披露：两条通道都是 auto 来源且不可用（非 git 目录）。
+    const gs = body.gitSources as Record<string, Record<string, unknown>>;
+    expect(gs.commitLog).toMatchObject({ source: 'auto', available: false });
+    expect(gs.blameLog).toMatchObject({ source: 'auto', available: false });
+    expect(gs.commitLog!.reason).toBeTruthy();
+  });
+
+  it('显式传参优先：查询串给了 commitLog 时不触发采集（source=query）', async () => {
+    const harness = makeHarness();
+    const { code, body } = await call(
+      harness,
+      `${P}?workspace=${encodeURIComponent(WORKSPACE)}&commitLog=${encodeURIComponent(makeCommitLog())}`,
+    );
+    expect(code).toBe(200);
+    const views = body.views as Record<string, Record<string, unknown>>;
+    // 显式输入生效：时序视图可用（与 cycle-141 契约一致）。
+    expect(views.temporal).toMatchObject({ available: true, reason: null });
+    // blameLog 未传 → 自动采集（非 git 目录 → 不可用）；commitLog 走 query。
+    const gs = body.gitSources as Record<string, Record<string, unknown>>;
+    expect(gs.commitLog).toMatchObject({ source: 'query', available: true });
+    expect(gs.blameLog).toMatchObject({ source: 'auto', available: false });
+  });
+
+  it('部分显式：只给 blameLog 时 commitLog 走 auto，两者互不干扰', async () => {
+    const harness = makeHarness();
+    const { code, body } = await call(
+      harness,
+      `${P}?workspace=${encodeURIComponent(WORKSPACE)}&blameLog=${encodeURIComponent(makeBlameLog('src/alpha.ts'))}`,
+    );
+    expect(code).toBe(200);
+    const views = body.views as Record<string, Record<string, unknown>>;
+    expect(views.ownership).toMatchObject({ available: true });
+    const gs = body.gitSources as Record<string, Record<string, unknown>>;
+    expect(gs.blameLog).toMatchObject({ source: 'query', available: true });
+    expect(gs.commitLog).toMatchObject({ source: 'auto', available: false });
+  });
+});
+
 describe('GET /views: 领域视图（Louvain）', () => {
   it('全量用例：四视图齐备，领域分解按社区给出节点计数', async () => {
     const harness = makeHarness();

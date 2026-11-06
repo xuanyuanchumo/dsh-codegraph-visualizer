@@ -37,6 +37,7 @@ import type { ViewName } from '../../shared/views.ts';
 import { computeDomainLabels } from '../../shared/domain.ts';
 import { parseCommitLog, filterSlices, type CommitRange } from '../../shared/temporal.ts';
 import { parseGitBlamePorcelain, groupBlameByFile, buildOwnershipMap } from '../../shared/ownership.ts';
+import { collectGitRawInput } from '../gitViewsCollector.ts';
 import { sendJson, sendError } from '../HttpHelpers.ts';
 import {
   withRouteMiddleware, resolveWorkspaceFromRequest, getWorkspaceScopedGraphData,
@@ -93,6 +94,20 @@ export interface ViewsSuccessResponse {
   nodeViewMatrix: NodeViewRow[];
   sampled: boolean;
   computedAt: number;
+  /** git 输入来源披露（cycle-144）：auto=宿主采集，query=调用方显式传参。 */
+  gitSources: {
+    commitLog: GitSourceInfo;
+    blameLog: GitSourceInfo;
+  };
+}
+
+/** 单条 git 输入通道的来源与采集元数据。 */
+interface GitSourceInfo {
+  source: 'auto' | 'query';
+  available: boolean;
+  durationMs: number | null;
+  truncated: boolean;
+  reason: string | null;
 }
 
 /** 失败响应（无索引 / 无工作区）。 */
@@ -177,9 +192,11 @@ function buildTemporalFact(
   nodes: readonly GraphNode[],
   commitLog: string | undefined,
   range: CommitRange,
+  /** 采集失败时的可读原因（cycle-144）：覆盖默认的「未提供」——用户能看到真实失败原因。 */
+  failureReason?: string | null,
 ): { files: Set<string> | undefined; available: boolean; reason: string | null } {
   if (commitLog === undefined || commitLog.trim() === '') {
-    return { files: undefined, available: false, reason: '未提供 commitLog：时序视图不可用' };
+    return { files: undefined, available: false, reason: failureReason ?? '未提供 commitLog：时序视图不可用' };
   }
   const history = { slices: parseCommitLog(commitLog), head: null, available: true };
   const { slices } = filterSlices(history, range);
@@ -191,9 +208,10 @@ function buildTemporalFact(
 function buildOwnershipFact(
   nodes: readonly GraphNode[],
   blameLog: string | undefined,
+  failureReason?: string | null,
 ): { ids: Set<string> | undefined; available: boolean; reason: string | null } {
   if (blameLog === undefined || blameLog.trim() === '') {
-    return { ids: undefined, available: false, reason: '未提供 blameLog：所有权视图不可用' };
+    return { ids: undefined, available: false, reason: failureReason ?? '未提供 blameLog：所有权视图不可用' };
   }
   const ownership = buildOwnershipMap(nodes, groupBlameByFile(parseGitBlamePorcelain(blameLog)));
   return { ids: new Set(Object.keys(ownership.nodeLabels)), available: true, reason: null };
@@ -252,9 +270,27 @@ export function registerViewsRoute(rc: RouteContext): void {
           if (label) domainByNodeId.set(id, label);
         }
 
-        // 时序/所有权事实。
-        const temporal = buildTemporalFact(graph.nodes, commitLog, range);
-        const ownership = buildOwnershipFact(graph.nodes, blameLog);
+        // 时序/所有权事实。显式传参优先（查询串里的 commitLog/blameLog）；
+        // 缺省时宿主自动采集（cycle-144 T2）——此前「支持传参但无人传」让两个视图
+        // 恒为不可用（真机用户旅程实证）。采集失败（非 git 仓库/超时）时返回 null，
+        // buildTemporalFact/buildOwnershipFact 走既有的「available:false + 原因」诚实路径。
+        const collectedCommit = commitLog === undefined
+          ? await collectGitRawInput(workspacePath, 'commitLog')
+          : null;
+        const collectedBlame = blameLog === undefined
+          ? await collectGitRawInput(workspacePath, 'blameLog')
+          : null;
+        const temporal = buildTemporalFact(graph.nodes, commitLog ?? collectedCommit?.text ?? undefined, range, collectedCommit?.reason ?? undefined);
+        const ownership = buildOwnershipFact(graph.nodes, blameLog ?? collectedBlame?.text ?? undefined, collectedBlame?.reason ?? undefined);
+        // 采集元数据随响应披露（白盒：用户能看到「这次划分的 git 输入从哪来、花了多久」）。
+        const gitSources = {
+          commitLog: collectedCommit
+            ? { source: 'auto' as const, available: collectedCommit.available, durationMs: collectedCommit.durationMs, truncated: collectedCommit.truncated, reason: collectedCommit.reason }
+            : { source: 'query' as const, available: commitLog !== undefined && commitLog.trim() !== '', durationMs: null, truncated: false, reason: null },
+          blameLog: collectedBlame
+            ? { source: 'auto' as const, available: collectedBlame.available, durationMs: collectedBlame.durationMs, truncated: collectedBlame.truncated, reason: collectedBlame.reason }
+            : { source: 'query' as const, available: blameLog !== undefined && blameLog.trim() !== '', durationMs: null, truncated: false, reason: null },
+        };
 
         // 正式的 Π 函数。
         const partition = partitionByView({
@@ -321,6 +357,7 @@ export function registerViewsRoute(rc: RouteContext): void {
           nodeViewMatrix,
           sampled,
           computedAt: Date.now(),
+          gitSources,
         };
         sendJson(res, 200, body, req, corsConfig);
       } catch (e) {
