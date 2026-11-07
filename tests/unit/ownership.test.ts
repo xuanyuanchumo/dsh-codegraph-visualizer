@@ -88,6 +88,48 @@ describe('parseGitBlamePorcelain', () => {
     const lines = parseGitBlamePorcelain(raw);
     expect(lines[0]?.filename).toBe('src/dir');
   });
+
+  // cycle-146 回归：真实 porcelain 结构是「头块 → \tcontent」直接相连（无空行），
+  // 记录之间也没有空行。旧实现假设「头块后有空行」，单记录靠越界 +1 侥幸通过；
+  // 多文件拼接（gitViewsCollector 逐文件 blame 后 join）时下一条记录头被字段循环
+  // 吞掉、filename 被覆盖 ⇒ 拼接后只剩最后一个文件的键（真机 dsh-anic keys=['sub/b.ts']）。
+  it('真实 porcelain 结构（头块直接接 tab content，记录间无空行）逐条解析', () => {
+    const raw = [
+      '71a2e3c 1 1 1', 'author t', 'author-mail <t@t>', 'author-time 1794016297', 'author-tz +0800',
+      'summary second', 'previous 80b160c a.ts', 'filename a.ts', '\texport const a = 2;',
+      'f156e64 2 2 1', 'author t', 'author-mail <t@t>', 'filename a.ts', '\tline2',
+    ].join('\n');
+    const lines = parseGitBlamePorcelain(raw);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ commit: '71a2e3c', line: 1, author: 't', filename: 'a.ts' });
+    expect(lines[1]).toMatchObject({ commit: 'f156e64', line: 2, filename: 'a.ts' });
+  });
+
+  it('多文件拼接输入（逐文件 blame 后 join）：每个文件的键各自保留，互不覆盖', () => {
+    const fileA = [
+      'aaa1111 1 1 1', 'author Alice', 'author-mail <alice@x>', 'filename a.ts', '\tcontent a',
+    ].join('\n');
+    const fileB = [
+      'bbb2222 1 1 1', 'author Bob', 'author-mail <bob@x>', 'filename sub/b.ts', '\tcontent b',
+    ].join('\n');
+    // 采集器的 parts.join('')：execFile 的 stdout 必以 \n 结尾（实测），
+    // 故拼接无缝；fixture 对齐这个契约，尾行带 \n。
+    const joined = `${fileA}\n${fileB}\n`;
+    const lines = parseGitBlamePorcelain(joined);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]?.filename).toBe('a.ts');
+    expect(lines[1]?.filename).toBe('sub/b.ts');
+    const grouped = groupBlameByFile(lines);
+    expect(grouped['a.ts']?.length ?? 0).toBeGreaterThan(0);
+    expect(grouped['sub/b.ts']?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('截断输入的尾部只剩头块（无 content 行）时不吞后续、不抛异常', () => {
+    const raw = ['abc1234 1 1 1', 'author Alice', 'author-mail <alice@x>'].join('\n');
+    const lines = parseGitBlamePorcelain(raw);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.author).toBe('Alice');
+  });
 });
 
 describe('groupBlameByFile', () => {

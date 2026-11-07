@@ -135,4 +135,43 @@ describe('gitViewsCollector — 真实 git 往返（采集 → 解析）', () =>
     expect(VIEWS_COLLECT_CACHE.TTL_MS).toBeGreaterThan(0);
     expect(VIEWS_COLLECT_CACHE.MAX).toBeGreaterThan(0);
   });
+
+  describe('blameLog fileFilter（cycle-146：采集量与图规模成正比）', () => {
+    it('fileFilter 限定文件集：输出只含被点名的文件，且往返消费仍成立', async () => {
+      const raw = await collectGitRawInput(repo, 'blameLog', new Set(['a.ts']));
+      expect(raw.available).toBe(true);
+      const byFile = groupBlameByFile(parseGitBlamePorcelain(raw.text!));
+      // 只 blame 了 a.ts ⇒ b.ts 不在输出里（白算的墙时间被裁掉）
+      expect(byFile['a.ts']?.length ?? 0).toBeGreaterThan(0);
+      expect(byFile['sub/b.ts']).toBeUndefined();
+    });
+
+    it('fileFilter 与跟踪文件名归一化对齐：反斜杠/./ 前缀仍能命中', async () => {
+      const raw = await collectGitRawInput(repo, 'blameLog', new Set(['.\\sub\\b.ts']));
+      expect(raw.available).toBe(true);
+      const byFile = groupBlameByFile(parseGitBlamePorcelain(raw.text!));
+      expect(byFile['sub/b.ts']?.length ?? 0).toBeGreaterThan(0);
+      expect(byFile['a.ts']).toBeUndefined();
+    });
+
+    it('fileFilter 空集 / 全部未命中 → 回退全量（宁慢不可错：键错位会让所有权视图永远不可用）', async () => {
+      const rawEmpty = await collectGitRawInput(repo, 'blameLog', new Set());
+      expect(rawEmpty.available).toBe(true);
+      const byFileEmpty = groupBlameByFile(parseGitBlamePorcelain(rawEmpty.text!));
+      expect(byFileEmpty['a.ts']?.length ?? 0).toBeGreaterThan(0);
+      expect(byFileEmpty['sub/b.ts']?.length ?? 0).toBeGreaterThan(0);
+
+      const rawMiss = await collectGitRawInput(repo, 'blameLog', new Set(['not/exist.ts']));
+      expect(rawMiss.available).toBe(true);
+      const byFileMiss = groupBlameByFile(parseGitBlamePorcelain(rawMiss.text!));
+      expect(byFileMiss['a.ts']?.length ?? 0).toBeGreaterThan(0);
+    });
+
+    it('不同 fileFilter 各自缓存（过滤集变化不命中旧缓存）', async () => {
+      const onlyA = await collectGitRawInput(repo, 'blameLog', new Set(['a.ts']));
+      const onlyB = await collectGitRawInput(repo, 'blameLog', new Set(['sub/b.ts']));
+      expect(groupBlameByFile(parseGitBlamePorcelain(onlyA.text!))['sub/b.ts']).toBeUndefined();
+      expect(groupBlameByFile(parseGitBlamePorcelain(onlyB.text!))['a.ts']).toBeUndefined();
+    });
+  });
 });

@@ -60,7 +60,7 @@ vi.mock('node:fs/promises', () => ({
   },
 }));
 
-const { registerViewsRoute, VIEWS_ROUTE_PATH, VIEWS_MATRIX_MAX_NODES } = await import('../../src/host/routes/viewsRoute.ts');
+const { registerViewsRoute, VIEWS_ROUTE_PATH, VIEWS_MATRIX_MAX_NODES, toGitRelative } = await import("../../src/host/routes/viewsRoute.ts");
 const { createRateLimiter } = await import('../../src/host/RateLimiter.ts');
 const { SecurityManager } = await import('../../src/host/security.ts');
 const { makeNode, makeEdge, makeGraphData } = await import('../helpers.ts');
@@ -416,5 +416,28 @@ describe('GET /views: 采样截断', () => {
     expect(body.totalNodes).toBe(VIEWS_MATRIX_MAX_NODES + 1);
     const matrix = body.nodeViewMatrix as unknown[];
     expect(matrix).toHaveLength(VIEWS_MATRIX_MAX_NODES);
+  });
+});
+
+describe('toGitRelative（cycle-146 L2：绝对路径域 → git 相对域投影）', () => {
+  const ROOT = 'D:\\Projects\\TraeProjects\\dsh-anic';
+
+  it('工作区下的绝对路径剥前缀并归一为正斜杠相对路径', () => {
+    expect(toGitRelative('D:\\Projects\\TraeProjects\\dsh-anic\\.dsh\\skills\\x.mjs', ROOT)).toBe('.dsh/skills/x.mjs');
+    expect(toGitRelative('D:/Projects/TraeProjects/dsh-anic/src/a.ts', ROOT)).toBe('src/a.ts');
+  });
+
+  it('相对域路径原样返回（上游索引 / DB 图，投影幂等）', () => {
+    expect(toGitRelative('src/a.ts', ROOT)).toBe('src/a.ts');
+    expect(toGitRelative('./src/a.ts', ROOT)).toBe('./src/a.ts');
+  });
+
+  it('绝对但不在工作区下 → 原样返回（不编造，让查表落空保持现状）', () => {
+    expect(toGitRelative('D:\\Other\\repo\\a.ts', ROOT)).toBe('D:\\Other\\repo\\a.ts');
+  });
+
+  it('空串与根本身安全', () => {
+    expect(toGitRelative('', ROOT)).toBe('');
+    expect(toGitRelative(ROOT, ROOT)).toBe(ROOT);
   });
 });

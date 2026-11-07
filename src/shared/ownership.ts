@@ -117,16 +117,18 @@ export function parseGitBlamePorcelain(raw: string): BlameLine[] {
     let author = '';
     let email = '';
     let filename = '';
-    while (index < lines.length && (lines[index] ?? '') !== '') {
-      const field = lines[index] as string;
+    // cycle-146：字段循环的硬边界是 tab 前缀 content 行（porcelain 头块与行内容
+    // 之间没有空行；旧「等到空行」的假设在拼接输入上把后续记录头整个吞掉）。
+    while (index < lines.length) {
+      const field = lines[index] ?? '';
+      if (field === '' || field.startsWith('\t')) break;
       if (field.startsWith('author ')) author = field.slice('author '.length);
       else if (field.startsWith('author-mail ')) email = field.slice('author-mail '.length).replace(/^<|>$/g, '');
       else if (field.startsWith('filename ')) filename = normalizeChurnPath(field.slice('filename '.length));
       index += 1;
     }
-    // 空行（头部与行内容的分隔）+ 行内容本身。
-    if (index < lines.length) index += 1;
-    if (index < lines.length) index += 1;
+    // content 行本身（tab 前缀；缺失容忍：截断输入的尾部可能只剩头块）。
+    if (index < lines.length && (lines[index] ?? '').startsWith('\t')) index += 1;
 
     out.push({ commit, line, author, email, filename });
   }

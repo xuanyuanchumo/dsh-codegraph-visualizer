@@ -108,16 +108,27 @@ function clampTail(stdout: string): { text: string; truncated: boolean } {
   return { text: tail, truncated: true };
 }
 
-/** 带缓存的采集入口。显式传参（查询串）绕过缓存——调用方自带的输入以它为准。 */
+/**
+ * 带缓存的采集入口。显式传参（查询串）绕过缓存——调用方自带的输入以它为准。
+ *
+ * cycle-146 修复：`fileFilter` 限定 blame 的文件集。真机实证（dsh-anic，1056 个
+ * 跟踪文件）：全量逐文件 blame 77 秒——超过客户端 30s 请求预算，面板必然「加载失败」
+ * （白盒披露存在但采集墙时间无界）。而消费端 `buildOwnershipMap` 只按图节点的
+ * `filePath` 查表，全仓 blame 的其余文件白算。路由传入图节点文件集后采集量与
+ * 图规模成正比（50 节点 ≈ 几十个文件 → 亚秒级）。缓存键随 fileFilter 变化：
+ * 不同图规模的工作区各自缓存，互不污染。
+ */
 export async function collectGitRawInput(
   workspacePath: string,
   channel: 'commitLog' | 'blameLog',
+  fileFilter?: ReadonlySet<string>,
 ): Promise<GitRawInput> {
-  const cacheKey = `${workspacePath}::${channel}`;
+  const filterKey = fileFilter && fileFilter.size > 0 ? [...fileFilter].sort().join('\u0000') : '';
+  const cacheKey = `${workspacePath}::${channel}::${filterKey}`;
   const cached = collectCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) return cached.result;
 
-  const result = await collectUncached(workspacePath, channel);
+  const result = await collectUncached(workspacePath, channel, fileFilter);
   if (result.available) {
     if (collectCache.size >= CACHE_MAX) {
       const oldest = collectCache.keys().next().value;
@@ -129,7 +140,11 @@ export async function collectGitRawInput(
 }
 
 /** 无缓存采集实现（测试直接调它验证真实 git 行为）。 */
-async function collectUncached(workspacePath: string, channel: 'commitLog' | 'blameLog'): Promise<GitRawInput> {
+async function collectUncached(
+  workspacePath: string,
+  channel: 'commitLog' | 'blameLog',
+  fileFilter?: ReadonlySet<string>,
+): Promise<GitRawInput> {
   const started = Date.now();
   const baseArgs = ['-C', workspacePath, '-c', 'core.quotepath=false'];
   try {
@@ -157,13 +172,25 @@ async function collectUncached(workspacePath: string, channel: 'commitLog' | 'bl
     if (tracked.length === 0) {
       return unavailable('仓库没有跟踪文件（空仓库或全部未跟踪）', Date.now() - started);
     }
+    // cycle-146：按图节点文件集过滤——消费端 buildOwnershipMap 只按 node.filePath
+    // 查表，跟踪文件全量 blame 的其余文件是白算的墙时间（dsh-anic 实测 77s vs
+    // 过滤后亚秒）。归一化对齐 normalizeChurnPath（斜杠方向/前缀），否则键错位
+    // 会让过滤后空集、所有权视图永远不可用——比全量慢更糟，所以空集时回退全量。
+    let targets = tracked;
+    if (fileFilter && fileFilter.size > 0) {
+      const wanted = new Set(
+        [...fileFilter].map((f) => f.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')),
+      );
+      const filtered = tracked.filter((f) => wanted.has(f));
+      if (filtered.length > 0) targets = filtered;
+    }
     // 分批：argv 长度有 OS 上限。但**多文件 blame 在本机 git 2.56（niugit）下
     // 直接报 `fatal: bad revision 'sub/b.ts'`（真机实证）——porcelain 模式只认
     // 单文件**。因此逐文件串行；吞吐靠 TTL 缓存摊平（30s 内的重复请求不重跑），
     // 而不是并行（并行会让大批仓库瞬间起几百个 git 进程）。
     const parts: string[] = [];
     let truncated = false;
-    for (const file of tracked) {
+    for (const file of targets) {
       const { stdout } = await execFileAsync('git', [...baseArgs, 'blame', '--porcelain', '--', file], {
         timeout: COLLECT.TIMEOUT_MS,
         maxBuffer: COLLECT.MAX_BUFFER,

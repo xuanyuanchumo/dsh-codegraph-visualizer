@@ -27,6 +27,7 @@
  * 永远同一张表格）。
  */
 import { existsSync } from 'node:fs';
+import { isAbsolute, resolve, sep } from 'node:path';
 import { ERROR_CODES, VALIDATION } from '../../shared/constants.ts';
 import { RepoId } from '../../types/index.ts';
 import type { GraphData, GraphNode } from '../../types/index.ts';
@@ -116,6 +117,25 @@ export interface ViewsErrorResponse {
   errorCode: string;
   views: null;
   error: string;
+}
+
+/**
+ * 把节点 filePath 投影为 git 相对路径（cycle-146 L2）。
+ *
+ * 原生扫描图的 filePath 是「工作区绝对路径」域（`D:\…\repo\src\a.ts`），git 输出与
+ * 消费端查表键都在「仓库相对路径」域。规则：
+ * - 绝对路径且位于 workspacePath 下 → 剥前缀 + 反斜杠归一；
+ * - 已经是相对域（上游索引 / DB 图）→ 原样返回（投影是幂等的安全操作）；
+ * - 绝对但不在工作区下（异常图）→ 原样返回，让「查表落空」保持现状而不是编造。
+ */
+export function toGitRelative(filePath: string, workspacePath: string): string {
+  const fp = String(filePath ?? '').trim();
+  if (fp === '' || !isAbsolute(fp)) return fp;
+  const root = resolve(workspacePath);
+  const norm = fp.replace(/\//g, sep);
+  const resolved = resolve(norm);
+  if (resolved === root || !resolved.toLowerCase().startsWith(root.toLowerCase() + sep)) return fp;
+  return resolved.slice(root.length + 1).replace(/\\/g, '/');
 }
 
 /**
@@ -274,14 +294,30 @@ export function registerViewsRoute(rc: RouteContext): void {
         // 缺省时宿主自动采集（cycle-144 T2）——此前「支持传参但无人传」让两个视图
         // 恒为不可用（真机用户旅程实证）。采集失败（非 git 仓库/超时）时返回 null，
         // buildTemporalFact/buildOwnershipFact 走既有的「available:false + 原因」诚实路径。
+        // cycle-146 两层修复（真机 dsh-anic 实证）：
+        //   L1 采集墙时间：blame 传图节点文件集，采集量与图规模成正比
+        //      （全仓 1056 文件逐文件 blame 77s > 客户端 30s 预算 → 面板必然失败）；
+        //   L2 键域错位：原生扫描图的 filePath 是「工作区绝对路径」域
+        //      （如 D:\…\dsh-anic\.dsh\skills\…），而 git 输出与消费端查表键
+        //      （partitionByView / buildOwnershipMap 的 normalizeChurnPath）都在
+        //      「仓库相对路径」域 ⇒ 不投影就永不命中，temporal/ownership 恒 0。
+        //      这里把节点 filePath 投影为相对域后再传两侧（采集器文件集 + 事实构建）。
+        const relNodes: GraphNode[] = graph.nodes.map((n) => {
+          const fp = typeof n.filePath === 'string' ? n.filePath : '';
+          const rel = toGitRelative(fp, workspacePath);
+          return rel === fp ? n : { ...n, filePath: rel };
+        });
+        const nodeFileSet = new Set(
+          relNodes.map((n) => n.filePath).filter((p): p is string => typeof p === 'string' && p.trim() !== ''),
+        );
         const collectedCommit = commitLog === undefined
           ? await collectGitRawInput(workspacePath, 'commitLog')
           : null;
         const collectedBlame = blameLog === undefined
-          ? await collectGitRawInput(workspacePath, 'blameLog')
+          ? await collectGitRawInput(workspacePath, 'blameLog', nodeFileSet)
           : null;
-        const temporal = buildTemporalFact(graph.nodes, commitLog ?? collectedCommit?.text ?? undefined, range, collectedCommit?.reason ?? undefined);
-        const ownership = buildOwnershipFact(graph.nodes, blameLog ?? collectedBlame?.text ?? undefined, collectedBlame?.reason ?? undefined);
+        const temporal = buildTemporalFact(relNodes, commitLog ?? collectedCommit?.text ?? undefined, range, collectedCommit?.reason ?? undefined);
+        const ownership = buildOwnershipFact(relNodes, blameLog ?? collectedBlame?.text ?? undefined, collectedBlame?.reason ?? undefined);
         // 采集元数据随响应披露（白盒：用户能看到「这次划分的 git 输入从哪来、花了多久」）。
         const gitSources = {
           commitLog: collectedCommit
@@ -292,9 +328,11 @@ export function registerViewsRoute(rc: RouteContext): void {
             : { source: 'query' as const, available: blameLog !== undefined && blameLog.trim() !== '', durationMs: null, truncated: false, reason: null },
         };
 
-        // 正式的 Π 函数。
+        // 正式的 Π 函数。cycle-146：data 必须用投影后的 relNodes——temporal 按
+        // filePath 匹配（相对域），ownership/domain 按节点 id 匹配（投影不改 id），
+        // 用原始 graph 会让 temporal 恒 0 而 ownership 正常（真机分叉实证）。
         const partition = partitionByView({
-          data: graph,
+          data: { ...graph, nodes: relNodes },
           temporalFiles: temporal.files,
           attributedNodeIds: ownership.ids,
           domainByNodeId,
