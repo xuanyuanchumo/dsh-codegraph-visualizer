@@ -213,3 +213,93 @@ describe('ViewsPanel: 领域分解', () => {
     expect(screen.getByText('domain-1')).toBeInTheDocument();
   });
 });
+
+describe('ViewsPanel: 数据来源披露（cycle-145）', () => {
+  it('响应带 gitSources 时渲染「数据来源」区，逐项显示来源与耗时', async () => {
+    mockOk({
+      ...sampleViews,
+      gitSources: {
+        commitLog: { source: 'auto', available: true, durationMs: 42, truncated: false, reason: null },
+        blameLog: { source: 'query', available: true, durationMs: null, truncated: false, reason: null },
+      },
+    });
+    renderPanel();
+    await settle();
+    expect(screen.getByText('数据来源')).toBeInTheDocument();
+    expect(screen.getByText('提交日志')).toBeInTheDocument();
+    expect(screen.getByText('归属日志')).toBeInTheDocument();
+    // auto 通道带耗时披露；query 通道显示「调用方传入」。
+    expect(screen.getByText(/宿主自动采集 · 耗时 42ms/)).toBeInTheDocument();
+    expect(screen.getByText('调用方传入')).toBeInTheDocument();
+  });
+
+  it('采集失败的通道显示 reason（服务端诊断数据原样呈现）', async () => {
+    mockOk({
+      ...sampleViews,
+      gitSources: {
+        commitLog: { source: 'auto', available: false, durationMs: null, truncated: false, reason: '不是 git 仓库' },
+        blameLog: { source: 'auto', available: true, durationMs: 10, truncated: false, reason: null },
+      },
+    });
+    renderPanel();
+    await settle();
+    expect(screen.getByText('不是 git 仓库')).toBeInTheDocument();
+  });
+
+  it('旧宿主响应不带 gitSources 字段时整区不渲染（兼容降级）', async () => {
+    mockOk(sampleViews); // sampleViews 无 gitSources 键。
+    renderPanel();
+    await settle();
+    expect(screen.queryByText('数据来源')).toBeNull();
+  });
+});
+
+/** 窗口选择器用例专用：取最近一次 fetch 的 URL（`calls[0]` 在断言前必已发生，非空安全）。 */
+function lastFetchUrl(): string {
+  const call = fetchWithTimeoutMock.mock.calls[0];
+  if (call === undefined) throw new Error('fetchWithTimeout was never called');
+  return call[0] as string;
+}
+
+describe('ViewsPanel: 时序窗口选择器（cycle-145）', () => {
+  it('请求 URL 缺省不带 days（全部历史），点击「近 30 天」后 URL 携带 days=30', async () => {
+    mockOk(sampleViews);
+    renderPanel();
+    await settle();
+    // 首次请求：无 days 参数。
+    const firstUrl = new URL(lastFetchUrl(), 'http://localhost');
+    expect(firstUrl.searchParams.get('days')).toBeNull();
+    // 切换到「近 30 天」：重拉，URL 携带 days=30。
+    fetchWithTimeoutMock.mockClear();
+    mockOk(sampleViews);
+    fireEvent.click(screen.getByRole('button', { name: '近 30 天' }));
+    await settle();
+    const secondUrl = new URL(lastFetchUrl(), 'http://localhost');
+    expect(secondUrl.searchParams.get('days')).toBe('30');
+  });
+
+  it('切回「全部」后 URL 不再携带 days 参数', async () => {
+    mockOk(sampleViews);
+    renderPanel();
+    await settle();
+    fetchWithTimeoutMock.mockClear();
+    mockOk(sampleViews);
+    fireEvent.click(screen.getByRole('button', { name: '近 7 天' }));
+    await settle();
+    fetchWithTimeoutMock.mockClear();
+    mockOk(sampleViews);
+    fireEvent.click(screen.getByRole('button', { name: '全部' }));
+    await settle();
+    const url = new URL(lastFetchUrl(), 'http://localhost');
+    expect(url.searchParams.get('days')).toBeNull();
+  });
+
+  it('窗口工具条只在就绪态渲染（加载/错误/未构建态不可见）', async () => {
+    mockOk(sampleViews);
+    renderPanel();
+    // 加载态：工具条不存在。
+    expect(screen.queryByRole('toolbar')).toBeNull();
+    await settle();
+    expect(screen.getByRole('toolbar', { name: '时序窗口' })).toBeInTheDocument();
+  });
+});

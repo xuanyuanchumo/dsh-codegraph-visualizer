@@ -284,3 +284,87 @@
   color: var(--cg-text-tertiary);
   border-top: 1px solid var(--cg-border);
 }
+
+/* —— 时序窗口工具条（cycle-145 T2）—— */
+
+.cg-views-window {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.cg-views-window-label {
+  font-size: 10px;
+  color: var(--cg-text-secondary);
+  margin-right: 2px;
+}
+
+.cg-views-window-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--cg-text-secondary);
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cg-views-window-btn:hover {
+  color: var(--cg-text);
+  border-color: var(--cg-text-tertiary);
+}
+
+.cg-views-window-btn-active {
+  color: var(--cg-on-accent);
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+}
+
+/* —— 数据来源披露区（cycle-145 T1）—— */
+
+.cg-views-sources {
+  display: flex;
+  flex-direction: column;
+}
+
+.cg-views-source-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 10px;
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.cg-views-source-row:last-child {
+  border-bottom: none;
+}
+
+.cg-views-source-name {
+  flex: 0 0 auto;
+  min-width: 56px;
+  color: var(--cg-text-secondary);
+}
+
+.cg-views-source-value {
+  font-family: var(--cg-font-mono);
+  color: var(--cg-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cg-views-source-value-off {
+  color: var(--cg-text-tertiary);
+}
+
+.cg-views-source-reason {
+  font-size: 9px;
+  color: var(--cg-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

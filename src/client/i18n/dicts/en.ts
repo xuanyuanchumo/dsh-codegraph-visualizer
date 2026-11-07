@@ -959,4 +959,17 @@ export const en: Record<string, string> = {
   'views.no': '—',
   'views.sampled': 'Showing first {shown} of {total} nodes',
   'views.emptyMatrix': 'No nodes',
+  // cycle-145: temporal window presets and git source disclosure
+  'views.windowTitle': 'Temporal window',
+  'views.windowAll': 'All',
+  'views.window7': 'Last 7 days',
+  'views.window30': 'Last 30 days',
+  'views.window90': 'Last 90 days',
+  'views.srcTitle': 'Data sources',
+  'views.srcCommitLog': 'Commit log',
+  'views.srcBlameLog': 'Blame log',
+  'views.srcAuto': 'Collected by host',
+  'views.srcQuery': 'Provided by caller',
+  'views.srcDuration': '{ms}ms',
+  'views.srcTruncated': 'truncated',
 };

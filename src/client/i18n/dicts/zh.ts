@@ -953,4 +953,17 @@ export const zh: Record<string, string> = {
   'views.no': '—',
   'views.sampled': '仅显示前 {shown} 个节点（共 {total} 个）',
   'views.emptyMatrix': '暂无节点',
+  // cycle-145：时序窗口预设与数据来源披露
+  'views.windowTitle': '时序窗口',
+  'views.windowAll': '全部',
+  'views.window7': '近 7 天',
+  'views.window30': '近 30 天',
+  'views.window90': '近 90 天',
+  'views.srcTitle': '数据来源',
+  'views.srcCommitLog': '提交日志',
+  'views.srcBlameLog': '归属日志',
+  'views.srcAuto': '宿主自动采集',
+  'views.srcQuery': '调用方传入',
+  'views.srcDuration': '耗时 {ms}ms',
+  'views.srcTruncated': '已截断',
 };

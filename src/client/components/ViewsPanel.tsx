@@ -48,6 +48,15 @@ interface NodeViewRow {
   views: string[];
 }
 
+/** 单条 git 输入通道的来源披露（宿主 `GitSourceInfo` 的客户端镜像，cycle-145 消费）。 */
+interface GitSourceInfo {
+  source: 'auto' | 'query';
+  available: boolean;
+  durationMs: number | null;
+  truncated: boolean;
+  reason: string | null;
+}
+
 /** `/api/v1/codegraph/views` 的线上形状（与路由响应类型一一对应）。 */
 interface ViewsResponse {
   success: boolean;
@@ -58,11 +67,30 @@ interface ViewsResponse {
   nodeViewMatrix: NodeViewRow[];
   sampled: boolean;
   computedAt: number;
+  /** cycle-144 宿主新增的 git 输入来源披露；旧宿主可能不带（缺字段 ⇒ 区块不渲染）。 */
+  gitSources?: {
+    commitLog: GitSourceInfo;
+    blameLog: GitSourceInfo;
+  };
 }
 
+/** 时序窗口预设（days 值；`undefined` = 全部历史）。 */
+const WINDOW_PRESETS = [
+  { value: undefined, labelKey: 'views.windowAll' },
+  { value: 7, labelKey: 'views.window7' },
+  { value: 30, labelKey: 'views.window30' },
+  { value: 90, labelKey: 'views.window90' },
+] as const;
+
 /** `GET /views`：返回 `null` 表示请求被中止或失败（`withAbortGuard` 的回落）。 */
-async function fetchViews(workspacePath: string, signal: AbortSignal): Promise<ViewsResponse | null> {
-  const url = `/api/v1/codegraph/views?workspace=${encodeURIComponent(workspacePath)}`;
+async function fetchViews(workspacePath: string, signal: AbortSignal, days?: number): Promise<ViewsResponse | null> {
+  const params = new URLSearchParams({ workspace: workspacePath });
+  // days 是唯一客户端下发的窗口参数：无效值（非正数/NaN）静默不发，与服务端
+  // 「参数缺失 = 全部历史」的默认语义一致，不额外造一个错误分支。
+  if (typeof days === 'number' && Number.isFinite(days) && days > 0) {
+    params.set('days', String(days));
+  }
+  const url = `/api/v1/codegraph/views?${params.toString()}`;
   return withAbortGuard('fetchViews', async () => {
     const res = await fetchWithTimeout(url, { signal });
     if (!res.ok) return null;
@@ -98,6 +126,8 @@ export const ViewsPanel = memo(function ViewsPanel({ onClose, label, workspacePa
   const t = useT();
   const [data, setData] = useState<ViewsResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'notfound'>('loading');
+  // 时序窗口（days）：undefined = 全部历史。切换预设即重拉，请求 URL 携带参数。
+  const [days, setDays] = useState<number | undefined>(undefined);
   // 请求的中止控制器：切换工作区时中止上一个慢响应，避免旧工作区覆盖新工作区。
   const abortRef = useRef<AbortController | null>(null);
 
@@ -107,7 +137,7 @@ export const ViewsPanel = memo(function ViewsPanel({ onClose, label, workspacePa
     abortRef.current = controller;
     setStatus('loading');
     try {
-      const result = await fetchViews(workspacePath, controller.signal);
+      const result = await fetchViews(workspacePath, controller.signal, days);
       if (controller.signal.aborted) return; // 已被更新的请求取代，丢弃这次结果。
       if (!result) {
         setData(null);
@@ -127,7 +157,7 @@ export const ViewsPanel = memo(function ViewsPanel({ onClose, label, workspacePa
         setStatus('error');
       }
     }
-  }, [workspacePath]);
+  }, [workspacePath, days]);
 
   useEffect(() => {
     void load();
@@ -141,6 +171,22 @@ export const ViewsPanel = memo(function ViewsPanel({ onClose, label, workspacePa
 
   return (
     <AnalysisPanelShell variant="views" label={panelLabel} onClose={onClose}>
+      {status === 'ready' && data ? (
+        <div className="cg-views-window" role="toolbar" aria-label={t('views.windowTitle')}>
+          <span className="cg-views-window-label">{t('views.windowTitle')}</span>
+          {WINDOW_PRESETS.map((preset) => (
+            <button
+              key={preset.labelKey}
+              type="button"
+              className={'cg-views-window-btn' + (days === preset.value ? ' cg-views-window-btn-active' : '')}
+              aria-pressed={days === preset.value}
+              onClick={() => setDays(preset.value)}
+            >
+              {t(preset.labelKey)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {status === 'loading' ? (
         <div className="cg-views-state" role="status">{t('views.loading')}</div>
       ) : status === 'error' ? (
@@ -286,6 +332,10 @@ function ViewsBody({
         )}
       </section>
 
+      {/* 数据来源披露（cycle-145）：白盒呈现「这次划分的 git 输入从哪来、花了多久」。
+          旧宿主不带 gitSources 字段 ⇒ 整区不渲染（缺字段静默不渲染是安全的降级）。 */}
+      {data.gitSources ? <GitSourcesSection sources={data.gitSources} t={t} /> : null}
+
       {/* 领域分解 */}
       {views.domain.domainCount > 0 ? (
         <section className="cg-views-section">
@@ -305,5 +355,53 @@ function ViewsBody({
         {t('views.nodes')} {totalNodes} · {t('views.edges')} {totalEdges}
       </div>
     </>
+  );
+}
+
+/** 单条 git 输入通道的来源描述文案（auto/query → 中文/英文，耗时 + 截断附注）。 */
+function gitSourceText(t: (key: string, params?: Record<string, string | number>) => string, info: GitSourceInfo): string {
+  const base = info.source === 'auto' ? t('views.srcAuto') : t('views.srcQuery');
+  const parts = [base];
+  if (info.available && typeof info.durationMs === 'number') {
+    parts.push(t('views.srcDuration', { ms: info.durationMs }));
+  }
+  if (info.truncated) {
+    parts.push(t('views.srcTruncated'));
+  }
+  return parts.join(' · ');
+}
+
+/** 「数据来源」披露区：commitLog / blameLog 两条通道的来源、耗时、截断与失败原因。 */
+function GitSourcesSection({
+  sources,
+  t,
+}: {
+  sources: NonNullable<ViewsResponse['gitSources']>;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const rows: Array<{ key: string; titleKey: string; info: GitSourceInfo }> = [
+    { key: 'commit', titleKey: 'views.srcCommitLog', info: sources.commitLog },
+    { key: 'blame', titleKey: 'views.srcBlameLog', info: sources.blameLog },
+  ];
+  return (
+    <section className="cg-views-section" aria-label={t('views.srcTitle')}>
+      <h4 className="cg-views-section-title">{t('views.srcTitle')}</h4>
+      <div className="cg-views-sources" role="table" aria-label={t('views.srcTitle')}>
+        {rows.map(({ key, titleKey, info }) => (
+          <div className="cg-views-source-row" role="row" key={key}>
+            <span className="cg-views-source-name" role="rowheader">{t(titleKey)}</span>
+            <span
+              className={'cg-views-source-value' + (info.available ? '' : ' cg-views-source-value-off')}
+              role="cell"
+            >
+              {gitSourceText(t, info)}
+            </span>
+            {!info.available && info.reason ? (
+              <span className="cg-views-source-reason" role="cell">{info.reason}</span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -243,3 +243,8 @@
 - 批量 Replace 对同一锚点命中两次会产生重复声明（TS2451）：给 usePanelState 接新键时 `const toggleX = useCallback(...)` 锚点出现两处、replace 各补一发 → 双倍声明。锚点必须唯一（带上下文），或改用 edit 工具（old_string 唯一性校验是结构防线）——这是 GEN2_MAPPING 重复声明教训的第 2 次复发（cycle-143）。
 - 「三层测试各答各的」盲区：组件测试答「组件对不对」、路由测试答「路由对不对」、工具测试答「工具对不对」，没有一层答「用户可达吗」——ViewsPanel 三层全绿却零消费点存活了两个循环。新增面板时同步写源码级可达性守卫（viewsPanelReachability.test.ts 四环节：开关声明/栈挂载/工具入口/层判据，含反向自检）。
 - 探针红不了先查守卫再查探针：变异 `visible: panel.showViews,` → `showViewszzz,` 守卫仍绿，根因是前缀匹配（toContain('visible: panel.showViews') 命中 showViewszzz）——词边界 `[^a-zA-Z0-9_]` 收紧后才红。守卫的正则/包含判定必须先假设会被同形前缀欺骗（cycle-143 M1 实证）。
+- 白盒披露必须消费到 UI 才算闭环：`gitSources` 在 HTTP 响应里躺了一整轮（cycle-144 交付、cycle-145 才消费）——「服务端返回了」与「用户看到了」隔着一层客户端。新增披露字段时同轮交付消费端，或显式登记流转项（cycle-145 §88.1）。
+- 「支持传参但无人传」有第二层：宿主不采集是第一层（cycle-144 修），客户端不发送是第二层（cycle-145 修）——`days` 参数路由侧支持了两轮才有人传。排查该家族缺陷时两侧都要 grep 调用方。
+- 测试断言「请求 URL 参数」而不是「UI 文案变了」：窗口按钮渲染成功但 fetch 从不带参数与「功能完成」在 DOM 断言下不可区分——`fetchWithTimeoutMock.mock.calls[0][0]` 解析 searchParams 是唯一能看见「请求到底发了什么」的层（cycle-88「entry 存在 ≠ entry 可达」的请求侧同族）。
+- 技能副本缺陷不能就地修：`.dsh/skills/` 下受宿主 PUBLICATION_DENIED 保护（硬改会与打包清单漂移并被 anic_skill_repair 回滚）——实证缺陷登记 `.cycles/tech-debt/` 转上游，项目侧用手动 workaround（mkdir 循环目录 + 修 state）。
+- init-cycle 号源单一缺陷（登记 TD-ANIC-INITCYCLE-NUMBERSOURCE）：归档后号段回退——`max(cycles/)+1` 在 archive 含更大号时必回退，且会回拉 currentCycle。遇「Initialized cycle-{过时号}」先核对 archive/ 与 workflow-state 三源，手动建目录续走，不等技能修复。
