@@ -492,6 +492,17 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
+      // cycle-146 T146-5：调用链边「流动」动画的静态样式位——虚线形态由样式给出，
+      // 流动感由 HighlightController 的 line-dash-offset 补间驱动（cytoscape 原生
+      // edge.animate，无需 requestAnimationFrame 自管）。静态规则与动画驱动分离：
+      // 动画停止时虚线仍在（只是不动），不会出现「样式闪变」。
+      selector: 'edge.call-chain',
+      style: {
+        'line-style': 'dashed',
+        'line-dash-pattern': [8, 6],
+      },
+    },
+    {
       selector: '.cycle-highlight',
       style: {
         'border-width': 4,

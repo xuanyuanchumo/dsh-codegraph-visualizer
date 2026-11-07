@@ -18,8 +18,14 @@ DSH CodeGraph Visualizer 是一个 [DeepSeek Harness](https://github.com/deepsee
 - **渐进式层级聚合** — 渐进式聚类 + 增量聚类 + Louvain 社区检测
 - **7 种布局引擎** — Cose（力导向）、fCose（改进力导向）、Dagre（层次）、Circle（环形）、Grid（网格）、Radial（辐射）、Tree（树形）
 - **交互式分析** — 符号搜索、调用链追踪、循环依赖检测、影响分析、继承层次
+- **交互式图例** — 点击图例行切换节点/边类型可见性（v0.3.0）
+- **调用链流动动画** — 高亮调用链的边以虚线流动呈现数据流向（v0.3.0）
 - **实时增量更新** — 文件监听 + 事件驱动，代码变更后图谱自动刷新
 - **导出能力** — PNG / SVG / JSON / Mermaid 四格式导出
+- **图谱管理面板** — 图指标（密度/聚类/PageRank/介数）、索引覆盖范围、限流观测、诊断四态（ready/degraded/disabled）+ 修复指引问题码
+- **可观测性数据面** — 管线耗时占比、缓存命中率、ETag 决策分布、AST 预算用量、限流白盒快照
+- **声明式配置** — Schemastery `Config` schema 导出，宿主设置 UI 可编辑、加载期校验（v0.3.0）
+- **跨项目隔离** — 按 workspace 隔离图谱数据与缓存，多工作区切换互不污染
 - **中英双语 i18n** — 完整国际化支持
 - **主题切换** — 深色/浅色主题，自动适配 DSH 环境变量
 
@@ -357,6 +363,21 @@ pnpm run hygiene        # 消费面 / 死代码检查
 | L4 性能 | `tests/e2e/performance.spec.ts` | `pnpm run test:performance` |
 
 覆盖率、体积与用例数的真实基线见 `.cycles/cycles/*/test-reports/test-report.md` 与 `scripts/perf-baseline.json`。
+
+## 更新日志
+
+### 0.3.0（2026-11-07）
+
+- **声明式配置**：导出 Schemastery `Config` schema（Standard Schema 接口）——宿主设置 UI 可编辑插件配置，cordis 加载期校验 + 默认值填充；与 `resolveConfig` 双防线同形状（契约测试钉死单一真源）。
+- **诊断四态**：`/status` 新增 `diagnosis` 字段（`ready`/`degraded`/`disabled` + 稳定问题码），管理面板按问题码渲染修复指引（对齐 dsh-ops diagnose 模式）。
+- **限流可观测**：`/manage/metrics` 新增 `rateLimiter` 白盒快照（活跃桶/配额/窗口剩余），限流从黑盒行为变成数据面。
+- **交互式图例**：点击图例行切换节点/边类型可见性，与筛选面板共享同一状态源；最后一个可见类型防呆不可关闭。
+- **调用链流动动画**：高亮调用链的边以虚线流动呈现（cytoscape 原生 line-dash-offset 补间），动画句柄生命周期与高亮类严格对齐（无 RAF 泄漏）。
+- 测试基线 7041 → **7055**（+14：configSchemaContract 5 / diagnosisContract 6 / rateLimiterSnapshot 4 / Legend 组件 6 / 流动动画 4 − 既有 routes 断言更新 9）。
+
+### 0.2.0
+
+- 原生 SQLite 索引通道（上游缺席时毫秒级分页读取）、Π 时序/所有权视图、图谱管理面板（图指标 14 项 + 索引覆盖 + 索引删除）、介数采样上界（8393 节点 65.4s → 2.7s）、命令窗口显示修复（windowsHide 纪律）。
 
 ## 许可证
 

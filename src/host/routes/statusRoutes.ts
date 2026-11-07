@@ -1,7 +1,7 @@
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from '../prerequisites.ts';
 import { sendJson } from '../HttpHelpers.ts';
 import { computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
-import { isGraphServiceHealthy } from '../../shared/prerequisiteStatus.ts';
+import { isGraphServiceHealthy, diagnosePrerequisiteStatus } from '../../shared/prerequisiteStatus.ts';
 import { withRouteMiddleware, ensureWorkspaceRootsAllowed, type RouteContext } from './shared.ts';
 import { registrySummary, probeRegistry, countLive } from '../registry/businessRegistry.ts';
 
@@ -28,6 +28,9 @@ export function registerStatusRoute(rc: RouteContext): void {
         // cycle-116 可观测性：注册-生产-消费矩阵摘要（四面计数 + 断链清单）。
         // additive 字段：旧客户端不读无影响；运维/测试用它白盒检查业务连通性。
         registry: { ...registrySummary(), liveCounts: countLive(probeRegistry(deps)) },
+        // cycle-146 T146-2：诊断四态 + 稳定问题码（ready/degraded/disabled/not-selected）。
+        // additive 字段：管理面板按 code 渲染修复指引；旧客户端不读无影响。
+        diagnosis: diagnosePrerequisiteStatus(status),
       }, req, corsConfig);
     }),
   }), 'codegraph: status route');

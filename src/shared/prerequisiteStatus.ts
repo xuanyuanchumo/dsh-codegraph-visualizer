@@ -126,3 +126,76 @@ export function isGraphServiceHealthy(
 export function emptyPrerequisiteStatus(): PrerequisiteStatus {
   return { codegraph: false, lens: false, astSource: false, graphSource: false };
 }
+
+// ---------------------------------------------------------------------------
+// 诊断四态 + 问题码分类学（cycle-146 T146-2，对齐 dsh-ops diagnose 模式）
+// ---------------------------------------------------------------------------
+
+/**
+ * 诊断四态。**状态机**语义（不是布尔）：
+ *
+ * - `ready`      —— 至少一条图数据通道在场且至少一条 AST 通道在场，全功能；
+ * - `degraded`   —— 有图可看但 AST 分析（outline/ast/children 符号树）缺席，核心旅程可用；
+ * - `disabled`   —— 没有任何图数据通道（codegraph/lens/graphSource 全 false），
+ *                    插件加载了但本宿主画不出图——用户需要装上游插件或检查工具面；
+ * - `not-selected`—— 预留：会话未绑定工作区时的「无从谈起」态（dsh-ops 的语义），
+ *                    当前 `checkPrerequisites` 不产出它，由调用方在 ctx 提取失败时映射。
+ *
+ * 为什么不是复用 `/health` 的两态（healthy/degraded）：两态把「装没装上游」和「内置
+ * 通道自检」压成一个布尔，管理面板无法给出**分状态的修复指引**（装哪个插件、为什么
+ * AST 缺席）。四态 + 稳定 code 是给前端按 code 渲染指引的数据面。
+ */
+export type PrerequisiteDiagnosisState = 'ready' | 'degraded' | 'disabled' | 'not-selected';
+
+/** 稳定问题码。**对外契约**：客户端/管理面板按 code 匹配渲染修复指引，改名即破坏性变更。 */
+export type PrerequisiteIssueCode =
+  | 'CODEGRAPH_UPSTREAM_ABSENT'
+  | 'LENS_UPSTREAM_ABSENT'
+  | 'AST_SOURCE_UNAVAILABLE'
+  | 'GRAPH_SOURCE_UNAVAILABLE'
+  | 'ALL_GRAPH_CHANNELS_ABSENT';
+
+/** 一条诊断问题：稳定 code + 面向用户的解释（i18n 由客户端按 code 渲染）。 */
+export interface PrerequisiteIssue {
+  code: PrerequisiteIssueCode;
+  /** 机器可读的问题通道（哪个能力位引发的）。 */
+  channel: 'codegraph' | 'lens' | 'astSource' | 'graphSource';
+}
+
+/** 诊断结果：四态 + 问题码列表 + 就绪通道清单。 */
+export interface PrerequisiteDiagnosis {
+  state: PrerequisiteDiagnosisState;
+  issues: PrerequisiteIssue[];
+  /** 就绪的图数据通道（管理面板「数据来源」徽章的数据面）。 */
+  readyChannels: Array<'codegraph' | 'lens' | 'graphSource'>;
+  /** AST 通道是否就绪（与 readyChannels 正交，见能力位拆分注释）。 */
+  astReady: boolean;
+}
+
+/** 四态分类的**唯一**实现：宿主 /status、/health、客户端空态、管理面板都必须走这里。 */
+export function diagnosePrerequisiteStatus(status: PrerequisiteStatus): PrerequisiteDiagnosis {
+  const readyChannels: PrerequisiteDiagnosis['readyChannels'] = [];
+  if (status.codegraph) readyChannels.push('codegraph');
+  if (status.lens) readyChannels.push('lens');
+  if (status.graphSource) readyChannels.push('graphSource');
+
+  const issues: PrerequisiteIssue[] = [];
+  if (!status.codegraph) issues.push({ code: 'CODEGRAPH_UPSTREAM_ABSENT', channel: 'codegraph' });
+  if (!status.lens) issues.push({ code: 'LENS_UPSTREAM_ABSENT', channel: 'lens' });
+  if (!status.astSource) issues.push({ code: 'AST_SOURCE_UNAVAILABLE', channel: 'astSource' });
+  if (!status.graphSource) issues.push({ code: 'GRAPH_SOURCE_UNAVAILABLE', channel: 'graphSource' });
+
+  // 有图可看 = readyChannels 非空；AST 缺席把 ready 降为 degraded。
+  const hasGraph = readyChannels.length > 0;
+  const state: PrerequisiteDiagnosisState =
+    !hasGraph ? 'disabled'
+    : !status.astSource ? 'degraded'
+    : 'ready';
+
+  if (!hasGraph) {
+    // 问题码按确定性顺序插到最前：面板指引的第一行永远是「为什么画不出图」。
+    issues.unshift({ code: 'ALL_GRAPH_CHANNELS_ABSENT', channel: 'graphSource' });
+  }
+
+  return { state, issues, readyChannels, astReady: status.astSource };
+}

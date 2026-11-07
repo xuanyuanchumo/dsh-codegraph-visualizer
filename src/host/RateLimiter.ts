@@ -17,6 +17,28 @@ const HEAVY_ENDPOINTS = new Set([
 
 interface RateBucket { count: number; resetTime: number; }
 
+/** 单桶白盒快照（cycle-146 T146-3）：管理面板「限流观测」区的数据面。 */
+export interface RateBucketSnapshot {
+  /** 桶键（`ip:routePath`）。 */
+  key: string;
+  /** 窗口内已放行的请求数。 */
+  count: number;
+  /** 本窗口配额（heavy 端点与常规端点不同）。 */
+  limit: number;
+  /** 窗口剩余毫秒数（0 = 已过期，等待惰性清理）。 */
+  resetInMs: number;
+}
+
+/** 限流器白盒快照：additive 字段，只读投影，不影响任何限流行为。 */
+export interface RateLimiterSnapshot {
+  /** 活跃桶数（窗口未过期的键）。 */
+  activeBuckets: number;
+  /** 每桶明细（按键排序，输出确定性）。 */
+  buckets: RateBucketSnapshot[];
+  /** 配置上界（heavy/regular 两档配额与窗口长度），面板渲染「配额」行的数据面。 */
+  limits: { heavy: number; regular: number; windowMs: number };
+}
+
 export function createRateLimiter() {
   const rateLimitMap = new Map<string, RateBucket>();
   let lastCleanup = Date.now();
@@ -50,5 +72,30 @@ export function createRateLimiter() {
     lastCleanup = Date.now();
   }
 
-  return { check, reset };
+  /**
+   * 白盒快照（cycle-146 T146-3）：活跃桶的只读投影。
+   * 只反映**未过期**桶（过期桶在下一次 check/cleanup 时惰性删除，快照不虚报）；
+   * resetInMs 按快照时刻计算，输出按键排序保证确定性（面板 diff 友好）。
+   */
+  function snapshot(): RateLimiterSnapshot {
+    const now = Date.now();
+    const buckets: RateBucketSnapshot[] = [];
+    for (const [key, bucket] of rateLimitMap) {
+      if (now > bucket.resetTime) continue; // 过期桶尚未被惰性清理——不虚报
+      buckets.push({
+        key,
+        count: bucket.count,
+        limit: HEAVY_ENDPOINTS.has(key.slice(key.indexOf(':') + 1)) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT,
+        resetInMs: Math.max(0, bucket.resetTime - now),
+      });
+    }
+    buckets.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    return {
+      activeBuckets: buckets.length,
+      buckets,
+      limits: { heavy: RATE_LIMIT_HEAVY, regular: RATE_LIMIT_DEFAULT, windowMs: RATE_LIMIT_WINDOW_MS },
+    };
+  }
+
+  return { check, reset, snapshot };
 }

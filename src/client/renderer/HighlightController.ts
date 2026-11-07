@@ -14,6 +14,8 @@ export class HighlightController {
   private selectedNodeId: string | null = null;
   private lastInheritanceRelevant: Set<string> = new Set();
   private adjacencyMap: Map<string, Set<string>> | null = null;
+  /** T146-5：调用链边流动动画的当前句柄。null = 无动画在跑。 */
+  private callChainAnim: cytoscape.EdgeCollection | null = null;
 
   constructor(cy: Core) {
     this.cy = cy;
@@ -94,6 +96,7 @@ export class HighlightController {
   }
 
   highlightCallChain(nodeId: NodeId | null, maxDepth: number = HIGHLIGHT.CALL_CHAIN_MAX_DEPTH): void {
+    this.stopCallChainFlow();
     this.cy.batch(() => {
       this.cy.elements().removeClass('call-chain');
       if (!nodeId) return;
@@ -119,6 +122,46 @@ export class HighlightController {
         });
       }
     });
+    this.startCallChainFlow();
+  }
+
+  /**
+   * T146-5：调用链边流动动画——对 `.call-chain` 边集合做 line-dash-offset 无限补间。
+   *
+   * cytoscape 原生 `animate` 挂在**元素集合**上：句柄就是那个集合，`stop()` 停掉它的
+   * 所有进行中补间。每次 highlightCallChain 前先 stop 旧动画（换节点高亮时旧边集合
+   * 若继续跑会泄漏 RAF）；清空高亮（nodeId=null）时同样停——动画句柄的生命周期与
+   * `.call-chain` 类的存在严格对齐（「谁申请谁释放」同一纪律）。
+   *
+   * 空集合守卫：cytoscape 对空集合 animate 会静默 no-op，但句柄存 no-op 集合仍会
+   * 被 stop() 白调——先判空再动画，让句柄只在真有边时存在。
+   */
+  private startCallChainFlow(): void {
+    const edges = this.cy.edges('.call-chain');
+    if (edges.empty()) return;
+    this.callChainAnim = edges;
+    edges
+      .animate({
+        style: { 'line-dash-offset': 0 },
+        duration: 600,
+      })
+      .animate({
+        style: { 'line-dash-offset': -28 },
+        duration: 600,
+        complete: () => this.startCallChainFlow(),
+      });
+  }
+
+  private stopCallChainFlow(): void {
+    if (this.callChainAnim) {
+      this.callChainAnim.stop(true);
+      this.callChainAnim = null;
+    }
+  }
+
+  /** 销毁：动画句柄必须随控制器释放（disposeStore 纪律——防 RAF 泄漏）。 */
+  destroyCallChainFlow(): void {
+    this.stopCallChainFlow();
   }
 
   highlightInheritance(nodeId: NodeId | null): void {
@@ -199,6 +242,7 @@ export class HighlightController {
   }
 
   destroy(): void {
+    this.destroyCallChainFlow();
     this.cy.batch(() => {
       this.cy.elements().removeClass('highlighted selected neighbor-highlight neighbor-dim call-chain inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
     });

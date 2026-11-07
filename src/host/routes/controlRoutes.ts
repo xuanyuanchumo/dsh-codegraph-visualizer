@@ -513,6 +513,9 @@ export function registerManageMetricsRoute(rc: RouteContext): void {
             computeMs,
           },
           coverage,
+          // cycle-146 T146-3：限流器白盒快照（additive 字段）。管理面板「限流观测」区
+          // 据此渲染活跃桶/配额/窗口剩余——限流从「黑盒行为」变成可观测数据面。
+          rateLimiter: rateLimiter.snapshot(),
           computedAt: Date.now(),
         }, req, corsConfig);
       } catch (e) {

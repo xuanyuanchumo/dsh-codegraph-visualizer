@@ -395,6 +395,30 @@
   padding: 2px 0;
 }
 
+/* cycle-146 T146-4：图例行交互化——button 化 + 隐藏态视觉（半透明 + 删除线语义） */
+button.cg-legend-row.cg-legend-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  border-radius: 4px;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+button.cg-legend-row.cg-legend-toggle:hover {
+  background: var(--cg-surface-hover);
+}
+
+.cg-legend-row.cg-legend-row-hidden {
+  opacity: 0.38;
+}
+
+.cg-legend-row.cg-legend-row-hidden .cg-legend-swatch,
+.cg-legend-row.cg-legend-row-hidden .cg-legend-line {
+  filter: grayscale(1);
+}
+
 .cg-legend-swatch {
   width: 10px;
   height: 10px;

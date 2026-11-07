@@ -270,6 +270,7 @@ export const zh: Record<string, string> = {
   // Legend
   'legend.title': '图例',
   'legend.close': '关闭图例',
+  'legend.toggleHint': '点击切换该类型的显示/隐藏（至少保留一个可见类型）',
   'legend.nodes': '节点',
   'legend.edges': '边',
   'legend.function': '函数',

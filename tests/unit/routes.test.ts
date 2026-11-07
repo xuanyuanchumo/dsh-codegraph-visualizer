@@ -412,6 +412,13 @@ describe('registerRoutes', () => {
     const parsed = JSON.parse(state.body);
     expect(parsed).toEqual({
       codegraph: true, lens: true, astSource: true, graphSource: true, compat: null,
+      // cycle-146 T146-2：诊断四态字段（additive）。全能力位在场 ⇒ ready + 就绪通道齐全。
+      // 四态分类本身的真值表由 diagnosisContract.test.ts 守卫，这里只钉「字段存在且形状对」。
+      diagnosis: expect.objectContaining({
+        state: 'ready',
+        astReady: true,
+        readyChannels: ['codegraph', 'lens', 'graphSource'],
+      }),
       // cycle-116：registry 摘要字段（additive）。断言形状而非全量内容——矩阵内容由
       // registryContract.test.ts 守卫，这里只钉「字段存在且四面计数齐全」。
       registry: expect.objectContaining({

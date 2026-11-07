@@ -1,6 +1,6 @@
 {
   "name": "dsh-codegraph-visualizer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "DSH 代码图谱可视化插件 - 打通 dsh-codegraph/dsh-tool-lens 数据源 → 聚合转换 → 交互式代码图谱",
   "type": "module",
   "license": "MIT",
@@ -56,14 +56,16 @@
     "graphology": "^0.26.0",
     "graphology-communities-louvain": "^2.0.2",
     "tree-sitter-wasm": "^1.1.8",
-    "web-tree-sitter": "^0.27.0"
+    "web-tree-sitter": "^0.27.0",
+    "@deepseek-ai/schemastery": "^3.18.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-llm": "^0.2.0-rc.2 || ^0.3.0-rc.2",
     "@deepseek-ai/dsh-tools": "^0.2.0-rc.2 || ^0.3.0-rc.2",
     "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "@deepseek-ai/schemastery": "^3.18.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",

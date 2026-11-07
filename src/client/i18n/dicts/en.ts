@@ -271,6 +271,7 @@ export const en: Record<string, string> = {
   // Legend
   'legend.title': 'Legend',
   'legend.close': 'Close legend',
+  'legend.toggleHint': 'Click to toggle visibility (at least one type stays visible)',
   'legend.nodes': 'Nodes',
   'legend.edges': 'Edges',
   'legend.function': 'Function',

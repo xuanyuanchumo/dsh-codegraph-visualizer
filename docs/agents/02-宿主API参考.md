@@ -746,3 +746,40 @@ checksum）定位帧边界后逐帧解拼。可复用 `dsh-session-persistence-j
 
 **守卫**：`tests/unit/observabilityFlow.test.ts` 14 用例（占比归一/判零/确定性逐字节比较）
 + `tests/component/RuntimePanel.test.tsx` 流动区 5 用例（真实单例驱动）。
+
+## 18. Config schema 导出与诊断四态（cycle-146）
+
+### 18.1 Config Schemastery schema（`src/host/config.ts`）
+
+- **导出面**：`Config`（Standard Schema 接口，`~standard.validate`）+ 既有
+  `resolveConfig`/`DEFAULT_CONFIG`/`VisualizerConfig`。宿主设置 UI 与 cordis 加载期
+  校验都以 schema 为数据源（dsh-context/dsh-ops 双插件的 `Config` 导出模式）。
+- **单一真源关系**：schema `.default()` 的值必须逐字段等于 `DEFAULT_CONFIG`——
+  `tests/unit/configSchemaContract.test.ts` CS-2 行为反射钉死（缺失输入调 schema、
+  比对产出）。schema 是加载时防线（枚举外/越界值在插件加载即抛），`resolveConfig`
+  是运行时防线（错误信息更具体），两道防线同形状、各有职责。
+- **依赖位置**：`@deepseek-ai/schemastery` 放 `dependencies`（运行时校验器，
+  官方 cookbook adding-a-package 的约定），peer 同步声明。
+
+### 18.2 诊断四态 + 问题码分类学（`src/shared/prerequisiteStatus.ts`）
+
+- `diagnosePrerequisiteStatus(status) → { state, issues, readyChannels, astReady }`：
+  四态 `ready | degraded | disabled | not-selected` + 稳定问题码
+  （`ALL_GRAPH_CHANNELS_ABSENT` / `CODEGRAPH_UPSTREAM_ABSENT` / `LENS_UPSTREAM_ABSENT` /
+  `AST_SOURCE_UNAVAILABLE` / `GRAPH_SOURCE_UNAVAILABLE`）。
+- **四态语义**（对齐 dsh-ops diagnose 模式）：`ready`=全功能；`degraded`=有图可看但
+  AST 缺席；`disabled`=零图数据通道（装上游插件才能画图）；`not-selected`=预留
+  （会话未绑定工作区）。**AST 在场不救 disabled**（§61.10 能力位拆分教训的直接回归
+  DQ-5）。
+- **问题码是对外契约**：客户端/管理面板按 code 匹配渲染修复指引，改名即破坏性变更。
+- **消费点**：`/status` 响应新增 additive 字段 `diagnosis`（`statusRoutes.ts`）；
+  `ready` 语义是「全功能」而非「零问题」——lens 缺席不阻塞 ready（DQ-3）。
+
+### 18.3 限流器白盒快照（`src/host/RateLimiter.ts`）
+
+- `snapshot() → { activeBuckets, buckets[], limits{heavy,regular,windowMs} }`：
+  活跃桶的只读投影。三条不变式（`tests/unit/rateLimiterSnapshot.test.ts`）：
+  快照不改变限流行为（零观测者效应 RL-2）、过期桶不虚报（RL-3）、
+  输出按键排序确定（RL-4）。
+- **消费点**：`/manage/metrics` 响应新增 additive 字段 `rateLimiter`（管理面板
+  「限流观测」区渲染活跃桶/配额/窗口剩余）。

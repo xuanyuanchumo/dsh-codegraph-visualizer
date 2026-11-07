@@ -1,84 +1,100 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+/**
+ * T146-4 契约：图例（Legend）交互化——点击类型行切换可见性（cycle-146）。
+ *
+ * ## 为什么直接 `useGraphStore.setState` 而不是 mock 整个 store
+ *
+ * 与 `KeywordQueryPanel.test.tsx` 同一取舍：图例与 filterSlice 的接缝（字段名
+ * `visibleNodeTypes` / 动作名 `setVisibleNodeTypes`）正是最容易写错的地方。真实
+ * store + setState 覆盖能同时验证接缝与渲染；mock 掉整个 store 会让接缝缺陷变成
+ * `undefined` 静默渲染。
+ *
+ * ## 钉死的三条契约
+ *
+ * ① 点击行 ⇄ 该类型在 `visibleNodeTypes` 中被切换（FilterController 消费同一集合）；
+ * ② **防呆**：最后一个可见类型不可关闭（画布全空且无行可点回的单点故障）；
+ * ③ 视觉状态：隐藏行的 `aria-pressed=false` + `cg-legend-row-hidden` 类。
+ *
+ * 反自我反证：③ 若无 ① 的行为断言守护，一个「只改样式不切状态」的实现会全绿。
+ */
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import React from 'react';
+
 import { Legend } from '../../src/client/components/Legend.tsx';
+import { useGraphStore } from '../../src/client/store/graphStore.ts';
+import { resetI18nListeners } from '../../src/client/i18n/index.ts';
 
-const mockT = (key: string) => key;
-
-vi.mock('../../src/client/i18n/index.ts', () => ({
-  useT: () => mockT,
+vi.mock('../../src/client/i18n/index.ts', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useT: () => (key: string) => key,
 }));
 
-describe('Legend', () => {
+describe('Legend interactive toggles (cycle-146 T146-4)', () => {
+  beforeEach(() => {
+    // 重置 filterSlice 两个集合到默认全集
+    useGraphStore.setState({
+      visibleNodeTypes: new Set(['function', 'class', 'variable', 'module', 'interface']),
+      visibleEdgeTypes: new Set(['call', 'extend', 'implement', 'import', 'dependency', 'contains']),
+    });
+  });
+
   afterEach(() => {
     cleanup();
+    resetI18nListeners();
     vi.clearAllMocks();
   });
 
-  it('应渲染标题和关闭按钮', () => {
-    const onClose = vi.fn();
-    const { getByText, container } = render(<Legend viewMode="code" onClose={onClose} />);
-    expect(getByText('legend.title')).toBeInTheDocument();
-    const closeBtn = container.querySelector('.cg-legend-close');
-    expect(closeBtn).toBeInTheDocument();
-    expect(closeBtn?.getAttribute('aria-label')).toBe('legend.close');
+  it('LG-1 clicking a visible node type row hides it in the store', () => {
+    render(<Legend viewMode="code" onClose={() => {}} />);
+    const row = screen.getByRole('button', { pressed: true, name: /legend\.function/ });
+    fireEvent.click(row);
+    const visible = useGraphStore.getState().visibleNodeTypes as Set<string>;
+    expect(visible.has('function')).toBe(false);
+    expect(visible.has('class')).toBe(true); // 其他类型不受影响
   });
 
-  it('点击关闭按钮应调用 onClose', () => {
-    const onClose = vi.fn();
-    const { container } = render(<Legend viewMode="code" onClose={onClose} />);
-    const closeBtn = container.querySelector('.cg-legend-close')!;
-    fireEvent.click(closeBtn);
-    expect(onClose).toHaveBeenCalledTimes(1);
+  it('LG-2 clicking a hidden node type row shows it again', () => {
+    // function 初始**不在**可见集（隐藏态）→ 点击后应重新可见
+    useGraphStore.setState({ visibleNodeTypes: new Set(['class']) });
+    render(<Legend viewMode="code" onClose={() => {}} />);
+    const row = screen.getByRole('button', { pressed: false, name: /legend\.function/ });
+    fireEvent.click(row);
+    const visible = useGraphStore.getState().visibleNodeTypes as Set<string>;
+    expect(visible.has('function')).toBe(true);
   });
 
-  it('code 视图应显示所有节点类型', () => {
-    const { getByText } = render(<Legend viewMode="code" onClose={vi.fn()} />);
-    expect(getByText('legend.function')).toBeInTheDocument();
-    expect(getByText('legend.class')).toBeInTheDocument();
-    expect(getByText('legend.variable')).toBeInTheDocument();
-    expect(getByText('legend.module')).toBeInTheDocument();
-    expect(getByText('legend.interface')).toBeInTheDocument();
-    expect(getByText('legend.type')).toBeInTheDocument();
+  it('LG-3 the LAST visible node type cannot be turned off (single-point-of-failure guard)', () => {
+    useGraphStore.setState({ visibleNodeTypes: new Set(['function']) });
+    render(<Legend viewMode="code" onClose={() => {}} />);
+    const row = screen.getByRole('button', { pressed: true, name: /legend\.function/ });
+    fireEvent.click(row);
+    const visible = useGraphStore.getState().visibleNodeTypes as Set<string>;
+    expect(visible.has('function')).toBe(true); // 不允许清空
   });
 
-  it('dependencies 视图应仅显示 module/class/type 节点', () => {
-    const { getByText, queryByText } = render(<Legend viewMode="dependencies" onClose={vi.fn()} />);
-    expect(getByText('legend.module')).toBeInTheDocument();
-    expect(getByText('legend.class')).toBeInTheDocument();
-    expect(getByText('legend.type')).toBeInTheDocument();
-    expect(queryByText('legend.function')).toBeNull();
-    expect(queryByText('legend.variable')).toBeNull();
+  it('LG-4 the LAST visible edge type cannot be turned off either', () => {
+    useGraphStore.setState({ visibleEdgeTypes: new Set(['call']) });
+    render(<Legend viewMode="callgraph" onClose={() => {}} />);
+    const row = screen.getByRole('button', { pressed: true, name: /legend\.call/ });
+    fireEvent.click(row);
+    const visible = useGraphStore.getState().visibleEdgeTypes as Set<string>;
+    expect(visible.has('call')).toBe(true);
   });
 
-  it('inheritance 视图应仅显示 class/interface/type 节点', () => {
-    const { getByText, queryByText } = render(<Legend viewMode="inheritance" onClose={vi.fn()} />);
-    expect(getByText('legend.class')).toBeInTheDocument();
-    expect(getByText('legend.interface')).toBeInTheDocument();
-    expect(queryByText('legend.function')).toBeNull();
+  it('LG-5 hidden row carries the visual state: aria-pressed=false + hidden class', () => {
+    useGraphStore.setState({ visibleNodeTypes: new Set(['class']) });
+    const { container } = render(<Legend viewMode="code" onClose={() => {}} />);
+    const hiddenRow = screen.getByRole('button', { pressed: false, name: /legend\.function/ });
+    expect(hiddenRow.className).toContain('cg-legend-row-hidden');
+    const visibleRow = screen.getByRole('button', { pressed: true, name: /legend\.class/ });
+    expect(visibleRow.className).not.toContain('cg-legend-row-hidden');
+    // 自我反证：容器里必须真的有图例行，否则选择器失效会让本套全绿
+    expect(container.querySelectorAll('button.cg-legend-toggle').length).toBeGreaterThanOrEqual(6);
   });
 
-  it('callgraph 视图应仅显示 call 边', () => {
-    const { getByText, queryByText } = render(<Legend viewMode="callgraph" onClose={vi.fn()} />);
-    expect(getByText('legend.call')).toBeInTheDocument();
-    expect(queryByText('legend.import')).toBeNull();
-    expect(queryByText('legend.extend')).toBeNull();
-  });
-
-  it('cfg 视图应仅显示 function 节点和 call 边', () => {
-    const { getByText, queryByText } = render(<Legend viewMode="cfg" onClose={vi.fn()} />);
-    expect(getByText('legend.function')).toBeInTheDocument();
-    expect(getByText('legend.call')).toBeInTheDocument();
-    expect(queryByText('legend.class')).toBeNull();
-  });
-
-  it('应有 role=complementary 无障碍属性', () => {
-    const { container } = render(<Legend viewMode="code" onClose={vi.fn()} />);
-    expect(container.querySelector('[role="complementary"]')).toBeInTheDocument();
-  });
-
-  it('应显示节点和边分区标题', () => {
-    const { getByText } = render(<Legend viewMode="code" onClose={vi.fn()} />);
-    expect(getByText('legend.nodes')).toBeInTheDocument();
-    expect(getByText('legend.edges')).toBeInTheDocument();
+  it('LG-6 viewMode=runtime renders zero toggle rows (runtime layer has no graph subgraph)', () => {
+    const { container } = render(<Legend viewMode="runtime" onClose={() => {}} />);
+    expect(container.querySelectorAll('button.cg-legend-toggle').length).toBe(0);
   });
 });

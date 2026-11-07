@@ -72,6 +72,12 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
   const buildCollection = (items: any[]) => ({
     forEach: vi.fn((cb: (el: any) => void) => items.forEach(cb)),
     length: items.length,
+    // cycle-146 T146-5：真实 cytoscape 集合契约含 empty()/animate()/stop()——
+    // HighlightController.startCallChainFlow 依赖三者，mock 必须逐字对齐（fixture
+    // 只允许转录真实契约，不允许省略被依赖的方法）。
+    empty: vi.fn(() => items.length === 0),
+    animate: vi.fn(function chain(this: any) { return this; }),
+    stop: vi.fn(),
     filter: vi.fn((pred: (el: any) => boolean) => buildCollection(items.filter(pred))),
     addClass: vi.fn((cls: string) => items.forEach(el => el.addClass(cls))),
     removeClass: vi.fn((cls: string) => items.forEach(el => el.removeClass(cls))),
@@ -361,6 +367,101 @@ describe('HighlightController', () => {
       const hc = new HighlightController(cy as any);
       hc.highlightInheritance(null);
       expect(nodeA.removeClass).toHaveBeenCalledWith('inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // T146-5：调用链边流动动画契约（cycle-146）
+  // -----------------------------------------------------------------
+  describe('call chain flow animation (cycle-146 T146-5)', () => {
+    /** 让 makeMockCy.edges('.call-chain') 返回带 animate/stop 的可观察集合。 */
+    function makeAnimatableEdgeCollection(edges: any[]) {
+      const animate = vi.fn(function chain(this: any) {
+        // cytoscape animate 返回同一集合以支持链式调用
+        return this;
+      });
+      const stop = vi.fn();
+      return {
+        ...edges,
+        empty: vi.fn(() => edges.length === 0),
+        animate,
+        stop,
+        _animate: animate,
+        _stop: stop,
+      };
+    }
+
+    it('CFA-1 highlightCallChain with matching edges starts the flow animation', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      edgeAB.addClass('call-chain');
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      nodeA.connectedEdges = vi.fn(() => ({ forEach: (cb: (e: any) => void) => cb(edgeAB) }));
+      // edges('.call-chain') 调用打桩：返回可动画集合
+      const animCollection = makeAnimatableEdgeCollection([edgeAB]);
+      cy.edges = vi.fn((selector?: string) =>
+        selector === '.call-chain' ? animCollection : makeMockCy([nodeA, nodeB], [edgeAB]).edges(),
+      );
+
+      const hc = new HighlightController(cy as any);
+      hc.highlightCallChain(NodeId('a'));
+      expect(animCollection._animate).toHaveBeenCalled();
+    });
+
+    it('CFA-2 clear (null) after a real animation handle exists → stop(true) called', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      nodeA.connectedEdges = vi.fn(() => ({ forEach: (cb: (e: any) => void) => cb(edgeAB) }));
+      const animCollection = makeAnimatableEdgeCollection([edgeAB]);
+      cy.edges = vi.fn((selector?: string) =>
+        selector === '.call-chain' ? animCollection : makeMockCy([nodeA, nodeB], [edgeAB]).edges(),
+      );
+      const hc = new HighlightController(cy as any);
+      // 第一轮：建立动画句柄（有 call-chain 边）
+      hc.highlightCallChain(NodeId('a'));
+      expect(animCollection._animate).toHaveBeenCalled();
+      // 第二轮：清空 → 旧句柄必须 stop
+      hc.highlightCallChain(null);
+      expect(animCollection._stop).toHaveBeenCalledWith(true);
+    });
+
+    it('CFA-3 re-highlight on another node stops the previous animation first (no RAF leak)', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      nodeA.connectedEdges = vi.fn(() => ({ forEach: (cb: (e: any) => void) => cb(edgeAB) }));
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: (cb: (e: any) => void) => cb(edgeAB) }));
+      const animCollection = makeAnimatableEdgeCollection([edgeAB]);
+      cy.edges = vi.fn((selector?: string) =>
+        selector === '.call-chain' ? animCollection : makeMockCy([nodeA, nodeB], [edgeAB]).edges(),
+      );
+      const hc = new HighlightController(cy as any);
+      hc.highlightCallChain(NodeId('a'));
+      expect(animCollection._stop).not.toHaveBeenCalled();
+      hc.highlightCallChain(NodeId('b'));
+      // 换节点时旧动画必须先停（句柄生命周期与新边集合对齐）
+      expect(animCollection._stop).toHaveBeenCalledWith(true);
+    });
+
+    it('CFA-4 empty call-chain set does not create an animation handle', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const animCollection = makeAnimatableEdgeCollection([]);
+      cy.edges = vi.fn((selector?: string) =>
+        selector === '.call-chain' ? animCollection : makeMockCy([nodeA], []).edges(selector),
+      );
+      const hc = new HighlightController(cy as any);
+      hc.highlightCallChain(NodeId('a'));
+      // 空集合：animate 不得被调用（句柄只在真有边时存在）
+      expect(animCollection._animate).not.toHaveBeenCalled();
     });
   });
 });

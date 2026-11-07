@@ -19,6 +19,7 @@ import { contributeGraphSkill } from './host/skills.ts';
 export { PLUGIN_VERSION };
 export { resolveConfig, DEFAULT_CONFIG } from './host/config.ts';
 export type { VisualizerConfig } from './host/config.ts';
+export { Config } from './host/config.ts';
 export { SecurityManager, createSecurityManager } from './host/security.ts';
 
 const log = scoped('host');
