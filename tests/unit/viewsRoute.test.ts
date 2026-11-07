@@ -420,11 +420,18 @@ describe('GET /views: 采样截断', () => {
 });
 
 describe('toGitRelative（cycle-146 L2：绝对路径域 → git 相对域投影）', () => {
-  const ROOT = 'D:\\Projects\\TraeProjects\\dsh-anic';
+  // 平台无关 fixture（cycle-146 CI 修复）：toGitRelative 内部用 node:path 的
+  // isAbsolute/resolve/sep（运行平台语义）——`C:\...` 在 POSIX 上不是绝对路径，
+  // fixture 必须按平台构造真实绝对路径。断言语义不变：剥前缀/幂等/不编造/边界安全。
+  const ROOT = process.platform === 'win32'
+    ? 'D:\\Projects\\TraeProjects\\dsh-anic'
+    : '/repo/dsh-anic';
+  const JOIN = (...parts: string[]) => parts.join(process.platform === 'win32' ? '\\' : '/');
+  const OUTSIDE = process.platform === 'win32' ? 'D:\\Other\\repo\\a.ts' : '/other/repo/a.ts';
 
   it('工作区下的绝对路径剥前缀并归一为正斜杠相对路径', () => {
-    expect(toGitRelative('D:\\Projects\\TraeProjects\\dsh-anic\\.dsh\\skills\\x.mjs', ROOT)).toBe('.dsh/skills/x.mjs');
-    expect(toGitRelative('D:/Projects/TraeProjects/dsh-anic/src/a.ts', ROOT)).toBe('src/a.ts');
+    expect(toGitRelative(JOIN(ROOT, '.dsh', 'skills', 'x.mjs'), ROOT)).toBe('.dsh/skills/x.mjs');
+    expect(toGitRelative(JOIN(ROOT, 'src', 'a.ts'), ROOT)).toBe('src/a.ts');
   });
 
   it('相对域路径原样返回（上游索引 / DB 图，投影幂等）', () => {
@@ -433,7 +440,7 @@ describe('toGitRelative（cycle-146 L2：绝对路径域 → git 相对域投影
   });
 
   it('绝对但不在工作区下 → 原样返回（不编造，让查表落空保持现状）', () => {
-    expect(toGitRelative('D:\\Other\\repo\\a.ts', ROOT)).toBe('D:\\Other\\repo\\a.ts');
+    expect(toGitRelative(OUTSIDE, ROOT)).toBe(OUTSIDE);
   });
 
   it('空串与根本身安全', () => {

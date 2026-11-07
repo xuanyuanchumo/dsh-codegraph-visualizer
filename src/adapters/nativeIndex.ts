@@ -135,10 +135,15 @@ export function resolveNativeIndexPath(workspacePath: string): string {
   // 磁盘目录（`.codegraph-visualizer` 挂在 `D:\\Projects` 字面目录下），同库两套
   // meta 的直接来源。折叠后单双反斜杠形态共享同一个索引文件。
   const root = collapseRepeatedBackslashes(workspacePath && workspacePath !== '.' ? workspacePath : process.cwd());
-  const normalized = normalize(root);
-  if (normalized.includes('..')) {
+  // cycle-146 CI 修复：`..` 穿越检查必须在 **原始串** 上做，而不是 normalize 之后——
+  // normalize 会消解 `..`（`D:/evil/../..` → `D:\`），让 `normalized.includes('..')`
+  // 永远落空，穿越检查退化成「依赖目标目录恰好不可写」的平台偶然性
+  //（Windows 盘符根不可写 ⇒ false；Linux cwd 下可写 `D:` 目录 ⇒ 写穿）。语义不变：
+  // 含 `..` 的 workspace 一律拒绝，无论它消解后指向哪里。
+  if (root.includes('..') || normalize(root).includes('..')) {
     throw new Error(`Invalid workspace path: ${workspacePath}`);
   }
+  const normalized = normalize(root);
   return join(normalized, '.codegraph-visualizer', 'native-index.db');
 }
 
