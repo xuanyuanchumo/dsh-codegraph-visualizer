@@ -1,0 +1,20 @@
+{
+  "id": "TD-ANIC-INITCYCLE-NUMBERSOURCE",
+  "title": "init-cycle.mjs 号源单一：归档后循环号段回退并回拉 currentCycle",
+  "severity": "P2",
+  "component": "dsh-anic / ai-native-iteration-cycle skill",
+  "file": ".dsh/skills/ai-native-iteration-cycle/scripts/init-cycle.mjs",
+  "discoveredAt": "2026-11-07",
+  "cycle": 145,
+  "evidence": [
+    "workflow-state.json currentCycle=144（cycle-144 已归档至 .cycles/archive/cycle-144）",
+    "init-cycle.mjs getNextCycleNum 只扫描 .cycles/cycles/ 目录（此时为空）→ 算出 1 号族 max+1=142",
+    "实际输出：Initialized cycle-142 workspace（应初始化 cycle-145）",
+    "手动修正 currentCycle=145 后重跑仍建 cycle-142（脚本号源不读 workflow-state）",
+    "就地修复尝试被 PUBLICATION_DENIED 拒绝：技能副本受宿主保护，硬改会与打包清单漂移并被 anic_skill_repair 回滚"
+  ],
+  "rootCause": "getNextCycleNum 号源单一（只看 cycles/ 目录），违反 v2.5.0「三源真值」语义：归档（archive-cycle）与状态机（workflow-state）都是循环号真值源，max(cycles/)+1 在归档后必然回退；新号 > 旧号的防回拉守卫被「算出假新号」绕过（142 < 144 时回拉守卫生效，但 142 > 已清空目录里的旧号时状态被回拉）。",
+  "fix": "getNextCycleNum 三源取最大：cycles/ 目录 + archive/ 目录 + workflow-state.currentCycle（数值序），返回 maxSeen+1。修改需在 dsh-anic 技能源仓库进行（打包清单联动），项目侧 .dsh/skills/ 副本受 PUBLICATION_DENIED 保护。",
+  "workaround": "项目侧手动 mkdir .cycles/cycles/cycle-145/{subplans,test-reports} 并修正 workflow-state.json currentCycle（本轮已执行）。",
+  "recurrenceFamily": "currentCycle 漂移（cycle-43 修复的家族缺陷第二形态：修复了「建目录不联动状态」，漏了「号源不含归档与状态机」）"
+}
