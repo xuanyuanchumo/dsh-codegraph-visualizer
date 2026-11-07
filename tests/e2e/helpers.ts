@@ -128,8 +128,32 @@ export async function selectLayout(page: Page, layout: string): Promise<void> {
 
 /** 通过「视图模式」下拉切换视图模式（code/dependencies/inheritance/callgraph/package/class/cfg/flowchart/sequence）。 */
 export async function selectViewMode(page: Page, mode: string): Promise<void> {
-  await openDropdown(page, TRIGGERS.view, DROPDOWN_CONTENT.view);
-  await page.locator(OPTION.viewMode(mode)).click({ timeout: TIMEOUTS.ACTION });
+  /**
+   * cycle-146 CI 修复：Linux headless 下「打开下拉 → 点击选项」存在竞态——
+   * Dropdown 的 scroll/rAF 重定位（Dropdown.tsx effect）会在 Portal 内容刚挂载时
+   * 触发一次 measure/setState，个别时序下选项元素在 click 命中前被 remount，
+   * 点击落在已分离节点上 ⇒ 切换静默落空（store 仍是旧 viewMode）。
+   * Windows 本地从未复现（截图显示下拉已关闭、store 停留旧值——点击打到分离 DOM）。
+   *
+   * 修法：把「切换成功」做成**可验证的等待**而不是盲点——点击后用 expect.poll
+   * 轮询 store 的 viewMode；未生效则重开下拉重试一次。失败信息自带两态值，
+   * 不再是「旧值残留」的无方向红灯。
+   */
+  await expect
+    .poll(
+      async () => {
+        const before = await page.evaluate(
+          () => (window as any).__graphStore?.getState().viewMode ?? null,
+        );
+        if (before === mode) return mode;
+        await openDropdown(page, TRIGGERS.view, DROPDOWN_CONTENT.view);
+        await page.locator(OPTION.viewMode(mode)).click({ timeout: TIMEOUTS.ACTION });
+        await page.waitForTimeout(150);
+        return page.evaluate(() => (window as any).__graphStore?.getState().viewMode ?? null);
+      },
+      { timeout: 10_000, intervals: [200, 400, 800] },
+    )
+    .toBe(mode);
 }
 
 /** 通过「层级」下拉切换层级。 */
