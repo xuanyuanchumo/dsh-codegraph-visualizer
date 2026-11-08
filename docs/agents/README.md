@@ -107,7 +107,7 @@ grep -rnE "registerKeywordQueryRoute|keywordQuery" src/              # → 0（�
 
 ## 版本
 
-- 适用插件版本：`dsh-codegraph-visualizer@0.2.0` + `dsh-anic@0.3.0`
+- 适用插件版本：`dsh-codegraph-visualizer@0.3.0` + `dsh-anic@0.61.0`
 - **声明**的宿主范围：`>=0.2.0-rc.2 <0.4.0-0`（见 [01-插件开发规范.md](./01-插件开发规范.md) §2）
 - **已验证**的运行宿主：`0.2.1-rc.3`（gen2 补丁；取证见 [09-破坏性变更与兼容策略.md](./09-破坏性变更与兼容策略.md) §2）
 - ⚠️ 「声明范围」与「已验证版本」是两列事实，下限永远写 `0.2.0-rc.2`，不得写成已验证版本
@@ -120,6 +120,15 @@ grep -rnE "registerKeywordQueryRoute|keywordQuery" src/              # → 0（�
 
 ## 更新日志（cycle-121/122 补充）
 
+- **2026-11-08（cycle-147/148）**：生命周期工具缺陷跨仓修复——init-cycle 在归档收口态
+  （全部循环已归档、活跃区合法为空）下编号回落 `cycle-1`，触发双后果：① 归档名碰撞
+  （archive/cycle-1 已被古档占用 ⇒ archive-cycle 永久 BLOCKED）；② 状态机拒回拉
+  （currentCycle 停在旧号）。修复位于 dsh-anic `getNextCycleNum`（活跃区+归档区+
+  workflow-state 三源取最大；commit `5a93b53`），技能副本经 `anic_skill_repair` 同步
+  （dualTrack in-sync）；6 场景行为测试 + dsh-anic 套件 20/20 绿。教训编码化：
+  **归档收口态是合法状态，任何只扫活跃区的计数器都会在此时点归零**（与 gate-check
+  cycleBaseDir 的归档回退同源教训）。沙箱验证机制复核：`sb-cgv-c1` profile
+  （`link:` 挂载 + bundles 声明）启动即 MCP 4 工具注册、无 skipping 警告、崩溃隔离成立。
 - **2026-10-31（cycle-121/122）**：03 号文档新增附3（会话工作区跟随：三态状态机、
   useSessionWorkspaceFollow/pinWorkspace API 面、桌面端自动生效查证）与附4（增量引擎
   健康信号：三层贯通链、显式缺席三分法、指纹豁免、XJ-13 防复活守卫、bench 基线）；
