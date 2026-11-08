@@ -1,6 +1,6 @@
 {
   "currentPhase": "plan",
-  "currentCycle": "cycle-146",
+  "currentCycle": "cycle-147",
   "phaseHistory": [
     {
       "cycle": "cycle-102",
@@ -457,9 +457,14 @@
       "phase": "plan",
       "exitedAt": "2026-11-05T16:10:03.256Z",
       "note": "cycle-init"
+    },
+    {
+      "phase": "plan",
+      "exitedAt": "2026-11-08T09:17:52.634Z",
+      "note": "cycle-147 renumber（修复 init-cycle 归档收口态回落 cycle-1 缺陷后重编号；证据目录 cycle-1 → cycle-147）"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-11-05T16:10:03.256Z"
+  "updatedAt": "2026-11-08T09:17:52.634Z"
 }
