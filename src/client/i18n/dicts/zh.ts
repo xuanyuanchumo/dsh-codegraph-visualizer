@@ -967,4 +967,16 @@ export const zh: Record<string, string> = {
   'views.srcQuery': '调用方传入',
   'views.srcDuration': '耗时 {ms}ms',
   'views.srcTruncated': '已截断',
+
+  // cycle-149：批量操作条（多选链路消费面）
+  'batchbar.ariaLabel': '批量操作条',
+  'batchbar.count': '已选 {count} 个',
+  'batchbar.expand': '展开',
+  'batchbar.expandAria': '批量展开选中的节点',
+  'batchbar.collapse': '收起',
+  'batchbar.collapseAria': '批量收起选中的节点',
+  'batchbar.export': '导出 JSON',
+  'batchbar.exportAria': '导出选中节点为 JSON 文件',
+  'batchbar.clear': '清除',
+  'batchbar.clearAria': '清除多选',
 };

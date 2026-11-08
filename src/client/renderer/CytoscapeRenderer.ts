@@ -406,6 +406,11 @@ export class CytoscapeRenderer implements IRenderer {
     this.safeCallVoid('focusNeighborhood', () => this.viewportCtrl?.focusNeighborhood(nodeId));
   }
 
+  /** 清空多选集合（cycle-149）：委托 InteractionController（集合+class+回调一体）。 */
+  clearMultiSelect(): void {
+    this.safeCallVoid('clearMultiSelect', () => this.interactionCtrl?.clearMultiSelect());
+  }
+
   getThumbnail(): string | null {
     return this.viewportCtrl?.getThumbnail() ?? null;
   }

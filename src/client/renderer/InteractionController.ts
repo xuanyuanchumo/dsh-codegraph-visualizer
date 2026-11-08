@@ -17,6 +17,12 @@ export type InteractionCallbacks = RendererCallbacks & {
    * `selectedIds` 是切换**之后**的完整多选集合（顺序稳定，便于父层快照）。
    */
   onSelectionToggle?(nodeId: string, selected: boolean, selectedIds: readonly string[]): void;
+  /**
+   * 多选集合被**静默清空**时通知父层（cycle-149）。普通点击 / Esc 会清空多选，
+   * 此前这两个路径不携带任何回调——消费方（store 镜像）会留下过期集合，
+   * BatchActionBar 显示幽灵计数而画布无高亮。
+   */
+  onSelectionClear?(): void;
   /** 画布键盘 Escape：清除键盘聚焦（不清空鼠标点击产生的选中）。 */
   onCanvasEscape?(): void;
   /** 键盘方向键把聚焦移动到相邻节点后通知父层（用于同步 aria / 详情面板）。 */
@@ -89,10 +95,7 @@ export class InteractionController {
         this.callbacks.onNodeTap?.(id);
       } else {
         // 普通点击清空多选集合，避免「点击 A 后 Shift+点击 B」残留 A 的高亮。
-        if (this.multiSelectedIds.size > 0) {
-          this.multiSelectedIds.clear();
-          this.cy.nodes().removeClass('multi-selected');
-        }
+        this.clearMultiSelect();
         this.callbacks.onNodeTap?.(id);
       }
       // 记录为方向键导航的默认起点（画布未聚焦时也允许从最近点击的节点起步）。
@@ -305,6 +308,23 @@ export class InteractionController {
 
   updateCallbacks(callbacks: InteractionCallbacks): void {
     this.callbacks = callbacks;
+  }
+
+  /**
+   * 清空多选集合（cycle-149）：集合 + `multi-selected` class + 通知消费方一体完成。
+   *
+   * 两个触发方共用本方法（单一实现，防漂移）：普通点击的静默清空、
+   * 批量操作条「清除」按钮经渲染器 `clearMultiSelect` 的显式清空。
+   * `onSelectionClear` 让 store 镜像同步——缺了它消费方留下幽灵计数
+   * （「画布无高亮但 BatchActionBar 还在」）。
+   */
+  clearMultiSelect(): void {
+    if (this.multiSelectedIds.size === 0) return;
+    this.multiSelectedIds.clear();
+    // 单条 class 操作不值得 cy.batch（批处理是为多条样式变更减栈的）；
+    // 这里保持与 cycle-141 原内联实现同形，也兼容以 spy 验证 removeClass 的既有测试。
+    this.cy.nodes().removeClass('multi-selected');
+    this.callbacks.onSelectionClear?.();
   }
 
   /**

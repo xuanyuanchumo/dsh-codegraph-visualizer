@@ -76,6 +76,12 @@ export interface GraphState {
   searchQuery: string;
   selectedNodeId: NodeId | null;
   highlightedNodeIds: NodeId[];
+  /**
+   * 多选集合的 store 镜像（cycle-149）。事实源在渲染器 `InteractionController.multiSelectedIds`，
+   * 经 `syncMultiSelection` / `clearMultiSelection` 同步——store 侧只做镜像与批量动作消费面，
+   * 不自行演化（双集合各自演化必漂移）。不持久化（会话瞬时态，partialize 白名单排除）。
+   */
+  multiSelectedIds: Set<string>;
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
   viewMode: ViewMode;
@@ -263,6 +269,16 @@ export interface GraphState {
   setSearchQuery: (query: string) => void;
   setSelectedNode: (nodeId: NodeId | null) => void;
   setHighlightedNodes: (nodeIds: NodeId[]) => void;
+  /** 多选镜像同步（cycle-149）：渲染器 onSelectionToggle 回传的完整集合。 */
+  syncMultiSelection: (ids: readonly string[]) => void;
+  /** 多选镜像清空（渲染器普通点击 / Esc 静默清空时的对侧同步）。 */
+  clearMultiSelection: () => void;
+  /** 批量展开选区；返回处理数（0 = 空选区）。复用 batchExpandNodes 的预算/pinned 语义。 */
+  batchExpandSelected: () => number;
+  /** 批量收起选区（单次重聚类，pinned 豁免）；返回实际收起数。 */
+  batchCollapseSelected: () => number;
+  /** 导出选区数据快照（rawNodes 过滤；聚合节点跳过）。 */
+  exportSelectedNodes: () => GraphNode[];
   setFilterType: (filter: GraphNode['type'] | 'all') => void;
   setGraphType: (graphType: GraphType) => void;
   setViewMode: (viewMode: ViewMode) => void;

@@ -435,11 +435,14 @@ describe('InteractionController canvas keyboard (cycle-141 / D)', () => {
 
   it('clears multi-select on a plain click', () => {
     const { a, cy, nodeCollection } = buildIC();
-    new InteractionController(cy as any, callbacks);
+    // cycle-149：静默清空必须通知消费方（store 镜像同步依赖此回调）。
+    const onSelectionClear = vi.fn();
+    new InteractionController(cy as any, { ...callbacks, onSelectionClear });
     const tap = tapNodeHandler(cy);
     tap({ target: a, originalEvent: { shiftKey: true } });
     tap({ target: a, originalEvent: {} });
     expect(nodeCollection.removeClass).toHaveBeenCalledWith('multi-selected');
+    expect(onSelectionClear).toHaveBeenCalledTimes(1);
   });
 
   it('moves keyboard focus to the graph neighbor on arrow key', () => {

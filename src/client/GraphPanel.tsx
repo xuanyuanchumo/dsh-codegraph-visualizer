@@ -34,6 +34,7 @@ import { Toolbar } from './components/Toolbar.tsx';
 
 import { GraphTooltip, type TooltipData, type EdgeTooltipData } from './components/GraphTooltip.tsx';
 import { ContextMenu } from './components/ContextMenu.tsx';
+import { BatchActionBar } from './components/BatchActionBar.tsx';
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
 import { ErrorOverlay } from './components/ErrorOverlay.tsx';
 import { KeyboardHelp } from './components/KeyboardHelp.tsx';
@@ -195,7 +196,10 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
     interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch },
     filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude },
     analysis: { showCallChain: panel.showCallChain, showCycles: panel.showCycles, cycleIsolation: panel.cycleIsolation, showImpact: panel.showImpact, showInheritance: panel.showInheritance },
-    callbacks: { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverPrefetch: handleNodeHoverPrefetch, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => setContextMenu({ nodeId, position: pos }) },
+    callbacks: { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverPrefetch: handleNodeHoverPrefetch, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => setContextMenu({ nodeId, position: pos }),
+      // cycle-149：多选镜像同步（完整集合为准，nodeId/selected 仅为语义回显）与静默清空对侧同步。
+      onSelectionToggle: (_nodeId: string, _selected: boolean, selectedIds: readonly string[]) => useGraphStore.getState().syncMultiSelection(selectedIds),
+      onSelectionClear: () => useGraphStore.getState().clearMultiSelection() },
     showCallChainRef,
   });
 
@@ -696,6 +700,7 @@ function GraphPanelInner({ className = '', sessionId, useSessions }: GraphPanelP
         />
       )}
       {tooltip && <GraphTooltip data={tooltip} />}
+      <BatchActionBar onClearSelection={() => renderer.rendererRef.current?.clearMultiSelect()} />
       <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}
         watchEnabled={watchEnabled} workspaceName={currentWorkspace}

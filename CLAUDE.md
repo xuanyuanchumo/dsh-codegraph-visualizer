@@ -247,7 +247,9 @@
 - 「支持传参但无人传」有第二层：宿主不采集是第一层（cycle-144 修），客户端不发送是第二层（cycle-145 修）——`days` 参数路由侧支持了两轮才有人传。排查该家族缺陷时两侧都要 grep 调用方。
 - 测试断言「请求 URL 参数」而不是「UI 文案变了」：窗口按钮渲染成功但 fetch 从不带参数与「功能完成」在 DOM 断言下不可区分——`fetchWithTimeoutMock.mock.calls[0][0]` 解析 searchParams 是唯一能看见「请求到底发了什么」的层（cycle-88「entry 存在 ≠ entry 可达」的请求侧同族）。
 - 技能副本缺陷不能就地修：`.dsh/skills/` 下受宿主 PUBLICATION_DENIED 保护（硬改会与打包清单漂移并被 anic_skill_repair 回滚）——实证缺陷登记 `.cycles/tech-debt/` 转上游，项目侧用手动 workaround（mkdir 循环目录 + 修 state）。
-- init-cycle 号源单一缺陷（登记 TD-ANIC-INITCYCLE-NUMBERSOURCE）：归档后号段回退——`max(cycles/)+1` 在 archive 含更大号时必回退，且会回拉 currentCycle。遇「Initialized cycle-{过时号}」先核对 archive/ 与 workflow-state 三源，手动建目录续走，不等技能修复。
+- init-cycle 号源单一缺陷（TD-ANIC-INITCYCLE-NUMBERSOURCE，**cycle-147 已在上游修复**：dsh-anic `getNextCycleNum` 改为活跃区+归档区+workflow-state 三源取最大，commit 5a93b53；技能副本经 anic_skill_repair 同步）——历史症状仍值得记：归档后号段回退、`Initialized cycle-{过时号}` 先核对 archive/ 与 workflow-state 三源；上游已修复后此教训转为「为什么三源都要看」的原理记录。
+- 变异探针的恢复必须**备份驱动**，绝不 `git checkout -- <file>` 未提交工作区（cycle-149 M1 实录）：探针变异的是内存里的 orig，恢复却 checkout 回 HEAD ⇒ 未提交的整轮编辑被静默抹掉。正确形态：node 脚本同一调用里写 `.orig` 备份 → 变异 → 探针 → 从备份写回 → 删备份 → 复跑全绿。
+- 注释**字面引用**选择器形状会引爆静态扫描守卫（cycle-149 第 4 次同类自陷，本次是 styleSelectorContract）：ThemeStylesheet 注释里写 `[isCluster="true"]` 被 boolean-string 扫描当 offender（扫描器不剥 .ts 的 `//` 行注释）。在 src/ 注释里提守卫规则时用改述（「字符串比较选择器陷阱」），不贴原样字面量。
 - 解析器 fixture 必须覆盖拼接形态：porcelain 头块直接接 \t content（无空行），单记录靠越界 +1 侥幸绿；采集器 parts.join('') 后下一条记录头被字段循环吞掉、filename 被覆盖（真机 keys 只剩最后一个文件）。单记录绿 ≠ 拼接绿（cycle-145 §89.2）。
 - 墙时间对齐消费需求而不是调大超时：全仓 1056 文件 blame 77s 超客户端 30s 预算，但每条 git 命令各自 8s 内「成功」——无单点告警。fileFilter 让采集量与图规模成正比（77s→329ms）；空集回退全量（宁慢不可错）（§89.1）。
 - 同一响应「一视图成一败」= 键域单侧错位指纹：ownership 按 id 成 62、temporal 按 filePath 败 0 ⇒ filePath 有绝对/相对双域，投影要喂全部 filePath 键消费点（采集器+事实构建+partitionByView data 三处，漏一处即恒 0）（§89.3）。

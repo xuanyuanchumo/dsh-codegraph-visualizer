@@ -421,3 +421,62 @@
   color: var(--cg-success);
   text-align: center;
 }
+
+/* ---- Batch action bar (cycle-149 多选链路消费面) -------------------------- */
+/*
+ * 悬浮在画布底部、状态栏上方的批量操作条。仅在 `multiSelectedIds.size > 0` 时由
+ * BatchActionBar 渲染；空选区返回 null，因此这里无需 hidden 态样式。
+ * 定位锚定 `.cg-panel`（position: absolute + z-index: var(--cg-z-panel)），
+ * 与 health-score-card 等面板级浮层同层——不遮 ContextMenu（z-context-menu 更高）。
+ */
+
+.cg-batch-bar {
+  position: absolute;
+  bottom: 44px; /* 状态栏上方（状态栏高度 ≈ 32px + 间距） */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--cg-radius-sm);
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  box-shadow: var(--cg-shadow-lg);
+  z-index: var(--cg-z-panel);
+  max-width: calc(100% - 32px);
+}
+
+.cg-batch-bar-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-accent);
+  white-space: nowrap;
+}
+
+.cg-batch-bar-btn {
+  padding: 4px 10px;
+  border-radius: var(--cg-radius-xs);
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--cg-transition), border-color var(--cg-transition);
+}
+
+.cg-batch-bar-btn:hover {
+  background: var(--cg-surface-hover);
+}
+
+.cg-batch-bar-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 1px;
+}
+
+/* 清除按钮的破坏性语义：hover 提示「这会丢掉选区」，但不用 error 底色（非错误态）。 */
+.cg-batch-bar-btn-clear:hover {
+  border-color: var(--cg-error);
+  color: var(--cg-error);
+}

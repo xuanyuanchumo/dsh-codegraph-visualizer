@@ -19,6 +19,7 @@ import { createAnalysisSlice } from './slices/analysisSlice.ts';
 import { createPanelLodSlice } from './slices/panelLodSlice.ts';
 import { createKeywordQuerySlice } from './slices/keywordQuerySlice.ts';
 import { createPathPatternSlice } from './slices/pathPatternSlice.ts';
+import { createMultiSelectSlice } from './slices/multiSelectSlice.ts';
 import { clearEtagCache } from '../api/index.ts';
 import { getMinPanelSize } from '../../shared/constants.ts';
 import { getSafeStorage, safeGetItem } from '../utils/safeStorage.ts';
@@ -58,6 +59,9 @@ export function disposeStore(): void {
     nodeEdgeCursors: new Map(),
     loadingEdgeNodeIds: new Set(),
     detailEdgeNodeIds: new Set(),
+    // 多选镜像随 store 释放清空（cycle-149）：释放后画布多选 class 已被渲染器
+    // destroy() 移除，镜像留着只会让重挂载实例的 BatchActionBar 显示幽灵计数。
+    multiSelectedIds: new Set(),
   });
   if (internals.restoreTimeoutHandle !== null) {
     clearTimeout(internals.restoreTimeoutHandle);
@@ -103,6 +107,8 @@ export const useGraphStore = create<GraphState>()(
         // 璇玑图 ρ 路径模式枚举的请求状态（cycle-135）。`GraphState` 的形状由该切片用
         // 声明合并扩展（见 `pathPatternSlice.ts` 顶部的说明），因此这里只需并进来。
         ...createPathPatternSlice(set, get),
+        // 多选链路消费面（cycle-149）：渲染器多选集合的镜像 + 批量展开/收起/导出动作。
+        ...createMultiSelectSlice(set, get),
       };
       registerStoreGetter(get);
       return store as GraphState;

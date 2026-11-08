@@ -74,6 +74,8 @@ export interface IRenderer {
   getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null;
   highlightInheritance(nodeId: NodeId | null): void;
   focusNeighborhood(nodeId: NodeId | null): void;
+  /** 清空多选集合（cycle-149）：集合 + `multi-selected` class + 通知消费方一体完成。 */
+  clearMultiSelect(): void;
   getThumbnail(): string | null;
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
   focusOnArea(x: number, y: number, zoom: number): void;

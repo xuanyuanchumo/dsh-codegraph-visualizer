@@ -973,4 +973,16 @@ export const en: Record<string, string> = {
   'views.srcQuery': 'Provided by caller',
   'views.srcDuration': '{ms}ms',
   'views.srcTruncated': 'truncated',
+
+  // cycle-149: batch action bar (multi-select consumption surface)
+  'batchbar.ariaLabel': 'Batch actions',
+  'batchbar.count': '{count} selected',
+  'batchbar.expand': 'Expand',
+  'batchbar.expandAria': 'Expand all selected nodes',
+  'batchbar.collapse': 'Collapse',
+  'batchbar.collapseAria': 'Collapse all selected nodes',
+  'batchbar.export': 'Export JSON',
+  'batchbar.exportAria': 'Export selected nodes as JSON',
+  'batchbar.clear': 'Clear',
+  'batchbar.clearAria': 'Clear multi-selection',
 };

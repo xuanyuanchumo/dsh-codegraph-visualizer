@@ -22,6 +22,10 @@ export interface GraphRendererCallbacks {
   onEdgeHover(edgeId: string, pos: { x: number; y: number }): void;
   onEdgeHoverOut(): void;
   onNodeContextTap?(nodeId: string, pos: { x: number; y: number }): void;
+  /** Shift+Click 多选切换（cycle-149）：渲染器维护集合，经此回传完整集合给消费面。 */
+  onSelectionToggle?(nodeId: string, selected: boolean, selectedIds: readonly string[]): void;
+  /** 多选集合被渲染器静默清空（普通点击 / Esc）时的对侧同步（cycle-149）。 */
+  onSelectionClear?(): void;
 }
 
 export interface GraphRendererData {
@@ -144,6 +148,11 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
             onEdgeTap: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeTap(edgeId, pos),
             onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
             onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
+            // cycle-149：多选回调转发。缺这两行 = InteractionController 的多选集合
+            // 永远到不了消费面（注册✓/生产✓/消费✗）——multiSelectWiringContract 守卫钉死。
+            onSelectionToggle: (nodeId: string, selected: boolean, selectedIds: readonly string[]) =>
+              callbacksRef.current.onSelectionToggle?.(nodeId, selected, selectedIds),
+            onSelectionClear: () => callbacksRef.current.onSelectionClear?.(),
           });
           renderer.init();
           rendererRef.current = renderer;

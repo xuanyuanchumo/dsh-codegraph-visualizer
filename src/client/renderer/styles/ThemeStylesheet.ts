@@ -471,6 +471,31 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'border-color': successColor,
       },
     },
+    // cycle-149：多选链路视觉复活。`multi-selected` class 由 InteractionController 的
+    // Shift+Click 路径应用，此前**无样式条目**——class 被应用但不可见（dead-style 家族，
+    // 与 §59.29 的字符串比较选择器陷阱同族：行为测试全绿、画面全错）。accent 边 + 半透明
+    // accent 底与 `.selected`（error 边）区分：多选是「待操作集合」，单选是「当前详情」。
+    {
+      selector: 'node.multi-selected',
+      style: {
+        'border-width': 3,
+        'border-color': accentColor,
+        'background-color': accentColor,
+        'background-opacity': 0.35,
+        'z-index': 26,
+      },
+    },
+    // cycle-149：键盘导航焦点视觉复活（方向键聚焦，Enter 之前）——虚线描边，
+    // 与鼠标选中（实线 error 边）在视觉语义上分离。
+    {
+      selector: 'node.canvas-focused',
+      style: {
+        'border-width': 2,
+        'border-color': accentColor,
+        'border-style': 'dashed',
+        'z-index': 24,
+      },
+    },
     {
       selector: '.call-chain',
       style: {
