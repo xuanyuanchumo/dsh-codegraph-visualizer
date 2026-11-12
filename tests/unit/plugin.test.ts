@@ -348,4 +348,53 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     await apply(ctx);
     expect(ctx.effect).toHaveBeenCalled();
   });
+
+  // cycle-150：崩溃安全注册——单个 register 抛出（同名冲突/宿主校验拒绝）绝不能
+  // 拖垮其余 14 个工具。借鉴 dsh-ops 静默降级模式：跳过失败项、其余照常注册。
+  it('crash-safe registration: one failing register must not block the other 14', async () => {
+    const ctx = makeMockCtx();
+    let calls = 0;
+    ctx.tools.register.mockImplementation(() => {
+      calls++;
+      if (calls === 3) throw new Error('duplicate tool name');
+      return () => {};
+    });
+    const { apply } = await import('../../src/index.ts');
+    await expect(apply(ctx)).resolves.toBeUndefined();
+    expect(ctx.tools.register).toHaveBeenCalledTimes(15);
+    // 14 个成功注册 + 1 个失败降级：白盒结果必须可查询而非只进日志。
+    const outcome = (globalThis as Record<string, unknown>).__cgvRegistrationOutcome as { registered: number; failed: string[] };
+    expect(outcome.registered).toBe(14);
+    expect(outcome.failed).toHaveLength(1);
+    expect(outcome.failed[0]).toContain('graph_symbol');
+    expect(outcome.failed[0]).toContain('duplicate tool name');
+  });
+
+  it('crash-safe registration: register returning a non-function must be recorded as failed', async () => {
+    const ctx = makeMockCtx();
+    ctx.tools.register.mockImplementation(() => undefined);
+    const { apply } = await import('../../src/index.ts');
+    await apply(ctx);
+    const outcome = (globalThis as Record<string, unknown>).__cgvRegistrationOutcome as { registered: number; failed: string[] };
+    expect(outcome.registered).toBe(0);
+    expect(outcome.failed).toHaveLength(15);
+  });
+
+  it('crash-safe registration: disposer tolerates individual unregister failures (hot reload)', async () => {
+    const ctx = makeMockCtx();
+    const disposeCalls: number[] = [];
+    ctx.tools.register.mockImplementation(() => () => {
+      disposeCalls.push(1);
+      if (disposeCalls.length === 2) throw new Error('already unregistered');
+    });
+    const { apply } = await import('../../src/index.ts');
+    await apply(ctx);
+    // 找到工具注册 effect 的收口函数并执行——单个撤销失败不得影响其余。
+    const effectCalls = ctx.effect.mock.calls as Array<[() => () => void, string]>;
+    const regEffect = effectCalls.find(([, label]) => label === 'codegraph: tool registrations');
+    expect(regEffect).toBeTruthy();
+    const dispose = regEffect![0]();
+    expect(() => dispose()).not.toThrow();
+    expect(disposeCalls).toHaveLength(15);
+  });
 });

@@ -51,26 +51,50 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
 
   const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphPathEnumerate, graphPathPattern, graphCycles, graphHealth, graphRulesCheck, graphFocus, graphQuery, graphIntegrity, graphSlice, graphViews, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat, nativeWorkspaceRoot: primaryWorkspace });
 
+  // cycle-150：崩溃安全注册——借鉴 dsh-ops 的静默降级模式（lib/components/panel/index.js:21-27）。
+  // 单个工具注册失败（如同名冲突/宿主校验拒绝）绝不拖垮整插件：跳过该工具、记录 warn、
+  // 其余工具照常注册；disposer 只收已成功注册的条目，避免对未注册条目调用撤销。
+  // CLAUDE.md 教训「ctx.get 严格模式会永久杀死加载中的服务」的姊妹守卫：注册同理不得让
+  // 一个失败点把 15 个工具全部变成"永远不可用"。
   ctx.effect(() => {
-    const d1 = ctx.tools.register(graphStatus);
-    const d2 = ctx.tools.register(graphData);
-    const d3 = ctx.tools.register(graphSymbol);
-    const d4 = ctx.tools.register(graphImpact);
-    const d5 = ctx.tools.register(graphPathFind);
-    const d6 = ctx.tools.register(graphHealth);
-    const d7 = ctx.tools.register(graphRulesCheck);
-    const d8 = ctx.tools.register(graphFocus);
-    const d9 = ctx.tools.register(graphPathEnumerate);
-    const d10 = ctx.tools.register(graphCycles);
-    const d11 = ctx.tools.register(graphQuery);
-    const d12 = ctx.tools.register(graphIntegrity);
+    const disposers: Array<() => void> = [];
+    const failed: string[] = [];
+    const safeRegister = (label: string, register: () => () => void) => {
+      try {
+        const d = register();
+        if (typeof d === 'function') disposers.push(d);
+        else failed.push(`${label} (register returned no disposer)`);
+      } catch (err) {
+        // 降级不抛出：工具缺失只影响该单一查询入口，其余入口与面板照常工作。
+        failed.push(`${label} (${err instanceof Error ? err.message : String(err)})`);
+      }
+    };
+    safeRegister('graph_status', () => ctx.tools.register(graphStatus));
+    safeRegister('graph_data', () => ctx.tools.register(graphData));
+    safeRegister('graph_symbol', () => ctx.tools.register(graphSymbol));
+    safeRegister('graph_impact', () => ctx.tools.register(graphImpact));
+    safeRegister('graph_path_find', () => ctx.tools.register(graphPathFind));
+    safeRegister('graph_health', () => ctx.tools.register(graphHealth));
+    safeRegister('graph_rules_check', () => ctx.tools.register(graphRulesCheck));
+    safeRegister('graph_focus', () => ctx.tools.register(graphFocus));
+    safeRegister('graph_path_enumerate', () => ctx.tools.register(graphPathEnumerate));
+    safeRegister('graph_cycles', () => ctx.tools.register(graphCycles));
+    safeRegister('graph_query', () => ctx.tools.register(graphQuery));
+    safeRegister('graph_integrity', () => ctx.tools.register(graphIntegrity));
     // cycle-134：路径模式 ρ 读法（序列约束的图谱查询）。
-    const d13 = ctx.tools.register(graphPathPattern);
+    safeRegister('graph_path_pattern', () => ctx.tools.register(graphPathPattern));
     // cycle-135：多维视图切片（时序/所有权/领域 + 结构），研究方案 §7.1 的统一接口。
-    const d14 = ctx.tools.register(graphSlice);
+    safeRegister('graph_slice', () => ctx.tools.register(graphSlice));
     // cycle-138：Π 视图划分函数（研究方案 §4 的 Π 维）。
-    const d15 = ctx.tools.register(graphViews);
-    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); d9(); d10(); d11(); d12(); d13(); d14(); d15(); };
+    safeRegister('graph_views', () => ctx.tools.register(graphViews));
+    // 可观测性：注册结果必须可查询而非只进日志（白盒透明化）。
+    if (failed.length > 0) {
+      log.warn('tool registration degraded', { failed, registered: disposers.length });
+    } else {
+      log.info('tool registrations complete', { registered: disposers.length });
+    }
+    (globalThis as Record<string, unknown>).__cgvRegistrationOutcome = { registered: disposers.length, failed };
+    return () => { for (const d of disposers) { try { d(); } catch { /* 热更新拆除时单个撤销失败不影响其余 */ } } };
   }, 'codegraph: tool registrations');
 
   let lastGraphData: GraphData | null = null;
