@@ -569,6 +569,7 @@ export const en: Record<string, string> = {
   'canvasControls.shortcutZoomIn': '+ Zoom in',
   'canvasControls.shortcutZoomOut': '- Zoom out',
   'canvasControls.shortcutFit': 'F Fit to view',
+  'canvasControls.shortcutBoxSelect': 'Shift+Drag Box-select nodes',
   'canvasControls.multiSelect': 'Multi-select mode',
 
   'micro.closeView': 'Close micro view',
@@ -752,6 +753,13 @@ export const en: Record<string, string> = {
   'contextMenu.findPath': 'Find Path From Here',
   'contextMenu.showAll': 'Show All Hidden Nodes',
   'contextMenu.openSource': 'Open Source',
+  // FBX-03: context menu additions
+  'contextMenu.expandHere': 'Expand From Here',
+  'contextMenu.collapseHere': 'Collapse To Here',
+  'contextMenu.pinNode': 'Pin Node',
+  'contextMenu.unpinNode': 'Unpin Node',
+  'contextMenu.copyId': 'Copy Symbol ID',
+  'contextMenu.copied': 'Copied',
 
   // Accessibility
   'a11y.graphContainer': 'Code graph interactive area',

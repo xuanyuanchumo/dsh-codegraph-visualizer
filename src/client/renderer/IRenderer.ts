@@ -18,6 +18,11 @@ export interface RendererCallbacks {
   onEdgeHover?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onEdgeHoverOut?(): void;
   onNodeContextTap?(nodeId: string, renderedPosition: { x: number; y: number }): void;
+  // Shift+Click / Shift+drag box selection (FBX-02): the renderer maintains the multi-select
+  // set and reports the COMPLETE post-change set; the store mirrors it (cycle-149).
+  onSelectionToggle?(nodeId: string, selected: boolean, selectedIds: readonly string[]): void;
+  /** The multi-select set was silently cleared (plain click / Esc) — sync the mirror. */
+  onSelectionClear?(): void;
 }
 
 export interface RendererOptions extends RendererCallbacks {

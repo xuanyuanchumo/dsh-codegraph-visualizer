@@ -134,6 +134,10 @@ export class CytoscapeRenderer implements IRenderer {
         onEdgeHover: this.options.onEdgeHover ?? (() => {}),
         onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),
         ...(this.options.onNodeContextTap ? { onNodeContextTap: this.options.onNodeContextTap } : {}),
+        // FBX-02: without these the box-selection events fire but nothing collects the
+        // selection into the store mirror — same shape as the cxttap forwarding above.
+        onSelectionToggle: this.options.onSelectionToggle ?? (() => {}),
+        onSelectionClear: this.options.onSelectionClear,
       });
       this.pathFinder = new PathFinder(cy, this.adjacencyCache);
       this.virtualViewportCtrl = new VirtualViewportController(cy);

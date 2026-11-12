@@ -48,8 +48,8 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
   const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : '';
   const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
-  const degradationLabels = hasDegradations
-    ? performanceDegradations!.map((key) => DEGRADATION_KEYS[key] ? t(DEGRADATION_KEYS[key]) : key).join(', ')
+  const degradationLabels = hasDegradations && performanceDegradations
+    ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t(DEGRADATION_KEYS[key]) : key).join(', ')
     : '';
   // 璇玑图增量信号（cycle-122）：applied 才显示；降级/违例染色警示。
   const degradedRules = xuanjiSignal?.degradedRules ?? [];

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import { ContextMenu } from '../../src/client/components/ContextMenu.tsx';
+import { useGraphStore } from '../../src/client/store/graphStore.ts';
 
 const mockT = (key: string) => key;
 
@@ -181,5 +182,54 @@ describe('ContextMenu', () => {
     expect(menu).toBeTruthy();
     expect(container.contains(menu)).toBe(false);
     expect(document.body.contains(menu)).toBe(true);
+  });
+
+  // ---- FBX-03：右键菜单增强四项 ------------------------------------------
+
+  it('FBX-03a 点击 从此展开 调用 onExpandNode 并关闭菜单', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.expandHere'));
+    expect(defaultProps.onExpandNode).toHaveBeenCalledWith('node-1');
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('FBX-03b 点击 收起到这里 调用 onCollapseNode 并关闭菜单', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.collapseHere'));
+    expect(defaultProps.onCollapseNode).toHaveBeenCalledWith('node-1');
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('FBX-03c 固定/取消固定：读 pinnedIds 切换文案并调用 store 动作', () => {
+    useGraphStore.setState({ pinnedIds: new Set(['node-1']) });
+    const first = render(<ContextMenu {...defaultProps} />);
+    expect(first.getByText('contextMenu.unpinNode')).toBeTruthy();
+    fireEvent.click(first.getByText('contextMenu.unpinNode'));
+    expect(useGraphStore.getState().pinnedIds.has('node-1')).toBe(false);
+    first.unmount();
+
+    const second = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(second.getByText('contextMenu.pinNode'));
+    expect(useGraphStore.getState().pinnedIds.has('node-1')).toBe(true);
+    second.unmount();
+    useGraphStore.setState({ pinnedIds: new Set() });
+  });
+
+  it('FBX-03d 复制符号ID：写剪贴板并显示已复制反馈', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.copyId'));
+    expect(writeText).toHaveBeenCalledWith('node-1');
+    expect(getByText('contextMenu.copied')).toBeTruthy();
+  });
+
+  it('FBX-03e 菜单项带 data-action-id（测试绑定不再依赖文案）', () => {
+    render(<ContextMenu {...defaultProps} />);
+    expect(document.querySelector('[data-action-id="focus"]')).toBeTruthy();
+    expect(document.querySelector('[data-action-id="expandHere"]')).toBeTruthy();
+    expect(document.querySelector('[data-action-id="collapseHere"]')).toBeTruthy();
+    expect(document.querySelector('[data-action-id="pinNode"]')).toBeTruthy();
+    expect(document.querySelector('[data-action-id="copyId"]')).toBeTruthy();
   });
 });

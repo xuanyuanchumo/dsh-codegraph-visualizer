@@ -7,6 +7,7 @@ import {
   usePanelKeyboard,
   formatShortcutKey,
   KEYBOARD_SHORTCUTS,
+  CANVAS_KEYBOARD_SHORTCUTS,
 } from '../../../src/client/hooks/usePanelKeyboard.ts';
 import type { IRenderer } from '../../../src/client/renderer/IRenderer.ts';
 import type { LayoutType } from '../../../src/client/renderer/IRenderer.ts';
@@ -425,5 +426,18 @@ describe('usePanelKeyboard', () => {
 
     dispatchKey({ key: 'Escape' });
     expect(mockHandlers.onCloseAll).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CANVAS_KEYBOARD_SHORTCUTS (FBX-02)', () => {
+  it('lists the Shift+drag box-select hint', () => {
+    const box = CANVAS_KEYBOARD_SHORTCUTS.find((s) => s.descKey === 'canvasControls.shortcutBoxSelect');
+    expect(box).toBeDefined();
+    expect(box?.key).toBe('Shift+Drag');
+  });
+
+  it('formatShortcutKey renders the drag hint verbatim', () => {
+    const box = CANVAS_KEYBOARD_SHORTCUTS.find((s) => s.descKey === 'canvasControls.shortcutBoxSelect')!;
+    expect(formatShortcutKey(box)).toBe('Shift+Drag');
   });
 });

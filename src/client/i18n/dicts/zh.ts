@@ -567,6 +567,7 @@ export const zh: Record<string, string> = {
   'canvasControls.shortcutZoomIn': '+ 放大',
   'canvasControls.shortcutZoomOut': '- 缩小',
   'canvasControls.shortcutFit': 'F 适应窗口',
+  'canvasControls.shortcutBoxSelect': 'Shift+拖拽 框选节点',
   'canvasControls.multiSelect': '多选模式',
 
   'micro.closeView': '关闭微观视图',
@@ -750,6 +751,13 @@ export const zh: Record<string, string> = {
   'contextMenu.findPath': '从此节点查找路径',
   'contextMenu.showAll': '显示所有隐藏节点',
   'contextMenu.openSource': '打开源码',
+  // FBX-03：右键菜单增强四项
+  'contextMenu.expandHere': '从此展开',
+  'contextMenu.collapseHere': '收起到这里',
+  'contextMenu.pinNode': '固定节点',
+  'contextMenu.unpinNode': '取消固定',
+  'contextMenu.copyId': '复制符号 ID',
+  'contextMenu.copied': '已复制',
 
   // Accessibility
   'a11y.graphContainer': '代码图谱交互区域',

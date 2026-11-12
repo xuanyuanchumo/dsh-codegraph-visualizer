@@ -85,6 +85,9 @@ export const CANVAS_KEYBOARD_SHORTCUTS: ShortcutDef[] = [
   { key: '+', descKey: 'canvasControls.shortcutZoomIn' },
   { key: '-', descKey: 'canvasControls.shortcutZoomOut' },
   { key: 'F', descKey: 'canvasControls.shortcutFit' },
+  // Shift+drag box selection binds to the shift modifier, not a lone key press — listed here
+  // so the hint overlay teaches it. InteractionController listens for 'boxend' (FBX-02).
+  { key: 'Shift+Drag', descKey: 'canvasControls.shortcutBoxSelect' },
 ];
 
 export function formatShortcutKey(s: ShortcutDef): string {

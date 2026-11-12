@@ -27,7 +27,7 @@ import type { DiffState } from '../store/types.ts';
 interface RightPanelStackProps {
   panel: PanelState;
   showRegistry?: boolean;
-  onToggleRegistry?: (() => void) | undefined;
+  onToggleRegistry?: (() => void);
   isCollapsed: boolean;
   nodeTypeCounts: { function: number; class: number; variable: number; module: number; interface: number };
   thumbnail: string | null;

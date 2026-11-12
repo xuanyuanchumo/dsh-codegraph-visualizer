@@ -26,7 +26,7 @@ interface LeftPanelStackProps {
   /** 枚举结果点击跳转（cycle-124 补遗）：选中 + reveal 入视野（GraphPanel 注入）。 */
   onJumpToNode?: (id: string) => void;
   pathResult: NodeId[] | null;
-  ruleViolations: ReturnType<typeof Object> | unknown;
+  ruleViolations: unknown;
   onCheckRules: () => void;
   selectedNodeData: GraphNode | ClusterNode | null;
   onCloseDetail: () => void;

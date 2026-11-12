@@ -8,7 +8,9 @@
  *  4. 布局选择器：画布内直接循环 fcose/dagre/cose/circle，不必回工具栏
  *  5. 标签显隐：大图时一键收起节点 / 边标签，减少视觉噪声
  *  6. 键盘导航：画布聚焦后方向键移动聚焦、Enter 选中、Esc 清除、+/- 缩放、F 适应
- *  7. 浮层定位：右下角浮层，不遮挡图谱主体，响应式自适应
+ *  7. Shift 框选：cytoscape core boxSelectionEnabled + Shift 修饰键（FBX-02），
+ *     boxend 收集选区进 store 多选镜像，与 Shift+Click 同一通道
+ *  8. 浮层定位：右下角浮层，不遮挡图谱主体，响应式自适应
  *
  * 与 StatsPanel 的关系：StatsPanel 是右侧栏面板（可开关、占席位），
  * 本组件是画布内浮层（始终可见、零席位开销），两者互补。
@@ -464,8 +466,8 @@ function InteractiveMiniMap({
             whiteSpace: 'nowrap',
             background: 'var(--cg-bg-elevated)',
             color: 'var(--cg-text)',
-            border: '1px solid var(--cg-border-strong))',
-            boxShadow: 'var(--cg-shadow-sm))',
+            border: '1px solid var(--cg-border-strong)',
+            boxShadow: 'var(--cg-shadow-sm)',
             pointerEvents: 'none',
           }}
         >
@@ -500,8 +502,8 @@ function KeyboardHintOverlay({ onClose }: { onClose: () => void }) {
         padding: '10px 12px',
         borderRadius: 'var(--cg-radius-sm)',
         background: 'var(--cg-surface)',
-        border: '1px solid var(--cg-border-strong))',
-        boxShadow: 'var(--cg-shadow))',
+        border: '1px solid var(--cg-border-strong)',
+        boxShadow: 'var(--cg-shadow)',
         pointerEvents: 'auto',
       }}
     >

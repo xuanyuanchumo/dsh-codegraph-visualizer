@@ -135,6 +135,18 @@ export class InteractionController {
       const pos = this.toViewport(node.renderedPosition());
       this.callbacks.onNodeContextTap?.(node.id(), { x: pos.x, y: pos.y });
     });
+    // Shift+拖拽框选（FBX-02）：cytoscape core 的 boxSelectionEnabled 默认开启，
+    // Shift 修饰键拖拽时 core 会框选节点并发出 'boxstart'/'boxend'（无独立扩展，
+    // 零新依赖）。'boxend' 时把选中集合并入 Shift+Click 维护的同一多选集合，
+    // 两条框选路径共享一个 store 镜像通道（cycle-149），BatchActionBar 才能如实计数。
+    this.cy.on('boxend', () => {
+      const ids = this.cy.$(':selected').nodes().map((n) => n.id());
+      for (const id of ids) this.multiSelectedIds.add(id);
+      this.cy.nodes().forEach((n) => {
+        if (this.multiSelectedIds.has(n.id())) n.addClass('multi-selected');
+      });
+      this.callbacks.onSelectionToggle?.(ids[0] ?? '', ids.length > 0, [...this.multiSelectedIds]);
+    });
   }
 
   /**
@@ -360,5 +372,6 @@ export class InteractionController {
     this.cy.off('mouseover', 'edge');
     this.cy.off('mouseout', 'edge');
     this.cy.off('cxttap', 'node');
+    this.cy.off('boxend');
   }
 }

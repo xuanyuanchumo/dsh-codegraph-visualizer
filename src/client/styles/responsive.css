@@ -985,3 +985,60 @@ body.dsh-remote-portrait .cg-graph-container {
 .cg-graph-panel[data-cg-tier="narrow"][data-cg-sheet="open"] .cg-legend-panel {
   display: none;
 }
+
+/* ---- FBX-05: panel stack responsive tiers --------------------------------- */
+/*
+ * 面板堆栈与栈内面板在窄容器下的收窄：只**新增**规则、不改任何现有行；面板根
+ * 自身的固定 px 宽（160-300px）不在此重写，统一用 `max-width: calc(100% - 16px)`
+ * 封顶（保留左右 8px 呼吸边）。两档阈值必须与 hooks/usePanelTier.ts 的
+ * PANEL_TIER_* 常量同源——tests/unit/panelStackResponsiveContract.test.ts
+ * 逐条比对，任一侧漂移即红。
+ */
+@container graphpanel (max-width: 768px) {
+  .cg-panel-stack-left .cg-search-bar,
+  .cg-panel-stack-left .cg-path-bar,
+  .cg-panel-stack-left .cg-health-score-card,
+  .cg-panel-stack-left .cg-rule-panel,
+  .cg-panel-stack-left .cg-node-detail-panel,
+  .cg-panel-stack-left .cg-legend-panel,
+  .cg-panel-stack-left .cg-import-panel {
+    max-width: calc(100% - 16px);
+  }
+
+  .cg-panel-stack-left .cg-impact-panel,
+  .cg-panel-stack-left .cg-cycle-panel,
+  .cg-panel-stack-right .cg-analysis-panel,
+  .cg-panel-stack-right .cg-cycle-panel,
+  .cg-panel-stack-right .cg-filter-panel,
+  .cg-panel-stack-right .cg-deadcode-panel {
+    max-width: calc(100% - 16px);
+  }
+}
+
+@container graphpanel (max-width: 480px) {
+  .cg-panel-stack-left,
+  .cg-panel-stack-right {
+    left: 8px;
+    right: 8px;
+    max-width: calc(100% - 16px);
+  }
+
+  .cg-panel-stack-left .cg-search-bar,
+  .cg-panel-stack-left .cg-path-bar,
+  .cg-panel-stack-left .cg-health-score-card,
+  .cg-panel-stack-left .cg-rule-panel,
+  .cg-panel-stack-left .cg-node-detail-panel,
+  .cg-panel-stack-left .cg-legend-panel,
+  .cg-panel-stack-left .cg-import-panel {
+    max-width: calc(100% - 16px);
+  }
+
+  .cg-panel-stack-left .cg-impact-panel,
+  .cg-panel-stack-left .cg-cycle-panel,
+  .cg-panel-stack-right .cg-analysis-panel,
+  .cg-panel-stack-right .cg-cycle-panel,
+  .cg-panel-stack-right .cg-filter-panel,
+  .cg-panel-stack-right .cg-deadcode-panel {
+    max-width: calc(100% - 16px);
+  }
+}

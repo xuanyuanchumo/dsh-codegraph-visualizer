@@ -259,8 +259,8 @@ describe('GraphCanvasControls', () => {
       const overlay = screen.getByRole('dialog');
       expect(overlay).toBeDefined();
       expect(overlay.getAttribute('data-cg-keyboard-hint')).toBe('on');
-      // 提示列表来自 CANVAS_KEYBOARD_SHORTCUTS（九条）。
-      expect(overlay.querySelectorAll('.cg-canvas-keyboard-hint-item')).toHaveLength(9);
+      // 提示列表来自 CANVAS_KEYBOARD_SHORTCUTS（FBX-02 后十条：含 Shift+拖拽框选）。
+      expect(overlay.querySelectorAll('.cg-canvas-keyboard-hint-item')).toHaveLength(10);
     });
 
     it('does not show the hint when the canvas is not focused', () => {
@@ -514,6 +514,59 @@ describe('InteractionController canvas keyboard (cycle-141 / D)', () => {
     ctrl.setLabelVisibility(true);
     expect(styleSpy).toHaveBeenNthCalledWith(3, { 'text-opacity': 1 });
     expect(styleSpy).toHaveBeenNthCalledWith(4, { 'text-opacity': 1 });
+  });
+});
+
+describe('InteractionController Shift box selection (FBX-02)', () => {
+  let callbacks: ReturnType<typeof makeICCallbacks>;
+
+  beforeEach(() => {
+    callbacks = makeICCallbacks();
+    Object.values(callbacks).forEach((fn) => (fn as any).mockClear());
+  });
+
+  /** boxend 是两参注册（无 selector），与 tapNodeHandler 同形取 handler。 */
+  function boxendHandler(cy: any) {
+    const call = cy.on.mock.calls.find(([event]: [string]) => event === 'boxend')!;
+    return call[1] as () => void;
+  }
+
+  it('FBX-02a boxend collects selected nodes into the mirror and reports the complete set', () => {
+    const { a, b, cy } = buildIC();
+    cy.$ = vi.fn(() => ({ nodes: () => [a, b] }));
+    cy.nodes = () => ({ removeClass: vi.fn(), forEach: (cb: (n: any) => void) => { cb(a); cb(b); }, toArray: () => [a, b] });
+    new InteractionController(cy as any, callbacks);
+    boxendHandler(cy)();
+    expect(callbacks.onSelectionToggle).toHaveBeenCalledWith('a', true, ['a', 'b']);
+    expect(a.hasClass('multi-selected')).toBe(true);
+    expect(b.hasClass('multi-selected')).toBe(true);
+  });
+
+  it('FBX-02b merges a box selection with an existing Shift+click selection', () => {
+    const { a, b, cy } = buildIC();
+    new InteractionController(cy as any, callbacks);
+    tapNodeHandler(cy)({ target: a, originalEvent: { shiftKey: true } });
+    cy.$ = vi.fn(() => ({ nodes: () => [b] }));
+    cy.nodes = () => ({ removeClass: vi.fn(), forEach: (cb: (n: any) => void) => { cb(a); cb(b); }, toArray: () => [a, b] });
+    boxendHandler(cy)();
+    expect(callbacks.onSelectionToggle).toHaveBeenLastCalledWith('b', true, ['a', 'b']);
+    expect(a.hasClass('multi-selected')).toBe(true);
+    expect(b.hasClass('multi-selected')).toBe(true);
+  });
+
+  it('FBX-02c an empty box selection reports an empty set without throwing', () => {
+    const { cy } = buildIC();
+    cy.$ = vi.fn(() => ({ nodes: () => [] }));
+    new InteractionController(cy as any, callbacks);
+    boxendHandler(cy)();
+    expect(callbacks.onSelectionToggle).toHaveBeenLastCalledWith('', false, []);
+  });
+
+  it('FBX-02d destroy unbinds boxend', () => {
+    const { cy } = buildIC();
+    const ctrl = new InteractionController(cy as any, callbacks);
+    ctrl.destroy();
+    expect(cy.off).toHaveBeenCalledWith('boxend');
   });
 });
 

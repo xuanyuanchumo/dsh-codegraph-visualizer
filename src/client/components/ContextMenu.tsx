@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, memo, useCallback } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { useT } from '../i18n/index.ts';
+import { useGraphStore } from '../store/graphStore.ts';
 import { Portal } from './Portal.tsx';
 
 
@@ -39,6 +40,13 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const triggerRef = useRef<HTMLElement | null>(null);
+
+  // FBX-03：固定节点开关与复制反馈直接订阅 store / 本地状态——菜单挂在
+  // GraphPanel 的 React 树内，无需新增 props（GraphPanel 不再为每个动作转发 store）。
+  const isPinned = useGraphStore((s) => s.pinnedIds.has(props.nodeId));
+  const pinNode = useGraphStore((s) => s.pinNode);
+  const unpinNode = useGraphStore((s) => s.unpinNode);
+  const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle');
 
   // The close callback lives in a ref so the document listeners below keep a stable
   // identity: GraphPanel hands down an inline arrow, so keying the effect on it made the
@@ -205,6 +213,49 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     onClick: () => { props.onOpenSource(props.nodeId); handleClose(); },
   });
 
+  // FBX-03：固定节点。pinnedIds 参与 expandSlice 的展开预算豁免
+  // （batchExpandNodes / collapseExcessClusters 都读它），pin 后大图批量展开
+  // 不再按插入序驱逐该节点——这是「我关心的子图」的显式声明。
+  actions.push({
+    id: 'pinNode',
+    label: t(isPinned ? 'contextMenu.unpinNode' : 'contextMenu.pinNode'),
+    onClick: () => {
+      if (isPinned) unpinNode(props.nodeId);
+      else pinNode(props.nodeId);
+      handleClose();
+    },
+  });
+
+  // FBX-03：复制符号 ID。best-effort（剪贴板不可用时静默，与 EmptyState 同款），
+  // 成功后行内反馈 1.5s——不弹 toast，不打断键盘焦点顺序。
+  actions.push({
+    id: 'copyId',
+    label: copyState === 'copied' ? t('contextMenu.copied') : t('contextMenu.copyId'),
+    onClick: () => {
+      try {
+        void navigator.clipboard?.writeText(props.nodeId);
+        setCopyState('copied');
+        window.setTimeout(() => setCopyState('idle'), 1500);
+      } catch { /* clipboard unavailable — best-effort */ }
+    },
+  });
+
+  // FBX-03：从这展开 / 收起到这里。上面的 expand/collapse 只对聚类节点出现；
+  // 这里对普通节点也放行（module 展开文件大纲、函数体展开最常用）。两个 store
+  // 动作对已处于目标态的节点是幂等的——重复展开只触发一次 recluster，不会坏图。
+  actions.push({
+    id: 'expandHere',
+    label: t('contextMenu.expandHere'),
+    onClick: () => { props.onExpandNode(props.nodeId); handleClose(); },
+    separatorAfter: true,
+  });
+
+  actions.push({
+    id: 'collapseHere',
+    label: t('contextMenu.collapseHere'),
+    onClick: () => { props.onCollapseNode(props.nodeId); handleClose(); },
+  });
+
   // Layering is owned by the stylesheet (`.cg-context-menu { z-index: var(--cg-z-context-menu) }`),
   // so only the anchored position lives inline.
   // 位置由 GraphPanel 换算为视口坐标，因此这里用 `position: fixed` 直接贴视口。
@@ -224,6 +275,7 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
             <button
               className="cg-context-menu-item"
               role="menuitem"
+              data-action-id={action.id}
               disabled={action.disabled}
               onClick={action.onClick}
             >
