@@ -382,5 +382,44 @@
   .cg-workspace-follow-badge.cg-following-pinned:hover {
     background: rgba(245, 158, 11, 0.22);
   }
+  /* cycle-150：node-detail 新增 color-mix 用法的 fallback（colorMixFallbackContract 补齐）。
+     换算依据 tokens.css：浅色 --cg-node-function #059669 / --cg-accent #263148 / --cg-warning #f59e0b；
+     深色 #10b981 / #6366f1 / #fbbf24。 */
+  .cg-node-detail-panel .cg-detail-edge-dir--out {
+    background: rgba(5, 150, 105, 0.14);
+  }
+  .cg-node-detail-panel .cg-detail-edge-dir--in {
+    background: rgba(38, 49, 72, 0.14);
+  }
+  .cg-node-detail-panel .cg-detail-budget-btn--danger {
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.15);
+  }
+  .cg-node-detail-panel .cg-detail-budget-confirm {
+    border: 1px solid rgba(245, 158, 11, 0.40);
+    background: rgba(245, 158, 11, 0.10);
+  }
+  .cg-node-detail-panel .cg-detail-ast-fold {
+    border: 1px solid rgba(38, 49, 72, 0.30);
+    background: rgba(38, 49, 72, 0.08);
+  }
+  body[data-ds-dark-theme] .cg-node-detail-panel .cg-detail-edge-dir--out {
+    background: rgba(16, 185, 129, 0.14);
+  }
+  body[data-ds-dark-theme] .cg-node-detail-panel .cg-detail-edge-dir--in {
+    background: rgba(99, 102, 241, 0.14);
+  }
+  body[data-ds-dark-theme] .cg-node-detail-panel .cg-detail-budget-btn--danger {
+    border-color: rgba(251, 191, 36, 0.45);
+    background: rgba(251, 191, 36, 0.15);
+  }
+  body[data-ds-dark-theme] .cg-node-detail-panel .cg-detail-budget-confirm {
+    border: 1px solid rgba(251, 191, 36, 0.40);
+    background: rgba(251, 191, 36, 0.10);
+  }
+  body[data-ds-dark-theme] .cg-node-detail-panel .cg-detail-ast-fold {
+    border: 1px solid rgba(99, 102, 241, 0.30);
+    background: rgba(99, 102, 241, 0.08);
+  }
 
 }
