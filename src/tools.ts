@@ -98,6 +98,80 @@ function clampInt(value: number | undefined, min: number, max: number, fallback:
   return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
+// ── UI 通道摘要（presentResult content）────────────────────────────────────
+//
+// 设计原则：模型通道（output.render(args, value)）与 UI 通道（presentResult →
+// GenericResultView.content）互不引用对方字段：
+// - 成功态：presentResult 只读 `result.meta` —— 它由 output.presentationMeta(args, value)
+//   从**规范值**投影（dsh-tools index.d.ts:112；lib/index.js:843/860-862 接线），
+//   宿主持久化在 tool/result.meta；meta 缺席（嵌套 PTC / replay）时省略 content，
+//   UI 按 GenericResultView 契约回退渲染原始结果内容。
+// - 失败态：presentResult 从 result.content（宿主渲染的错误文本投影）提取一行摘要；
+//   投影为空时同样省略 content，绝不编造失败细节。
+// - presentationMeta 必须全函数（never throw）：投影抛异常会让该次调用以
+//   ToolOutputError 失败（docs/research/dsh-round110-规范与破坏性变更.md:336）。
+
+/** UI 摘要文本块上限（单条 content ≤ 300 字符）。 */
+const SUMMARY_MAX_CHARS = 300;
+
+/** GenericResultView.content 允许的单行文本块（dsh-llm TextBlock 的结构转录）。 */
+interface SummaryTextBlock {
+  type: 'text';
+  text: string;
+}
+
+/** 把一行摘要截到上限内并包成 content 形状。 */
+function summaryBlock(text: string): SummaryTextBlock[] {
+  const clipped = text.length > SUMMARY_MAX_CHARS ? `${text.slice(0, SUMMARY_MAX_CHARS - 1)}…` : text;
+  return [{ type: 'text', text: clipped }];
+}
+
+/** meta 持久化行上限（tool/result.meta 不是日志：单工具 ≤10 键、单值 ≤200 字符）。 */
+const META_MAX_CHARS = 200;
+
+/** presentationMeta 的统一出口：把一行 meta 摘要截到持久化上限内。 */
+function metaText(text: string): string {
+  return text.length > META_MAX_CHARS ? `${text.slice(0, META_MAX_CHARS - 1)}…` : text;
+}
+
+/** 成功态 UI 摘要：只认 meta（value 通道）；meta 缺席/非字符串 = undefined（UI 回退原始内容）。 */
+function successSummaryFromMeta(meta: unknown): SummaryTextBlock[] | undefined {
+  if (typeof meta !== 'string' || meta === '') return undefined;
+  return summaryBlock(meta);
+}
+
+/** 失败态一行摘要：压平错误投影的首条文本；投影为空 = undefined（UI 回退渲染原始错误文本）。 */
+function failureSummaryFromContent(content: readonly unknown[] | undefined): SummaryTextBlock[] | undefined {
+  const first = (content ?? []).find(
+    (b): b is { text: string } =>
+      typeof b === 'object' && b !== null && typeof (b as { text?: unknown }).text === 'string',
+  );
+  if (!first) return undefined;
+  const flat = first.text.replace(/\s+/g, ' ').trim();
+  return summaryBlock(flat.length > 0 ? `Failed: ${flat}` : 'Failed.');
+}
+
+/**
+ * presentResult 工厂：成功/失败标题 + UI 一行摘要。
+ * 成功摘要只来自 meta（presentationMeta 从 value 投影），失败摘要只来自 result.content
+ * （错误投影）——模型通道 render 的输出从不进入本函数，UI 通道 content 也从不进入 render。
+ */
+function presentResultWithSummary(okTitle: string, failTitle: string) {
+  return (
+    _args: unknown,
+    result: { content: readonly unknown[]; isError: boolean; meta?: unknown },
+  ) => {
+    const content = result.isError
+      ? failureSummaryFromContent(result.content)
+      : successSummaryFromMeta(result.meta);
+    return {
+      card: 'generic' as const,
+      title: result.isError ? failTitle : okTitle,
+      ...(content === undefined ? {} : { content }),
+    };
+  };
+}
+
 export type { UpstreamInvoker } from './adapters/IAdapter.ts';
 import type { UpstreamInvoker } from './adapters/IAdapter.ts';
 
@@ -519,15 +593,17 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     output: {
       schema: { type: 'json' },
       render: renderGraphStatus,
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { status?: string; nodeCount?: number; edgeCount?: number; sources?: { codegraph?: boolean; lens?: boolean } } | null;
+        const s = v?.sources;
+        return metaText(`status=${String(v?.status ?? 'unknown')}, nodes=${String(v?.nodeCount ?? 0)}, edges=${String(v?.edgeCount ?? 0)}, sources: codegraph=${s?.codegraph === true ? '✓' : '✗'} lens=${s?.lens === true ? '✓' : '✗'}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string };
       return { card: 'generic' as const, title: 'Check graph status', kind: 'other' as const, rawInput: { repoId: a.repoId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Graph status failed' : 'Graph status',
-    }),
+    presentResult: presentResultWithSummary('Graph status', 'Graph status failed'),
     execute: (args) => executeGraphStatus(args as { repoId: string }, invoke, deps),
   });
 
@@ -545,15 +621,20 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     output: {
       schema: { type: 'json' },
       render: renderGraphData,
+      presentationMeta: (_args, value: unknown) => {
+        const d = value as GraphData | null;
+        if (!d) return 'empty graph';
+        const x = d.metadata.xuanji;
+        const mode = x ? (x.applied ? `incremental delta (+${String(x.addedPaths ?? 0)} paths)` : 'full rebuild') : 'no delta signal';
+        const layer = d.metadata.graphLayer === undefined ? '' : ` · layer=${String(d.metadata.graphLayer)}`;
+        return metaText(`${String(d.metadata.nodeCount)} node(s) / ${String(d.metadata.edgeCount)} edge(s) · ${mode}${layer}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string; source?: string };
       return { card: 'generic' as const, title: 'Fetch code graph', kind: 'fetch' as const, rawInput: { repoId: a.repoId, source: a.source ?? 'both' } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Graph fetch failed' : 'Code graph fetched',
-    }),
+    presentResult: presentResultWithSummary('Code graph fetched', 'Graph fetch failed'),
     execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache, deps, xuanjiPool),
   });
 
@@ -566,15 +647,17 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     output: {
       schema: { type: 'json' },
       render: renderGraphSymbol,
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { name?: string; file?: string; line?: number; category?: string; symbolId?: string } | null;
+        if (!v) return 'Symbol not found.';
+        return metaText(`${String(v.name ?? v.symbolId ?? '?')} (${String(v.category ?? 'unknown')}) @ ${String(v.file ?? '?')}:${String(v.line ?? '?')}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { symbolId: string };
       return { card: 'generic' as const, title: 'Resolve symbol', kind: 'search' as const, rawInput: { symbolId: a.symbolId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Symbol resolution failed' : 'Symbol resolved',
-    }),
+    presentResult: presentResultWithSummary('Symbol resolved', 'Symbol resolution failed'),
     execute: (args) => executeGraphSymbol(args as { symbolId: string }, invoke),
   });
 
@@ -587,15 +670,18 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
     output: {
       schema: { type: 'json' },
       render: renderGraphImpact,
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { affected?: string[]; depth?: number } | null;
+        const n = v?.affected?.length ?? 0;
+        if (n === 0) return 'No affected symbols.';
+        return metaText(`${String(n)} symbol(s) affected (depth ${String(v?.depth ?? 0)}): ${v?.affected?.slice(0, 5).join(', ') ?? ''}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { symbolId: string };
       return { card: 'generic' as const, title: 'Analyze impact', kind: 'search' as const, rawInput: { symbolId: a.symbolId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Impact analysis failed' : 'Impact analyzed',
-    }),
+    presentResult: presentResultWithSummary('Impact analyzed', 'Impact analysis failed'),
     execute: (args) => executeGraphImpact(args as { symbolId: string }, invoke),
   });
 
@@ -617,15 +703,18 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         }
         return [{ type: 'text' as const, text: `${TOOL_MESSAGES.PATH_FOUND?.en ?? 'Path found'} (${v.length} ${TOOL_MESSAGES.HOPS?.en ?? 'hops'}): ${v.path.join(' → ')}` }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { path?: string[]; length?: number; truncated?: boolean } | null;
+        if (v?.truncated) return 'Graph too large for path search.';
+        if (!v || !v.path || v.path.length === 0) return 'No path found.';
+        return metaText(`${String(v.length)} hops: ${v.path.join(' → ')}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { sourceSymbol: string; targetSymbol: string };
       return { card: 'generic' as const, title: 'Find call path', kind: 'search' as const, rawInput: { from: a.sourceSymbol, to: a.targetSymbol } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Path search failed' : 'Call path',
-    }),
+    presentResult: presentResultWithSummary('Call path', 'Path search failed'),
     execute: async (args) => {
       const a = args as { repoId: string; sourceSymbol: string; targetSymbol: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
@@ -684,15 +773,19 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         const next = v.nextCursor === null || v.nextCursor === undefined ? '' : ` (nextCursor=${String(v.nextCursor)})`;
         return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} path(s)${suffix}${next}\n${lines.join('\n')}` }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { paths?: string[][]; truncated?: boolean; total?: number; nextCursor?: number | null } | null;
+        if (!v || !v.paths || v.paths.length === 0) return 'No path found.';
+        const first = v.paths[0]?.join(' → ') ?? '';
+        const cursor = v.nextCursor === null || v.nextCursor === undefined ? '' : `, nextCursor=${String(v.nextCursor)}`;
+        return metaText(`${String(v.total ?? v.paths.length)} path(s)${v.truncated ? ' (truncated)' : ''}${cursor}; first: ${first}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { sourceSymbol: string; targetSymbol: string };
       return { card: 'generic' as const, title: 'Enumerate paths', kind: 'search' as const, rawInput: { from: a.sourceSymbol, to: a.targetSymbol } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Path enumeration failed' : 'Paths enumerated',
-    }),
+    presentResult: presentResultWithSummary('Paths enumerated', 'Path enumeration failed'),
     execute: async (args) => {
       const a = args as {
         repoId: string;
@@ -872,6 +965,32 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         const next = v.nextCursor === null || v.nextCursor === undefined ? '' : ` (nextCursor=${String(v.nextCursor)})`;
         return [{ type: 'text' as const, text: `${head}\n${v.total ?? v.paths.length} path(s)${suffix}${next}\n${lines.join('\n')}` }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as
+          | {
+              paths?: string[][];
+              truncated?: boolean;
+              total?: number;
+              nextCursor?: number | null;
+              pattern?: string;
+              unknownEdgeTypes?: readonly string[];
+              error?: string;
+              temporal?: { requested?: boolean; available?: boolean };
+              reason?: string;
+            }
+          | null;
+        if (v?.error) return `Pattern error: ${v.error}`;
+        const unknown = v?.unknownEdgeTypes ?? [];
+        if (unknown.length > 0) return `Unknown edge type(s): ${unknown.join(', ')}.`;
+        if (!v || !v.paths) return 'Pattern evaluation failed.';
+        if (v.paths.length === 0) {
+          const degraded = v.temporal?.requested === true && v.temporal.available === false;
+          return degraded ? `No paths; temporal slice unavailable (${String(v.reason ?? 'unknown')}).` : 'No paths matched the pattern.';
+        }
+        const first = v.paths[0]?.join(' → ') ?? '';
+        const cursor = v.nextCursor === null || v.nextCursor === undefined ? '' : `, nextCursor=${String(v.nextCursor)}`;
+        return metaText(`pattern "${String(v.pattern ?? '')}": ${String(v.total ?? v.paths.length)} path(s)${v.truncated ? ' (truncated)' : ''}${cursor}; first: ${first}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { pattern: string; startNode?: string; endNode?: string };
@@ -882,10 +1001,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         rawInput: { pattern: a.pattern, ...(a.startNode === undefined ? {} : { from: a.startNode }), ...(a.endNode === undefined ? {} : { to: a.endNode }) },
       };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Path pattern failed' : 'Pattern paths',
-    }),
+    presentResult: presentResultWithSummary('Pattern paths', 'Path pattern failed'),
     execute: async (args) => {
       const a = args as {
         repoId: string;
@@ -1031,15 +1147,19 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         const next = v.nextCursor === null || v.nextCursor === undefined ? '' : ` (nextCursor=${String(v.nextCursor)})`;
         return [{ type: 'text' as const, text: `${v.total ?? v.paths.length} cycle(s)${suffix}${next}\n${lines.join('\n')}` }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { paths?: string[][]; truncated?: boolean; total?: number; nextCursor?: number | null } | null;
+        if (!v || !v.paths || v.paths.length === 0) return 'No dependency cycles detected.';
+        const first3 = v.paths.slice(0, 3).map((c, i) => `${String(i + 1)}) ${c.join(' → ')}`).join('; ');
+        const cursor = v.nextCursor === null || v.nextCursor === undefined ? '' : `, nextCursor=${String(v.nextCursor)}`;
+        return metaText(`${String(v.total ?? v.paths.length)} cycle(s)${v.truncated ? ' (truncated)' : ''}${cursor}: ${first3}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string };
       return { card: 'generic' as const, title: 'Enumerate dependency cycles', kind: 'search' as const, rawInput: { repoId: a.repoId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Cycle enumeration failed' : 'Dependency cycles',
-    }),
+    presentResult: presentResultWithSummary('Dependency cycles', 'Cycle enumeration failed'),
     execute: async (args) => {
       const a = args as {
         repoId: string;
@@ -1086,15 +1206,17 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
           text: `Architecture Health: ${v.overall}/100\n  Coupling: ${v.coupling}/100\n  Cohesion: ${v.cohesion}/100\n  Cyclic Dep Rate: ${v.cyclicDependencyRate}/100\n  Modularity: ${v.modularity}/100`,
         }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as HealthScore | null;
+        if (!v) return 'Insufficient data for health scoring.';
+        return metaText(`overall ${String(v.overall)}/100 (coupling ${String(v.coupling)}, cohesion ${String(v.cohesion)}, cyclic-dep ${String(v.cyclicDependencyRate)}, modularity ${String(v.modularity)}) — ${v.overall >= 70 ? 'healthy' : v.overall >= 40 ? 'degraded' : 'poor'}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string };
       return { card: 'generic' as const, title: 'Calculate health score', kind: 'other' as const, rawInput: { repoId: a.repoId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Health scoring failed' : 'Health score',
-    }),
+    presentResult: presentResultWithSummary('Health score', 'Health scoring failed'),
     execute: async (args) => {
       const a = args as { repoId: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
@@ -1122,15 +1244,17 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         const lines = v.slice(0, 20).map((r) => `  [${r.severity}] ${r.message}`);
         return [{ type: 'text' as const, text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS?.en ?? 'rule violations:'}\n${lines.join('\n')}` }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as RuleViolation[] | null;
+        if (!v || v.length === 0) return 'No rule violations.';
+        return metaText(`${String(v.length)} violation(s): ${v.slice(0, 3).map((r) => `[${r.severity}] ${r.message}`).join('; ')}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string; maxIndegree?: number; maxOutdegree?: number };
       return { card: 'generic' as const, title: 'Check architecture rules', kind: 'other' as const, rawInput: { repoId: a.repoId, maxIndegree: a.maxIndegree ?? 10, maxOutdegree: a.maxOutdegree ?? 15 } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Rules check failed' : 'Rules checked',
-    }),
+    presentResult: presentResultWithSummary('Rules checked', 'Rules check failed'),
     execute: async (args) => {
       const a = args as { repoId: string; maxIndegree?: number; maxOutdegree?: number };
       const data = await fetchMergedGraph(invoke, a.repoId, 'both', deps);
@@ -1168,15 +1292,18 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
           text: `Focus on ${v.symbolId}: ${v.neighbors?.length ?? 0} direct neighbors\n  ${v.neighbors?.slice(0, 15).join(', ') ?? ''}`,
         }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { neighbors?: string[]; symbolId?: string } | null;
+        if (!v) return 'Symbol not found in graph.';
+        const n = v.neighbors?.length ?? 0;
+        return metaText(n === 0 ? `${String(v.symbolId)}: 0 direct neighbors` : `${String(v.symbolId)}: ${String(n)} direct neighbor(s), e.g. ${v.neighbors?.slice(0, 3).join(', ') ?? ''}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { symbolId: string };
       return { card: 'generic' as const, title: 'Focus on symbol', kind: 'search' as const, rawInput: { symbolId: a.symbolId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Focus failed' : 'Symbol neighborhood',
-    }),
+    presentResult: presentResultWithSummary('Symbol neighborhood', 'Focus failed'),
     execute: async (args) => {
       const a = args as { repoId: string; symbolId: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
@@ -1227,15 +1354,17 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         const meta = `${v.tokens ?? 0} tokens${v.truncated ? ` / truncated (${v.reason})` : ''}`;
         return [{ type: 'text' as const, text: `${seedLine}${meta}\n${v.text}` }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { text?: string; seeds?: Array<{ id: string; label: string; score: number }>; tokens?: number; truncated?: boolean; reason?: string; nodeCount?: number; edgeCount?: number } | null;
+        if (!v || !v.text) return 'No seed matched the query.';
+        return metaText(`${String(v.seeds?.length ?? 0)} seed(s), ${String(v.nodeCount ?? 0)} node(s) / ${String(v.edgeCount ?? 0)} edge(s) in subgraph, ${String(v.tokens ?? 0)} tokens${v.truncated === true ? ` (truncated: ${String(v.reason ?? 'unknown')})` : ''}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string; query: string };
       return { card: 'generic' as const, title: 'Query graph', kind: 'search' as const, rawInput: { repoId: a.repoId, query: a.query } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Graph query failed' : 'Graph query result',
-    }),
+    presentResult: presentResultWithSummary('Graph query result', 'Graph query failed'),
     execute: async (args) => {
       const a = args as {
         repoId: string;
@@ -1333,15 +1462,20 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         ];
         return [{ type: 'text' as const, text: lines.join('\n') }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { loaded?: boolean; graph?: { nodes: number; edges: number; version: number }; changeLog?: { pending: number; dropped: number; drained: number | null }; rules?: ReadonlyArray<{ name: string; counters: { total: number; stale: number } }>; incrementalIdle?: boolean } | null;
+        if (!v || v.loaded !== true) return 'Graph layer not loaded for this repo yet.';
+        const g = v.graph ?? { nodes: 0, edges: 0, version: 0 };
+        const c = v.changeLog ?? { pending: 0, dropped: 0, drained: null };
+        const stale = (v.rules ?? []).reduce((sum, r) => sum + r.counters.stale, 0);
+        return metaText(`loaded, nodes=${String(g.nodes)} edges=${String(g.edges)} version=${String(g.version)}; changeLog pending=${String(c.pending)} dropped=${String(c.dropped)}${c.drained === null ? '' : ` drained=${String(c.drained)}`}; stale index entries=${String(stale)}${v.incrementalIdle === true ? '; incremental pipeline dormant' : ''}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string };
       return { card: 'generic' as const, title: 'Check graph integrity', kind: 'other' as const, rawInput: { repoId: a.repoId } };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Integrity check failed' : 'Graph integrity',
-    }),
+    presentResult: presentResultWithSummary('Graph integrity', 'Integrity check failed'),
     execute: async (args) => {
       const a = args as { repoId: string; drainChanges?: boolean };
       // 与其余读法工具同链路：先同步到该仓库的最新图状态（syncGraph 内部按结构等价
@@ -1407,6 +1541,11 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         ];
         return [{ type: 'text' as const, text: lines.join('\n') }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as GraphSliceResult | null;
+        if (!v || !v.available) return `Slice unavailable: ${String(v?.reason ?? 'unknown reason')}`;
+        return metaText(`${String(v.view)} @ ${String(v.granularity)}: ${String(v.nodes.length)} node(s), ${String(v.edges.length)} edge(s), ${String(Object.keys(v.labels).length)} label(s)${v.viewDataAvailable ? '' : ' (view data unavailable)'}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string; view: string; granularity?: string; focus?: string };
@@ -1417,10 +1556,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         rawInput: { repoId: a.repoId, view: a.view, granularity: a.granularity ?? 'symbol' },
       };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'Graph slice failed' : 'Graph slice',
-    }),
+    presentResult: presentResultWithSummary('Graph slice', 'Graph slice failed'),
     execute: async (args) => {
       const slice = await executeGraphSlice(args as {
         repoId: string;
@@ -1487,6 +1623,12 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         if (samples.length > 0) lines.push(`samples:\n${samples.join('\n')}`);
         return [{ type: 'text' as const, text: lines.join('\n') }];
       },
+      presentationMeta: (_args, value: unknown) => {
+        const v = value as { nodes?: Array<{ id: string; views: string[] }>; edges?: Array<{ id: string; views: string[] }>; viewCounts?: Record<string, number>; domain?: { domainCount: number; domainNames: string[] } } | null;
+        if (!v) return 'View partition unavailable.';
+        const counts = Object.entries(v.viewCounts ?? {}).map(([k, n]) => `${k}=${String(n)}`).join(', ');
+        return metaText(`${String(v.nodes?.length ?? 0)} node(s) / ${String(v.edges?.length ?? 0)} edge(s) partitioned; view counts: ${counts || 'none'}${v.domain ? `; ${String(v.domain.domainCount)} domain community(ies)` : ''}`);
+      },
     },
     presentCall: (args) => {
       const a = args as { repoId: string; focus?: string; commitLog?: string; blameLog?: string };
@@ -1497,10 +1639,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         rawInput: { repoId: a.repoId, ...(a.focus === undefined ? {} : { focus: a.focus }) },
       };
     },
-    presentResult: (_args, result) => ({
-      card: 'generic' as const,
-      title: result.isError ? 'View partition failed' : 'View partition Π',
-    }),
+    presentResult: presentResultWithSummary('View partition Π', 'View partition failed'),
     execute: async (args) => {
       const a = args as {
         repoId: string;
