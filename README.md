@@ -366,6 +366,16 @@ pnpm run hygiene        # 消费面 / 死代码检查
 
 ## 更新日志
 
+### 0.3.1（2026-11-13）
+
+- **命令窗口结果呈现增强**：15 个图谱工具全部接入 `presentationMeta` 投影 + `presentResult` 内容摘要（模型/UI 双通道彻底分离，UI 卡片直接可读结果要点，isError 有失败摘要、空投影诚实省略）。
+- **工具注册崩溃安全化**：逐工具 try/catch 降级 + 注册结果白盒快照——单个注册失败（同名冲突/宿主拒绝）不再拖垮其余 14 个工具，热更新撤销互不影响。
+- **图交互增强**：Shift 框选（cytoscape boxend 并入多选镜像）、右键菜单 4 新动作（从此展开/收起到这里/固定节点/复制符号 ID，全项 `data-action-id`）、面板栈 768/480 两档容器查询响应式。
+- **CSS 纪律门禁化**：新增 color-mix fallback 契约守卫（每处用法必须有对应 fallback 条目），补齐 node-detail 8 处缺口（浅/深双变体）。
+- **真实缺陷修复**：小地图悬浮提示 inline style 多余右括号（border/shadow 恢复生效）；StatusBar 等三处类型收窄。
+- 测试基线 7055 → **7178**（+123：presentResultSummary 78 / 崩溃安全回归 3 / colorMixFallbackContract 3 / FBX-02 4 / FBX-03 5 / 键盘提示 2 / panelStackResponsiveContract 5 / 既有断言同步）。
+- 联动上游：dsh-anic 技能三缺陷修复（init-cycle 号源三源取最大 / Merkle 缓存纳入 CSS / auto-fix-loop ENOBUFS 伪装超时根因修复）。
+
 ### 0.3.0（2026-11-07）
 
 - **声明式配置**：导出 Schemastery `Config` schema（Standard Schema 接口）——宿主设置 UI 可编辑插件配置，cordis 加载期校验 + 默认值填充；与 `resolveConfig` 双防线同形状（契约测试钉死单一真源）。
